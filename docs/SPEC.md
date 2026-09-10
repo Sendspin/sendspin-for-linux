@@ -21,18 +21,39 @@ they use `sendspin-cli` (#46).
 - Full v1.0: Noise encryption, Pairing PSK, dynamic pairing code. Unpaired access (guest mode)
   on by default.
 - Announces itself over mDNS; servers connect in.
-- Native media controls (MPRIS). Tray icon where the desktop has one.
-- Settings: device name, output device, input (Sendspin output or a line-in device), guest mode,
-  media controls on/off.
+- Native media controls (MPRIS), an icon menu where the desktop has a tray, and one Settings
+  window. See [UI](#ui).
 
 ### Not in the MVP
 
 - Built-in server / cast mode (#42 AVP).
+- A now-playing window. What is playing shows in the desktop's own media controls.
 - Choosing the target speaker or group from the app, or one OS output per speaker. The spec
   leaves target choice to the server; see [Where source audio plays](#where-source-audio-plays).
 - Capturing whatever is playing locally without switching outputs.
 - PulseAudio-only systems. PipeWire is the default everywhere we target.
 - A daemon/headless mode.
+
+## UI
+
+Three surfaces, and no others:
+
+1. **The desktop's media controls** (MPRIS) — what is playing, and transport. See
+   [Where the playing media shows up](#where-the-playing-media-shows-up).
+2. **The icon menu** — status and transport, then Settings… and Quit.
+3. **One Settings window:**
+   - connection status: which server, or not connected
+   - pairing: the code and QR code while MA is pairing, and the Pairing PSK token
+   - device name (MA's own custom player name still wins in MA)
+   - output device (default: follow the system default)
+   - input: Sendspin output or a line-in device
+   - guest mode on/off
+   - media controls on/off
+
+The Settings window opens from the icon menu, from the app launcher, on a second launch, and from
+the pairing notification. On stock GNOME, which has no tray, the launcher is the only way in.
+
+Every setting is live — no Save button.
 
 ## Connection
 
@@ -53,8 +74,8 @@ they use `sendspin-cli` (#46).
   only accepts paired sources, so guest mode never covers sending audio.
 - Pairing methods offered: Pairing PSK (always, as the spec requires) and the dynamic pairing
   code on `display`. No static code. No spoken digits.
-- When MA starts dynamic pairing, show the code (`123-456`) and its QR code in a window, raised
-  through a notification so it works without a tray.
+- When MA starts dynamic pairing, post a notification with the code (`123-456`). Activating it
+  opens the Settings window, which shows the code and its QR code until pairing ends.
 - The Pairing PSK token (`SP:0…`) is available in settings for pairing by token.
 - Keep at least 5 pairing records. Never log keys, PSKs or tokens.
 
@@ -94,7 +115,8 @@ they use `sendspin-cli` (#46).
 - Settings…, Quit.
 
 **Stock GNOME has no tray.** There the MPRIS card is the surface, the Flatpak build appears under
-Background Apps in Quick Settings with a one-line status, and the app launcher opens settings.
+Background Apps in Quick Settings with a one-line status, and the app launcher opens the Settings
+window.
 
 ## Sending this PC's audio
 
@@ -147,6 +169,8 @@ what backlog#56 proposes.
 ## Platform
 
 - **C++**, on [sendspin-cpp](https://github.com/Sendspin/sendspin-cpp).
+- **Qt 6** for the icon menu (StatusNotifierItem) and the Settings window, QtDBus for MPRIS. The
+  Flatpak builds on the KDE runtime.
 - **PipeWire required.**
 - **Flatpak first:**
   - `--filesystem=xdg-run/pipewire-0` (not `--socket=pulseaudio`)
@@ -181,12 +205,10 @@ what backlog#56 proposes.
    - ask MA to default it to Off, or to ask during pairing;
    - don't report `signal`, and start the input by hand in MA every time;
    - keep the default and point the user at the setting after pairing.
-2. **UI toolkit.** Qt 6 has a tray (StatusNotifierItem), QtDBus for MPRIS and a KDE Flatpak
-   runtime. gtkmm 4 looks native on GNOME but has no tray API, so SNI would be hand-rolled.
-3. **Reuse from sendspin-cpp-cli.** Link `sendspin-cli-core`, or extract its sinks and mDNS into
+2. **Reuse from sendspin-cpp-cli.** Link `sendspin-cli-core`, or extract its sinks and mDNS into
    a library both use?
-4. **Encryption in sendspin-cpp.** Who drives `encryption-support` to a PR, and when?
-5. **Key storage.** A 0600 file under the XDG data dir, or the Secret portal?
-6. **Source codec.** FLAC or PCM on a LAN, Opus as a fallback?
-7. **Inputs.** Confirm the MVP is just the Sendspin output plus a line-in device.
-8. **App ID.** `io.sendspin.client` is already taken by chrisuthe/sendspin-player.
+3. **Encryption in sendspin-cpp.** Who drives `encryption-support` to a PR, and when?
+4. **Key storage.** A 0600 file under the XDG data dir, or the Secret portal?
+5. **Source codec.** FLAC or PCM on a LAN, Opus as a fallback?
+6. **Inputs.** Confirm the MVP is just the Sendspin output plus a line-in device.
+7. **App ID.** `io.sendspin.client` is already taken by chrisuthe/sendspin-player.
