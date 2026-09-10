@@ -124,6 +124,17 @@ Collected 2026-09-10 for [SPEC.md](SPEC.md). Spec references are to
 - Background portal: autostart and `SetStatus`
   ([docs](https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.Background.html)).
 
+**Distro releases** (checked 2026-09-10)
+- Release and end-of-life dates: [endoflife.date](https://endoflife.date/) for Fedora, Ubuntu
+  and Debian.
+- Package versions:
+  - Fedora from [mdapi](https://mdapi.fedoraproject.org/). It lags: it reported PipeWire 1.6.2 for
+    f44 while a Fedora 44 machine had 1.6.8 installed.
+  - Ubuntu from the archive's madison (`ubuntu-archive-team.ubuntu.com/madison.cgi`).
+  - Debian from the [sources.debian.org](https://sources.debian.org/) API. Debian 12 also has
+    PipeWire 1.4.2 in bookworm-backports.
+- Debian 12 uses PipeWire by default only on GNOME ([wiki](https://wiki.debian.org/PipeWire)).
+
 **Flatpak**
 - Precedent for creating PipeWire sinks from a sandbox: EasyEffects
   ([manifest](https://github.com/flathub/com.github.wwmm.easyeffects)).

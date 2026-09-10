@@ -31,7 +31,7 @@ they use `sendspin-cli` (#46).
 - Choosing the target speaker or group from the app, or one OS output per speaker. The spec
   leaves target choice to the server; see [Where source audio plays](#where-source-audio-plays).
 - Capturing whatever is playing locally without switching outputs.
-- PulseAudio-only systems. PipeWire is the default everywhere we target.
+- Systems without PipeWire. See [Platform](#platform) for why.
 - A daemon/headless mode.
 
 ## UI
@@ -169,16 +169,45 @@ what backlog#56 proposes.
 ## Platform
 
 - **C++**, on [sendspin-cpp](https://github.com/Sendspin/sendspin-cpp).
-- **Qt 6** for the icon menu (StatusNotifierItem) and the Settings window, QtDBus for MPRIS. The
-  Flatpak builds on the KDE runtime.
-- **PipeWire required.**
-- **Flatpak first:**
-  - `--filesystem=xdg-run/pipewire-0` (not `--socket=pulseaudio`)
-  - `--talk-name=org.kde.StatusNotifierWatcher`
-  - `--system-talk-name=org.freedesktop.Avahi`
-  - MPRIS name is auto-granted — do not declare it
-  - Background portal for autostart
-- Outside Flatpak, an XDG autostart entry.
+- **Qt 6** for the icon menu (StatusNotifierItem) and the Settings window, QtDBus for MPRIS.
+- **PipeWire required.** No PulseAudio or ALSA fallback for now, because:
+  - Every supported release uses PipeWire by default.
+  - The Sendspin output depends on it. A PipeWire node disappears with the app, can be marked as a
+    network device so Plasma's applet shows it, and timestamps each buffer from the graph clock.
+  - A PulseAudio version of that output would leak its sink when the app crashes, need a second
+    timing path to get sync right, and rely on module loading, which is unsafe from a Flatpak.
+  - Revisit if people ask. Playback and line-in could fall back cheaply to sendspin-cpp-cli's
+    PulseAudio/ALSA outputs and PortAudio capture; the Sendspin output could not.
+
+### Install methods
+
+Listed in this order in the README and on the website:
+
+1. **Distro packages** — `.deb` for Debian and Ubuntu, `.rpm` for Fedora, attached to each GitHub
+   release, with package repositories later. Arch through the AUR. Same problem as
+   [backlog#52](https://github.com/Sendspin/backlog/issues/52) for `sendspin-cli`; solve it once.
+   - Built against the distro's Qt 6, libpipewire and avahi dns_sd.
+   - Installs an XDG autostart entry.
+2. **Flatpak** (Flathub), on the KDE runtime.
+   - `--filesystem=xdg-run/pipewire-0` (not `--socket=pulseaudio`)
+   - `--talk-name=org.kde.StatusNotifierWatcher`
+   - `--system-talk-name=org.freedesktop.Avahi`
+   - MPRIS name is auto-granted — do not declare it
+   - Background portal for autostart. Only this build gets GNOME's Background Apps entry.
+
+### Supported releases
+
+As of 2026-09-10:
+
+| Distro | Releases | Qt 6 | PipeWire |
+|---|---|---|---|
+| Fedora | current + one back: 44, 43 | 6.11 / 6.10 | 1.6 / 1.4 |
+| Ubuntu | 26.04 LTS and later | 6.10 | 1.6 |
+| Debian | 13 and later | 6.8 | 1.4 |
+| Arch | rolling | current | current |
+
+- **Floor: Qt 6.8 and PipeWire 1.4.2**, both set by Debian 13.
+- Ubuntu 24.04 and Debian 12 are left out on purpose: both ship Qt 6.4.
 
 ## Depends on
 
