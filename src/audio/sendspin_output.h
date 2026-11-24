@@ -35,6 +35,8 @@ public:
     static constexpr uint32_t RATE = 48000;
 
     /// Called on PipeWire's realtime thread: no locks, allocation or blocking calls.
+    /// The graph only runs the node while a player is linked to it, so the end of playback is
+    /// the blocks stopping, not a run of silent ones.
     using Consumer = std::function<void(const CapturedBlock&)>;
 
     /// @param node_name The node's `node.name`, which the session manager keys its saved volume
