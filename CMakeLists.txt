@@ -26,5 +26,7 @@ pkg_check_modules(AVAHI REQUIRED IMPORTED_TARGET avahi-client)
 
 include(cmake/sendspin_libs.cmake)
 
+option(SENDSPIN_SANITIZE "Build the app and its tests with ASan and UBSan" OFF)
+
 include(CTest)
 add_subdirectory(src)
