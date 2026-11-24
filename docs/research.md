@@ -34,7 +34,6 @@ tag v0.10.1.
   Linux.
 - One destination at a time: speakers or the server; the server's stream gets silence while
   speakers are chosen (`README.md`, "How it works", Music Assistant).
-- The device's volume and mute control the speakers instead of scaling the audio ("Device").
 - The speaker buffer reported as the device's output latency, for lip sync ("Timing").
 - Idle: `stream/end` after 3 s of digital silence ("Idle").
 - The local output plays along as a host-driven output, not as a Sendspin player ("The Mac's own
@@ -58,6 +57,7 @@ tag v0.10.1.
 | QR codes scanned with the camera | Not in the MVP |
 | The pairing token is shown nowhere | Copy pairing token in Settings |
 | A volume slider per speaker | One slider, the group's volume |
+| The device's volume and mute drive the speakers, not the audio ("Device") | PipeWire scales the captured audio; the picker's slider drives the speakers |
 | The buffer grows for the Mac's own output | Not yet; the library's lead counts Sendspin players only |
 
 **The Mac's open items that apply here too** (`TODO.md`): feeding the server's other roles
@@ -90,6 +90,12 @@ As of 2026-09-10 unless noted.
   [spec#170](https://github.com/Sendspin/spec/pull/170),
   [#242](https://github.com/Sendspin/spec/pull/242). `source@v1` needs explicit approval.
 - **Sendspin 1 is a release candidate** (sendspin-mac `README.md`, October 2026).
+- **Volume** (spec `README.md` at `2cfe197`, read 2026-11-24):
+  - "Player messages" (line 1333): 0–100 is perceived loudness; clients SHOULD use
+    `amplitude = (volume / 100)^1.5` and ramp changes. `volume` and `muted` are independent.
+  - "Setting group volume" (line 1674): group volume is the average of the players that support
+    volume; a change applies the same delta to each, clamps, redistributes what was clamped, and
+    sends one command per player.
 - **Discovery** (`connection.md`):
   - clients advertise `_sendspin._tcp` (port 8928, TXT `path`, `name`)
   - servers advertise `_sendspin-server._tcp` (port 8927)
@@ -137,7 +143,7 @@ As of 2026-09-10 unless noted.
   the first producible entry at the input's rate.
 - **Volume** (`server.h`): `set_group_volume()` and `set_group_mute()` for any group. Nothing
   per player, and neither `ClientInfo` nor `GroupInfo` carries a volume. v1 needs only the
-  group's.
+  group's. The spec's group-volume algorithm is in `src/controller.h`.
 - **Sources** (`server.h`, `route_source()`; `src/server.cpp`): accepts PCM and FLAC from a
   source, Opus when enabled.
 - **Clock** (`src/clock.h`): `CLOCK_MONOTONIC_RAW` on Linux.
@@ -194,6 +200,7 @@ The reference Sendspin 1 player from 0.4.0 on (sendspin-mac `README.md`).
   and sources.
 - mDNS in `src/mdns_dnssd.cpp`.
 - All inside the `sendspin-cli-core` static library, with the CLI and daemon.
+- Apache-2.0 (`LICENSE`), so the two PipeWire files can be copied in with their notices.
 
 Other SDKs (aiosendspin, sendspin-dotnet, sendspin-rs) are no longer relevant to this app.
 
@@ -246,10 +253,9 @@ Collected 2026-09-10.
   ([pw_time](https://docs.pipewire.org/structpw__time.html)); both Sendspin libraries count
   `CLOCK_MONOTONIC_RAW`.
 
-**Not verified yet** (SPEC.md open questions 3–6)
+**Not verified yet** (SPEC.md open questions 3–5)
 - How a sink node reports a latency that changes while it runs, and which players delay video by
   it.
-- Receiving a sink node's volume without the adapter applying it.
 - Setting and restoring the default sink from an app (the `default` metadata's
   `default.configured.audio.sink`), and how WirePlumber treats that across restarts.
 - Window placement for a tray popup under Wayland: `xdg_toplevel` has no position request.

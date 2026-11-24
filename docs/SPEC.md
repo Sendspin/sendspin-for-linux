@@ -283,7 +283,7 @@ How fast each of these shows is the libraries' doing, not the app's, and the Mac
 carry over. The server library has a write-stall limit (15 s) and a dial backoff (1–60 s)
 (`server: include/sendspin/server/config.h`); its public headers name no ping. The client drops
 a silent connection after 30 s (`SendspinClientConfig::liveness_timeout_ms`). Whether a speaker
-that loses power shows Unavailable fast enough is open question 10.
+that loses power shows Unavailable fast enough is open question 7.
 
 ### Where this differs from the Mac's menu
 
@@ -292,6 +292,8 @@ Beyond the rows above (no driver or Local Network notice, no AirPlay, no QR scan
 - **Needs pairing.** `menu-states.md` still says the app can't pair speakers; the Mac's README
   and this app pair on tick.
 - **One volume slider, the group's.** The Mac has one per speaker. See [Volume](#volume).
+- **The Sendspin output's own volume scales the audio**, like any output's. On the Mac it drives
+  the speakers instead.
 - **The speaker buffer doesn't grow for this PC's output** — open question 2.
 - **The pairing token** is offered in Settings (Copy pairing token). The Mac shows it nowhere.
 - **A speaker can tick itself** with its `switch` button; see above.
@@ -400,9 +402,8 @@ desktop, and both libraries' examples use files. Never log keys, PSKs or tokens.
 - `node.description=Sendspin`, `node.network=true`, `node.virtual` unset — Plasma's applet hides
   virtual sinks by default.
 - Low `priority.session`.
-- Its volume and mute are not applied to the audio. With speakers ticked they are the group's
-  volume and mute, so the volume keys control the speakers; see [Volume](#volume). With a server
-  chosen they do nothing: the server has its own volume.
+- Its volume and mute work like any output's: PipeWire scales what the app captures. They do not
+  drive the speakers; that is the picker's slider. See [Volume](#volume).
 - It reports the speaker buffer as its latency; see [Timing](#timing).
 
 ## Casting to speakers
@@ -419,16 +420,40 @@ desktop, and both libraries' examples use files. Never log keys, PSKs or tokens.
 
 ### Volume
 
-v1 has one volume: that of the group being played to.
+Two controls, independent of each other:
+
+| Control | Sets | Where |
+|---|---|---|
+| The picker's slider and mute | The volume of the group being played to | The speakers, each on its own hardware |
+| The Sendspin output's volume and mute (OS mixer, volume keys) | The level of the audio the app captures | PipeWire, before the app sees it |
+
+**The group's volume**
 
 - `set_group_volume()` and `set_group_mute()` on the cast group
-  (`server: include/sendspin/server/server.h`). The library sends each speaker that supports
-  volume one command and keeps their relative levels.
-- One slider and one mute, on the picker's Sendspin row, shown while a speaker is ticked. It and
-  the Sendspin output's volume in the OS mixer are the same value, both ways.
+  (`server: include/sendspin/server/server.h`).
+- The library implements the spec's group-volume algorithm
+  ([spec `README.md`, "Setting group volume"](https://github.com/Sendspin/spec/blob/main/README.md),
+  line 1674 at `2cfe197`; `server: src/controller.h`): the group's volume is the average of its
+  players'; a change shifts every player by the same amount, clamps at 0 and 100 and hands what
+  was clamped to the others; each player gets one command. Players without volume support are
+  left out. Relative levels are kept.
+- Mute goes to each player that supports it. A volume change never clears a mute.
+- One slider and one mute, on the picker's Sendspin row, shown while a speaker is ticked.
 - No per-speaker sliders. A speaker's level relative to the others is set on the speaker.
-- This PC's output, playing along, takes the same value as its stream's volume, and the same
-  mute.
+- **Volume is perceived loudness, 0–100, not amplitude** (spec `README.md`, "Player messages",
+  line 1333): 50 should sound half as loud as 100. Wherever the app turns a Sendspin volume into
+  a gain itself, it uses `amplitude = (volume / 100)^1.5` and ramps the change:
+  - this PC's output playing along, which takes the group's volume and mute;
+  - the player role's stream, below.
+
+**The Sendspin output's volume**
+
+- PipeWire applies it to the captured audio, so it reaches everything downstream alike: the
+  speakers, this PC's output playing along, and Music Assistant.
+- Muting it sends silence. After 3 s that is idle, as any silence is.
+- Below 100% the audio is no longer the app's samples. For lossless playback leave it at 100%
+  and use the picker's slider.
+- With a server chosen it is the only volume the app has; the server sets its speakers' own.
 - A speaker with a controller can change the group's volume and mute too; the server carries
   that out itself (`types.h`, `TransportCommand`). The library reports no group volume back to
   the host, so the slider shows the last value set from this PC.
@@ -443,7 +468,6 @@ v1 has one volume: that of the group being played to.
 - The device's clock drifts from that timeline. Follow it by dropping or repeating single frames
   inside a small dead band, with a resync at the start, after an underrun and past 1 ms (mac:
   `README.md`, "The Mac's own output").
-- Muting the Sendspin output mutes it too.
 - When its own latency is longer than the group's, it cannot be on time. See
   [Open questions](#open-questions).
 
@@ -474,7 +498,8 @@ v1 has one volume: that of the group being played to.
 - Advertise only formats that play without a resampler: the sink's `EnumFormat` intersected with
   the daemon's `clock.allowed-rates`, as FLAC and PCM.
 - The player's volume and mute are that stream's volume in the OS mixer, both ways
-  (`on_volume_changed()`, `update_volume()`).
+  (`on_volume_changed()`, `update_volume()`), converted with the spec's curve; see
+  [Volume](#volume).
 - Transport commands go through the controller role and act on the group. Offer only what
   `supported_commands` lists.
 
@@ -563,7 +588,8 @@ Listed in this order in the README and on the website:
 1. **Distro packages** — `.deb` for Debian and Ubuntu, `.rpm` for Fedora, attached to each GitHub
    release, with package repositories later. Arch through the AUR. Same problem as
    [backlog#52](https://github.com/Sendspin/backlog/issues/52) for `sendspin-cli`; solve it once.
-   - Built against the distro's Qt 6, libpipewire, avahi-client and OpenSSL 3.
+   - Built against the distro's Qt 6, libpipewire, avahi-client and OpenSSL 3. Everything else
+     comes from the source tree; see [Building offline](#building-offline).
    - Installs an XDG autostart entry.
 2. **Flatpak** (Flathub), on the KDE runtime.
    - `--share=network`
@@ -572,6 +598,21 @@ Listed in this order in the README and on the website:
    - `--system-talk-name=org.freedesktop.Avahi`
    - MPRIS name is auto-granted — do not declare it
    - Background portal for autostart. Only this build gets GNOME's Background Apps entry.
+
+### Building offline
+
+Distro and Flathub builds have no network, and both libraries fetch their dependencies with
+CMake FetchContent. So the release source tree carries them:
+
+- sendspin-server-cpp and sendspin-cpp at their pinned commits.
+- What they fetch: noise-c, ArduinoJson, micro-flac, micro-opus, pffft, IXWebSocket, and
+  Boost.Beast and Boost.Asio (`server: cmake/dependencies.cmake`, `cmake/noise_c.cmake`; `client: cmake/host.cmake`).
+  The server uses a system Boost 1.90 or later when there is one.
+- The build runs with FetchContent disconnected and pointed at the vendored copies. A build that
+  reaches for the network is a bug.
+- Each release lists the vendored sources, their versions and licenses, as the server's
+  `NOTICES.md` does.
+- Qt, PipeWire, Avahi and OpenSSL always come from the distro or the Flatpak runtime.
 
 ### Supported releases
 
@@ -600,11 +641,13 @@ As of 2026-09-10:
     reports a `server/unpair` or an eviction. The app keeps its own list from `on_paired()`,
     which can go stale, and Settings cannot offer Forget for a server.
   - mDNS, by design. The app advertises.
-- **Both** fetch their dependencies with CMake FetchContent (noise-c, ArduinoJson, micro-flac,
-  micro-opus; Boost.Beast and IXWebSocket). The server's tests build the two libraries in one
-  tree, so that works; distro and Flathub builds have no network and need the sources vendored.
-- **sendspin-cpp-cli** — a PipeWire playback sink and capture source to borrow from
-  (`src/pipewire_sink.cpp`, `src/pipewire_source.cpp`), inside its `sendspin-cli-core` library.
+- **Both** fetch their dependencies with CMake FetchContent. The server's tests build the two
+  libraries in one tree, so linking both works. The sources are vendored; see
+  [Building offline](#building-offline).
+- **sendspin-cpp-cli** — `src/pipewire_sink.cpp` and `src/pipewire_source.cpp` (with their
+  headers) are copied into this repository for round 1, Apache-2.0, with a note of the commit
+  they came from. The sink carries the two playback streams; the source is the starting point
+  for the Sendspin output's capture side. Extracting a library both projects use comes later.
 - **Music Assistant** — the line-in auto-play default, question 1.
 
 ## Open questions
@@ -613,7 +656,9 @@ Answered since the last draft, by the Mac or by the libraries: encryption in sen
 (merged); key storage (files, 0600); source codec (FLAC); inputs (the Sendspin output only); the
 app ID; where source audio plays (the app's own server lets the user choose; with MA, MA
 chooses); per-speaker volume (not in v1: the group's volume only, which the server library
-already sets).
+already sets); the sink's volume (PipeWire scales the captured audio, and it does not drive the
+speakers); reuse from sendspin-cpp-cli (copy its PipeWire sink and source now, a shared library
+later); offline builds (vendor the FetchContent dependencies).
 
 Still open:
 
@@ -624,20 +669,14 @@ Still open:
 2. **This PC's output slower than the group.** A Bluetooth output can need more than the speaker
    buffer. Raise the lead (needs the library change above), or show the row as unable to play
    along?
-3. **The sink's volume.** PipeWire applies a node's volume in its adapter. Find the way to
-   receive it without it scaling the audio, or accept scaling and keep the speakers' volume
-   separate.
-4. **Who honours the sink's latency.** Check mpv, Firefox, Chromium and GStreamer players through
+3. **Who honours the sink's latency.** Check mpv, Firefox, Chromium and GStreamer players through
    pipewire-pulse and natively, and what PipeWire does when the latency changes mid-stream.
-5. **Where the picker appears on Wayland.** A window can't place itself next to the tray icon.
+4. **Where the picker appears on Wayland.** A window can't place itself next to the tray icon.
    Plasma has layer-shell; GNOME does not. Centre it, or accept the compositor's placement?
-6. **Switching the default output.** Ticking a speaker changes the system default, as the Mac
+5. **Switching the default output.** Ticking a speaker changes the system default, as the Mac
    does. Fedora users objected when AirPlay outputs took the default uninvited; this is the
    user's own click, but confirm it reads that way.
-7. **More than one server.** One row, for the server that holds the connection. A second paired
+6. **More than one server.** One row, for the server that holds the connection. A second paired
    server displaces an idle first one (mac: `TODO.md` item 6). Show them all?
-8. **Reuse from sendspin-cpp-cli.** Copy its PipeWire sink and source, or extract them into a
-   library both use?
-9. **Offline builds.** Vendor the FetchContent dependencies, or get the libraries packaged?
-10. **How fast a dead speaker is noticed.** Measure it against real speakers; if it takes the
-    write-stall limit, ask for a liveness check in sendspin-server-cpp.
+7. **How fast a dead speaker is noticed.** Measure it against real speakers; if it takes the
+   write-stall limit, ask for a liveness check in sendspin-server-cpp.
