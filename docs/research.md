@@ -23,7 +23,7 @@ the libraries and sendspin-mac were read 2026-11-24. Spec references are to
 ## What we take from sendspin-mac
 
 [Sendspin/sendspin-mac](https://github.com/Sendspin/sendspin-mac) `main` at `32444d6`; latest
-tag v0.9.1.
+tag v0.10.1.
 
 **Taken as is**
 
@@ -39,8 +39,7 @@ tag v0.9.1.
 - Idle: `stream/end` after 3 s of digital silence ("Idle").
 - The local output plays along as a host-driven output, not as a Sendspin player ("The Mac's own
   output"), following drift with single frames dropped or repeated.
-- As a client: dynamic pairing code as digits, Pairing PSK offered but kept out of the main UI,
-  never a static code (`docs/menu-states.md`, "Pairing"; `TODO.md` item 1).
+- As a client: dynamic pairing code as digits, Pairing PSK offered, never a static code (`docs/menu-states.md`, "Pairing"; `TODO.md` item 1).
 - Music Assistant is recognised by a `_mass._tcp` record carrying the server's name.
 - A hidden list of speaker URLs for networks where mDNS fails.
 
@@ -57,6 +56,8 @@ tag v0.9.1.
 | AirPlay outputs can't be grouped | No equivalent; every hardware sink can play along |
 | Local Network permission notice | Avahi-not-running notice |
 | QR codes scanned with the camera | Not in the MVP |
+| The pairing token is shown nowhere | Copy pairing token in Settings |
+| The Mac's output is in the group volume, and the buffer grows for it | Neither yet; the library's group is Sendspin players only |
 
 **The Mac's open items that apply here too** (`TODO.md`): feeding the server's other roles
 (item 2), more under Music Assistant (5), more than one server (6), Opus and
@@ -114,9 +115,15 @@ As of 2026-09-10 unless noted.
   `ApprovalScope::PLAYBACK` or `PLAYBACK_AND_SOURCE`; `begin_pairing()`,
   `submit_pairing_token()`, `submit_pairing_code()`, `unpair()`. Listener calls for approval
   needed, pairing required, pairing pending, code needed, pairing result, credential mismatch.
-- **Groups** (`server.h`): one default group every approved client joins; `create_group()` needs
-  a first member; `move_client()`; a non-default group goes once it has no member, no input and
-  no client keeping its place. One input per group.
+- **Groups** (`server.h`; `src/server_core.cpp`): one default group that every client that may
+  play joins; a client that may not is held alone with no roles. `create_group()` needs a first
+  member that is connected; `move_client()`; a non-default group goes once it has no member, no
+  input and no client keeping its place. One input per group. A place is kept for 180 s after a
+  drop or a `restart` goodbye only.
+- **`switch`** (`types.h`; `src/server_core.cpp`, `switch_group()`): always offered to
+  controllers and carried out by the server, so a speaker can change groups by itself.
+- **Dials** (`server.h`, `types.h` `ConnectOptions`): a browsed client is redialed while it
+  advertises; a `connect_url()` target only with `retry_until_connected`.
 - **Live input** (`types.h`, `InputKind::LIVE`): `write()` is real-time safe and never blocks;
   the writer drops what it refuses. PCM in as S16, S24 or F32, up to 384 kHz, 1–32 channels.
   `time_of()` and `latency_us()` say when a sample plays, on `now_us()`'s clock. A raised latency
@@ -140,10 +147,11 @@ As of 2026-09-10 unless noted.
 ### sendspin-cpp
 
 [Sendspin/sendspin-cpp](https://github.com/Sendspin/sendspin-cpp) `main` at `f49a5bf`; latest
-tag v0.9.5. Apache-2.0. Builds for ESP-IDF and host.
+tag v0.10.0. Apache-2.0. Builds for ESP-IDF and host.
 
-- **Everything the old draft waited for is on `main`** (`README.md`): mandatory Noise, Pairing
-  PSK and pairing-code pairing, unpaired access, and the source role.
+- **Everything the old draft waited for is on `main`**: mandatory Noise, Pairing PSK and
+  pairing-code pairing, and the source role (`README.md`); unpaired access
+  (`include/sendspin/client.h`).
 - **Roles** are added before `start()` (`include/sendspin/client.h`): player, controller,
   metadata, artwork, source, color, visualizer.
 - **One admitted connection** (`docs/internals.md`, "Slots": `MAX_ADMITTED`, one today), which

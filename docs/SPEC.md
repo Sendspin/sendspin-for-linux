@@ -140,7 +140,7 @@ differs on Linux is called out. Keep this section in step with the picker.
 8. **One indicator per row.** Where an output is groupable, the check on the right is the group.
    Where it isn't, there is no check and the icon is highlighted while it plays.
 9. **Every output is groupable or not.** Every Sendspin speaker and this PC's output are
-   groupable. A server (Music Assistant) isn't: while it is chosen, nothing can join it.
+   groupable. A server (Music Assistant) isn't: while it plays, nothing can join it.
 10. **Something always plays after a choice.** When nothing left in the group could play, this
     PC's own output takes over.
 
@@ -183,33 +183,39 @@ it isn't ticked.
 |---|---|---|---|
 | Volume slider | It plays the PC's sound. | Connected, in the cast group, lists `player@v1`. | – |
 | Connecting… / spinner | A dial is under way. | `ClientInfo::connected` false after `connect()`, or `reconnecting`. | It's connected. |
-| Unavailable | It can't be reached. | `on_client_disconnected()` with `CONNECTION_LOST`, or no longer in `clients()`. | It's back; the library redials and it rejoins. |
-| In use elsewhere | Another server took it. | A goodbye with `GoodbyeReason::ANOTHER_SERVER`. | The user clicks its name or ticks it: `connect()`, which dials for playback. The library does not take it back by itself. |
+| Unavailable | It can't be reached, or it shut down. | `on_client_disconnected()` with `CONNECTION_LOST`, or a goodbye with `SHUTDOWN` or `RESTART`; or no longer in `clients()`. | It's back. A browsed speaker is redialed by the library while it advertises. |
+| In use elsewhere | Another server has it. Ticked: it was taken over. Unticked: it refused our idle connection. | A goodbye with `GoodbyeReason::ANOTHER_SERVER`, or `on_error()` with `GOODBYE_BEFORE_ACTIVATION` and `ANOTHER_SERVER` or `CONCURRENT_ATTEMPT`. | The user clicks its name or ticks it: `connect()`, which dials for playback. The library does not take it back by itself. |
 | Disconnected | Its user disconnected it from this PC. | A goodbye with `USER_REQUEST`. | The user unticks it and ticks it again. |
-| Can't connect | It answers, but the connection fails. | `on_error()` with `DIAL_FAILED` or `HANDSHAKE_FAILED`. | It works; the library retries with backoff. |
+| Can't connect | It answers, but the connection fails. | `on_error()` with `DIAL_FAILED` or `HANDSHAKE_FAILED`, or `DisconnectReason::CLOSED_BY_SERVER`. | It works. The library retries a browsed speaker with backoff. |
 | Can't play | It lists no format the server can produce. | `on_error()` with `NO_PLAYABLE_FORMAT`. | – |
-| Needs pairing | It only plays for paired servers. | `on_pairing_required()`. | Ticking it starts pairing. |
-| Needs pairing again | It lost its pairing with this PC. | `on_credential_mismatch()`. | It's paired again. |
-| Identity changed | A different device presents itself under a ticked speaker's name. | A new `client_id` under a ticked speaker's name or URL, reported unapproved (`on_approval_needed()`). | The user clicks it, approving the new identity. |
-| nothing | Not ticked; also a speaker that connected to this PC and waits. | In the lobby group, or `on_approval_needed()`. | The user ticks it. |
+| Needs pairing | It only plays for paired servers. | `on_pairing_required()`, or a goodbye with `PAIRING_REQUIRED` or `UNAUTHORIZED`. | Ticking it starts pairing. |
+| Needs pairing again | It lost its pairing with this PC. | `on_credential_mismatch()`, or a goodbye with `UNPAIRED`. | It's paired again. |
+| Identity changed | A different device presents itself under a ticked speaker's name. | App logic, not the library's: a `client_id` the app hasn't seen, under a ticked speaker's name or URL. It arrives as any new speaker does (`on_approval_needed()` or `on_pairing_required()`). | The user clicks it, accepting the new identity. |
+| nothing | Not ticked; also a speaker that connected to this PC and waits. | In the lobby, or held alone (`on_approval_needed()`). | The user ticks it. |
 
-All of the above is in `server: include/sendspin/server/server.h` (`ServerListener`) and
-`types.h` (`ClientInfo`, `GoodbyeReason`, `ErrorKind`).
+The events are in `server: include/sendspin/server/server.h` (`ServerListener`) and `types.h`
+(`ClientInfo`, `DisconnectReason`, `GoodbyeReason`, `ErrorKind`).
+
+- `connect()` only reaches a speaker the server can dial. One that connected to us and left is
+  gone from `clients()`; it shows again when it connects again.
 
 A speaker keeps the name from its hello while it's away; mDNS often has only an ID.
 
 ### What ticking does
 
-The server library has one group every approved client joins by itself
-(`SendspinServer::default_group()`). The app uses it as a **lobby** that never gets an input, and
-casts into a group of its own, so nothing plays on a speaker the user didn't tick.
+The server library has one group that every client that may play (paired or approved) joins by
+itself (`SendspinServer::default_group()`). A client that may not play is held alone, with no
+roles. The app uses the default group as a **lobby** that never gets an input, and casts into a
+group of its own, so the app never plays on a speaker the user didn't tick.
 
 | Action | App does |
 |---|---|
 | Tick a speaker with unpaired access | `approve(client_id, ApprovalScope::PLAYBACK)`, then move it into the cast group (`create_group()` for the first, `move_client()` after). Never `PLAYBACK_AND_SOURCE`. |
 | Tick a paired speaker | Move it into the cast group. |
 | Tick a speaker that needs pairing | Pair it (below); on `PairingResult::PAIRED`, move it in. |
-| Untick a speaker | Move it back to the lobby; `revoke_approval()` if it was only approved. |
+| Tick a speaker that isn't connected | `connect()`; move it in on `on_client_connected()`. |
+| Untick a paired speaker | Move it to the lobby. |
+| Untick a speaker that was only approved | `revoke_approval()`: its stream ends and it is held alone again. |
 | Tick this PC's output | Start play-along. Alone, switch the system output back to the hardware device. |
 | Untick the last thing that could play | This PC's output is ticked instead (rule 10). |
 | Choose the server | Untick the speakers, release the cast input, feed the source role. |
@@ -217,8 +223,16 @@ casts into a group of its own, so nothing plays on a speaker the user didn't tic
 
 - The ticked set is the app's own setting, kept by `client_id`. The library's approval and
   pairing records say who *may* play, not who is ticked.
-- A ticked speaker that reconnects after the rejoin grace (`ServerTiming::group_rejoin_grace_us`,
-  180 s) lands in the lobby; the app moves it back on `on_client_connected()`.
+- The library keeps a speaker's place in the cast group only after a drop or a `restart`
+  goodbye, and only for `ServerTiming::group_rejoin_grace_us` (180 s). In every other case a
+  ticked speaker comes back into the lobby, so the app moves each ticked speaker into the cast
+  group on every `on_client_connected()`. The same at startup, for the stored set.
+- `create_group()` and `move_client()` do nothing for a speaker that isn't connected and holds
+  no place, which is why a tick may have to wait for the connection.
+- **A speaker can move itself.** The server always offers a controller the `switch` command and
+  carries it out (`types.h`, `TransportCommand`; `server: src/server_core.cpp`,
+  `switch_group()`). A speaker whose own button switches it into or out of the cast group is
+  ticked or unticked to match (`on_group_changed()`): the person at the speaker chose.
 - `ServerConfig::approve_all_clients` stays off.
 
 ### This PC's output
@@ -230,7 +244,7 @@ sink. Named and drawn as the desktop does.
   the server's timeline. It is not a Sendspin player and makes no connection.
 - Alone, the system plays on it directly.
 - Its slider is the device's own volume either way.
-- The server, the monitor of any sink, and our own Sendspin output are never offered here.
+- Our own Sendspin output and the monitor of any sink are never offered here.
 
 ### The server row
 
@@ -241,7 +255,7 @@ icon is highlighted while its stream is open.
 
 | When | Caption |
 |---|---|
-| Not paired yet | Pair this PC in **[server]**, then enter the code that appears here. |
+| Not paired yet | Pair this PC in **[server]**, then enter the code that appears here. Clicking the row opens the same page, for MA. |
 | A code is showing | Enter 123-456 in **[server]**. |
 | Chosen, not the input yet | Select [PC name] as an input source in **[server]** to start playing. |
 | Chosen, the PC is its input | Choose speakers, groups and volume in [server]. |
@@ -255,9 +269,29 @@ and the tray status.
 | What happens | The picker shows | When it's back |
 |---|---|---|
 | A ticked speaker loses power or the network | Unavailable. | It reconnects and plays by itself. |
-| An unticked speaker goes away | It leaves the list once mDNS drops it. | It appears when it announces itself. |
+| A ticked speaker shuts down properly | Unavailable while it's gone. | It reconnects once it announces itself again, and the app moves it back into the group. |
+| An unticked speaker loses power or the network | It leaves the list once mDNS drops it. | It appears when it announces itself. |
+| An unticked speaker shuts down properly | It leaves the list at once. | It appears when it announces itself. |
 | A paired server goes offline | Unavailable, chosen or not. | The server connects again by itself. |
 | A server that was never paired goes away | Its row leaves. | It appears again, ready to pair. |
+| The server unpairs this PC | Connected: ready to pair again. Not connected: the row leaves, and the speakers become the destination. | Pairing again needs the code. |
+
+How fast each of these shows is the libraries' timing (pings, liveness, backoff), not the app's.
+The Mac's figures don't carry over.
+
+### Where this differs from the Mac's menu
+
+Beyond the rows above (no driver or Local Network notice, no AirPlay, no QR scanning):
+
+- **Needs pairing.** `menu-states.md` still says the app can't pair speakers; the Mac's README
+  and this app pair on tick.
+- **This PC's output is not in the group volume.** The library's group volume reaches Sendspin
+  players only. Its slider is the device's own volume; the Sendspin output's mute covers it.
+- **The speaker buffer doesn't grow for this PC's output** — open question 3.
+- **The pairing token** is offered in Settings (Copy pairing token). The Mac shows it nowhere.
+- **A speaker can tick itself** with its `switch` button; see above.
+- **No format on hover.** The library doesn't report it yet.
+- Switching between Sendspin and direct costs a moment of silence here too.
 
 ## Connection
 
@@ -272,11 +306,12 @@ and the tray status.
 - A browsed speaker is dialed idle: it is held without taking it from another server
   (`server: src/discovery_policy.h`, `DialIntent::IDLE`). It only declares playback once its
   group plays, so an unticked speaker is never disturbed.
-- A speaker that connects to us waits in the lobby, unticked, until the user ticks it.
+- A speaker that connects to us waits, unticked, until the user ticks it.
 - mDNS is avahi-client, built into the library (`platform_discovery()`), and needs avahi-daemon
   at run time. Without it the server still runs; the picker shows the notice.
 - Speakers mDNS can't find: a hidden setting with a list of `ws://host:port/path` URLs, dialed
-  with `connect_url()`.
+  with `connect_url()` and `ConnectOptions::retry_until_connected`. Without it a failed dial is
+  not retried.
 - Identity: the library creates the server key on first start and stores it through the app's
   `PersistenceProvider`, with the client records (approvals, long-term PSKs).
 
@@ -463,7 +498,8 @@ desktop, and both libraries' examples use files. Never log keys, PSKs or tokens.
 
 - The Sendspin output is 32-bit float stereo at 48 kHz. PipeWire converts what apps play.
 - To speakers: the input is `SampleFormat::F32`. The library gives each speaker PCM or FLAC in a
-  format it lists, resampled and channel-mixed per speaker, preferring one at the input's rate
+  format it lists, resampled and channel-mixed per speaker: the speaker's preferred format when
+  the server can produce it, else its first producible one at the input's rate
   (`server: src/playback_policy.h`). A speaker isn't held back by another in the group.
 - To Music Assistant: FLAC 48 kHz 16-bit, converted from the float capture with TPDF dither.
 - From Music Assistant: whatever the output plays natively, as above.
@@ -541,7 +577,7 @@ As of 2026-09-10:
   - **A floor on a live input's lead**, as `SourceRouteOptions::min_latency_us` gives a routed
     source, for when this PC's output is slower than every speaker.
   - **The format a speaker receives**, to show on hover as the Mac does. Nice to have.
-- **sendspin-cpp** — 0.9.5 is the latest tag. Encryption, pairing, unpaired access and
+- **sendspin-cpp** — v0.10.0 is the latest tag; pin a commit until the next one. Encryption, pairing, unpaired access and
   `source@v1` are all on `main`. Missing:
   - **Forgetting one server** from the client side. Only a server can unpair
     (`server/unpair`); Settings can list paired servers but not forget one.
