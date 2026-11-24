@@ -126,16 +126,18 @@ bool SendspinOutput::start(QString* error) {
                                                             PW_STREAM_FLAG_MAP_BUFFERS |
                                                             PW_STREAM_FLAG_RT_PROCESS);
             err = pw_stream_connect(this->stream_, PW_DIRECTION_INPUT, PW_ID_ANY, flags, params, 1);
+        } else {
+            err = -errno;
         }
         if (err >= 0) {
             // PAUSED counts: the graph has the node and runs it once something plays to it.
+            // UNCONNECTED after connect() set CONNECTING is a refusal.
             timespec deadline{};
             pw_thread_loop_get_time(this->loop_, &deadline,
                                     static_cast<int64_t>(START_TIMEOUT_MS) * 1000 * 1000);
             while (true) {
                 const int state = this->state_.load();
-                if (state == PW_STREAM_STATE_STREAMING || state == PW_STREAM_STATE_PAUSED ||
-                    state == PW_STREAM_STATE_ERROR) {
+                if (state != PW_STREAM_STATE_CONNECTING) {
                     break;
                 }
                 if (pw_thread_loop_timed_wait_full(this->loop_, &deadline) != 0) {
@@ -175,7 +177,9 @@ void SendspinOutput::stop() {
         this->loop_ = nullptr;
     }
     this->state_.store(PW_STREAM_STATE_UNCONNECTED);
+    this->untimed_blocks_.store(0);
     if (this->rate_.exchange(0) != 0) {
+        // A rateChanged still queued from the old stream is delivered after this one.
         emit this->rateChanged(0);
     }
 }
@@ -294,11 +298,12 @@ void SendspinOutput::on_control_info(void* data, uint32_t id, const pw_stream_co
     }
 }
 
-int64_t SendspinOutput::capture_time_ns_(uint32_t rate) const {
+int64_t SendspinOutput::capture_time_ns_(uint32_t rate) {
     const int64_t raw_now = clock_ns(CLOCK_MONOTONIC_RAW);
     const int64_t monotonic_now = clock_ns(CLOCK_MONOTONIC);
     pw_time time{};
     if (pw_stream_get_time_n(this->stream_, &time, sizeof(time)) != 0 || time.now == 0) {
+        this->untimed_blocks_.fetch_add(1, std::memory_order_relaxed);
         return raw_now;
     }
     // `now` is the start of this graph cycle on CLOCK_MONOTONIC. Its age carries onto the raw

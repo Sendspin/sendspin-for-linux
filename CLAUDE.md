@@ -16,7 +16,7 @@ than 6.8 or PipeWire newer than 1.4.2 API without a fallback.
 
 - **KISS.** No abstraction ahead of a second user of it. No options, layers or interfaces "for
   later".
-- **C++20.** Format with the repo's `.clang-format` (`clang-format -i src/*.cpp src/*.h`).
+- **C++20.** Format with the repo's `.clang-format` (`clang-format -i src/*.cpp src/*.h src/*/*.cpp src/*/*.h`).
 - **Naming** follows the Sendspin libraries: `PascalCase` types, `snake_case` functions and
   variables, `trailing_underscore_` members reached through `this->`. Qt signals, slots,
   properties and test slots use Qt's `camelCase`.

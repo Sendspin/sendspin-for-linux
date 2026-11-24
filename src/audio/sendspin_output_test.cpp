@@ -1,6 +1,8 @@
 #include "audio/sendspin_output.h"
 
+#include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -18,6 +20,11 @@
 namespace {
 
 constexpr int TONE_MS = 1000;
+/// How late into its cycle a callback may run on a busy machine.
+constexpr int64_t MAX_SCHEDULING_LAG_NS = 20000000;
+/// How far a block's timestamp may be from where the block before it ended: the graph's own
+/// wakeup jitter.
+constexpr int64_t MAX_STEP_ERROR_NS = 1000000;
 
 int64_t raw_now_ns() {
     timespec ts{};
@@ -32,9 +39,12 @@ struct Capture {
     std::atomic<uint64_t> silent_blocks{0};
     std::atomic<uint64_t> out_of_order{0};
     std::atomic<uint64_t> off_clock{0};
+    std::atomic<int64_t> worst_step_error_ns{0};
+    std::atomic<int64_t> worst_age_ns{0};
     std::atomic<uint64_t> wrong_rate{0};
     std::atomic<int64_t> peak_millionths{0};
     int64_t last_time_ns{0};  ///< callback only
+    int64_t next_time_ns{0};  ///< callback only; where the last block ended
 
     void take(const CapturedBlock& block) {
         this->blocks++;
@@ -45,10 +55,23 @@ struct Capture {
             this->out_of_order++;
         }
         this->last_time_ns = block.capture_time_ns;
-        // The first frame was captured before now, and not long before
+        // One run of back-to-back blocks: each starts where the last one ended
+        if (this->next_time_ns != 0) {
+            const int64_t error_ns = std::abs(block.capture_time_ns - this->next_time_ns);
+            if (error_ns > this->worst_step_error_ns.load()) {
+                this->worst_step_error_ns.store(error_ns);
+            }
+        }
+        const int64_t block_ns = static_cast<int64_t>(block.frames) * 1000000000 / block.rate;
+        this->next_time_ns = block.capture_time_ns + block_ns;
+        // The callback runs within the cycle the block was captured in, on the same clock. A
+        // timestamp left on CLOCK_MONOTONIC would be off by that clock's offset from the raw one.
         const int64_t age_ns = raw_now_ns() - block.capture_time_ns;
-        if (age_ns < 0 || age_ns > 500000000) {
+        if (age_ns < 0 || age_ns > block_ns + MAX_SCHEDULING_LAG_NS) {
             this->off_clock++;
+        }
+        if (age_ns > this->worst_age_ns.load()) {
+            this->worst_age_ns.store(age_ns);
         }
         if (block.silent) {
             this->silent_blocks++;
@@ -128,6 +151,18 @@ bool settle(SendspinOutput& output, float volume, bool muted) {
     });
 }
 
+/// Where libpipewire would connect: with a socket there, a failed start() is a failure, not
+/// a missing daemon.
+bool daemon_socket_exists() {
+    const QString remote = qEnvironmentVariable("PIPEWIRE_REMOTE", QStringLiteral("pipewire-0"));
+    if (QDir::isAbsolutePath(remote)) {
+        return QFileInfo::exists(remote);
+    }
+    const QString dir =
+        qEnvironmentVariable("PIPEWIRE_RUNTIME_DIR", qEnvironmentVariable("XDG_RUNTIME_DIR"));
+    return !dir.isEmpty() && QFileInfo::exists(dir + QLatin1Char('/') + remote);
+}
+
 bool have(const char* tool) {
     return !QStandardPaths::findExecutable(QString::fromLatin1(tool)).isEmpty();
 }
@@ -140,6 +175,7 @@ bool have(const char* tool) {
     do {                                                                             \
         QString start_error;                                                         \
         if (!(output).start(&start_error)) {                                         \
+            QVERIFY2(!daemon_socket_exists(), qPrintable(start_error));              \
             QSKIP(qPrintable(QStringLiteral("no PipeWire daemon: ") + start_error)); \
         }                                                                            \
     } while (false)
@@ -201,8 +237,9 @@ private slots:
 
         output.stop();
         QCOMPARE(output.node_id(), PW_ID_ANY);
+        // The id may be reused, but not by this node
         QTRY_VERIFY(node_props(dump_object(id))[QLatin1String("node.name")].toString() !=
-                    QStringLiteral("sendspin"));
+                    QString::fromLatin1(TEST_NODE));
     }
 
     void playedAudioArrivesTimestampedAtTheReportedRate() {
@@ -234,7 +271,12 @@ private slots:
         QVERIFY(capture.loud_frames.load() <= tone_frames + 2 * 8192);
         QVERIFY(capture.blocks.load() > 1);
         QCOMPARE(capture.out_of_order.load(), 0U);
-        QCOMPARE(capture.off_clock.load(), 0U);
+        QVERIFY2(capture.off_clock.load() == 0,
+                 qPrintable(QStringLiteral("worst age %1 ns").arg(capture.worst_age_ns.load())));
+        QVERIFY2(capture.worst_step_error_ns.load() < MAX_STEP_ERROR_NS,
+                 qPrintable(QString::number(capture.worst_step_error_ns.load())));
+        // Every timestamp came from the graph, none from the fallback
+        QCOMPARE(output.untimed_blocks(), 0U);
         QCOMPARE(capture.wrong_rate.load(), 0U);
         // Half scale at full volume
         const double peak = static_cast<double>(capture.peak_millionths.load()) / 1e6;

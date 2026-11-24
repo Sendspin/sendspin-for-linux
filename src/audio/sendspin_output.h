@@ -61,6 +61,12 @@ public:
         return this->rate_.load(std::memory_order_relaxed);
     }
 
+    /// @brief Blocks since start() stamped with the time of their callback because the graph gave
+    /// none: late by however far into the cycle the callback ran.
+    uint64_t untimed_blocks() const {
+        return this->untimed_blocks_.load(std::memory_order_relaxed);
+    }
+
     /// @brief The node's volume as the desktop shows it (cubic), 1.0 being 100 %.
     float volume() const {
         return this->volume_;
@@ -92,7 +98,7 @@ private:
     static void on_control_info(void* data, uint32_t id, const pw_stream_control* control);
     static void on_process(void* data);
 
-    int64_t capture_time_ns_(uint32_t rate) const;
+    int64_t capture_time_ns_(uint32_t rate);
     void publish_latency_();
 
     const QByteArray node_name_;
@@ -103,6 +109,7 @@ private:
     std::atomic<int> state_{PW_STREAM_STATE_UNCONNECTED};
     std::atomic<bool> connected_{false};  ///< taken by the graph, so losing it is reported
     std::atomic<uint32_t> rate_{0};
+    std::atomic<uint64_t> untimed_blocks_{0};
     int64_t latency_ns_{0};
 
     float volume_{1.0F};
