@@ -57,7 +57,8 @@ tag v0.10.1.
 | Local Network permission notice | Avahi-not-running notice |
 | QR codes scanned with the camera | Not in the MVP |
 | The pairing token is shown nowhere | Copy pairing token in Settings |
-| The Mac's output is in the group volume, and the buffer grows for it | Neither yet; the library's group is Sendspin players only |
+| A volume slider per speaker | One slider, the group's volume |
+| The buffer grows for the Mac's own output | Not yet; the library's lead counts Sendspin players only |
 
 **The Mac's open items that apply here too** (`TODO.md`): feeding the server's other roles
 (item 2), more under Music Assistant (5), more than one server (6), Opus and
@@ -134,8 +135,9 @@ As of 2026-09-10 unless noted.
   16/24/32-bit and FLAC 16/24-bit, resampled and channel-mixed per player; Opus only with
   `ServerConfig::enable_opus`. Format choice: the operator's, else the player's preferred, else
   the first producible entry at the input's rate.
-- **Volume** (`server.h`): `set_group_volume()` and `set_group_mute()` only. Nothing per player,
-  and `ClientInfo` carries no volume.
+- **Volume** (`server.h`): `set_group_volume()` and `set_group_mute()` for any group. Nothing
+  per player, and neither `ClientInfo` nor `GroupInfo` carries a volume. v1 needs only the
+  group's.
 - **Sources** (`server.h`, `route_source()`; `src/server.cpp`): accepts PCM and FLAC from a
   source, Opus when enabled.
 - **Clock** (`src/clock.h`): `CLOCK_MONOTONIC_RAW` on Linux.
@@ -244,7 +246,7 @@ Collected 2026-09-10.
   ([pw_time](https://docs.pipewire.org/structpw__time.html)); both Sendspin libraries count
   `CLOCK_MONOTONIC_RAW`.
 
-**Not verified yet** (SPEC.md open questions 4–7)
+**Not verified yet** (SPEC.md open questions 3–6)
 - How a sink node reports a latency that changes while it runs, and which players delay video by
   it.
 - Receiving a sink node's volume without the adapter applying it.

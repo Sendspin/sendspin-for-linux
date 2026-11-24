@@ -150,16 +150,16 @@ From top to bottom.
 
 | Row | Shown when |
 |---|---|
-| Sendspin, and the dot | Always. The dot is blue while Sendspin plays (when the tray icon has its waves), grey while the system output is Sendspin but nothing goes out (silence, or every ticked speaker unavailable), an empty ring while the PC plays directly. Tooltip and accessible name say which. |
+| Sendspin, and the dot | Always. The dot is blue while Sendspin plays (when the tray icon has its waves), grey while the system output is Sendspin but nothing goes out (silence, or every ticked speaker unavailable), an empty ring while the PC plays directly. Tooltip and accessible name say which. With a speaker ticked the row carries the picker's one volume slider, the group's volume; see [Volume](#volume). |
 | Notice | PipeWire can't be reached, or mDNS is unavailable (`ErrorKind::DISCOVERY_UNAVAILABLE`: avahi-daemon isn't running). One at a time, in that order. Without PipeWire there are no rows below. |
 | This PC's output | Always. First. Named as the desktop names the device. |
 | The Sendspin speakers | Each speaker found or ticked. |
 | Looking for speakers… | No speaker is found or ticked, and no server is connected or paired. Links to [which speakers work](https://www.sendspin-audio.com/#speakers). |
 | Divider, then the server | A server is connected to the client, or paired with it. Named after the server (`SendspinClient::server_information()`). |
 
-Each speaker row: icon, name, then a volume slider or a status, then a round check — filled while
+Each speaker row: icon, name, then a status if it can't play, then a round check — filled while
 it plays, grey while it's ticked but can't play, a spinner while it connects, an empty ring when
-it isn't ticked.
+it isn't ticked. No row has a slider of its own in v1.
 
 ### Sendspin or direct follows what's ticked
 
@@ -181,7 +181,7 @@ it isn't ticked.
 
 | Shows | Means | From the server library | Until |
 |---|---|---|---|
-| Volume slider | It plays the PC's sound. | Connected, in the cast group, lists `player@v1`. | – |
+| A filled check, no status | It plays the PC's sound. | Connected, in the cast group, lists `player@v1`. | – |
 | Connecting… / spinner | A dial is under way. | `ClientInfo::connected` false after `connect()`, or `reconnecting`. | It's connected. |
 | Unavailable | It can't be reached, or it shut down. | `on_client_disconnected()` with `CONNECTION_LOST`, or a goodbye with `SHUTDOWN` or `RESTART`; or no longer in `clients()`. | It's back. A browsed speaker is redialed by the library while it advertises. |
 | In use elsewhere | Another server has it. Ticked: it was taken over. Unticked: it refused our idle connection. | A goodbye with `GoodbyeReason::ANOTHER_SERVER`, or `on_error()` with `GOODBYE_BEFORE_ACTIVATION` and `ANOTHER_SERVER` or `CONCURRENT_ATTEMPT`. | The user clicks its name or ticks it: `connect()`, which dials for playback. The library does not take it back by itself. |
@@ -245,7 +245,8 @@ sink. Named and drawn as the desktop does.
 - With a speaker ticked it plays along in sync: the app plays the group's audio on it itself, on
   the server's timeline. It is not a Sendspin player and makes no connection.
 - Alone, the system plays on it directly.
-- Its slider is the device's own volume either way.
+- Playing along, it follows the group's volume and mute like the speakers. Alone, the desktop's
+  own volume control is all there is.
 - Our own Sendspin output and the monitor of any sink are never offered here.
 
 ### The server row
@@ -282,7 +283,7 @@ How fast each of these shows is the libraries' doing, not the app's, and the Mac
 carry over. The server library has a write-stall limit (15 s) and a dial backoff (1–60 s)
 (`server: include/sendspin/server/config.h`); its public headers name no ping. The client drops
 a silent connection after 30 s (`SendspinClientConfig::liveness_timeout_ms`). Whether a speaker
-that loses power shows Unavailable fast enough is open question 11.
+that loses power shows Unavailable fast enough is open question 10.
 
 ### Where this differs from the Mac's menu
 
@@ -290,9 +291,8 @@ Beyond the rows above (no driver or Local Network notice, no AirPlay, no QR scan
 
 - **Needs pairing.** `menu-states.md` still says the app can't pair speakers; the Mac's README
   and this app pair on tick.
-- **This PC's output is not in the group volume.** The library's group volume reaches Sendspin
-  players only. Its slider is the device's own volume; the Sendspin output's mute covers it.
-- **The speaker buffer doesn't grow for this PC's output** — open question 3.
+- **One volume slider, the group's.** The Mac has one per speaker. See [Volume](#volume).
+- **The speaker buffer doesn't grow for this PC's output** — open question 2.
 - **The pairing token** is offered in Settings (Copy pairing token). The Mac shows it nowhere.
 - **A speaker can tick itself** with its `switch` button; see above.
 - **No format on hover.** The library doesn't report it yet.
@@ -401,8 +401,8 @@ desktop, and both libraries' examples use files. Never log keys, PSKs or tokens.
   virtual sinks by default.
 - Low `priority.session`.
 - Its volume and mute are not applied to the audio. With speakers ticked they are the group's
-  volume and mute (`set_group_volume()`, `set_group_mute()`), so the volume keys control the
-  speakers. With a server chosen they do nothing: the server has its own volume.
+  volume and mute, so the volume keys control the speakers; see [Volume](#volume). With a server
+  chosen they do nothing: the server has its own volume.
 - It reports the speaker buffer as its latency; see [Timing](#timing).
 
 ## Casting to speakers
@@ -414,11 +414,25 @@ desktop, and both libraries' examples use files. Never log keys, PSKs or tokens.
   next sound starts a new run. The library asks for this of a live source that can go quiet.
 - The input is held only while a speaker is ticked. The cast group goes away with its last member
   and its input, and is created again with the next tick.
-- **Group volume** is the library's: one volume command per player, relative levels kept
-  (`set_group_volume()`). A speaker's own slider needs an API the library doesn't have yet; see
-  [Depends on](#depends-on).
-- Speakers with a controller get volume and mute, which the server carries out itself. No
-  transport commands are offered (`set_controller_caps()` is never called).
+- No transport commands are offered to speakers with a controller (`set_controller_caps()` is
+  never called).
+
+### Volume
+
+v1 has one volume: that of the group being played to.
+
+- `set_group_volume()` and `set_group_mute()` on the cast group
+  (`server: include/sendspin/server/server.h`). The library sends each speaker that supports
+  volume one command and keeps their relative levels.
+- One slider and one mute, on the picker's Sendspin row, shown while a speaker is ticked. It and
+  the Sendspin output's volume in the OS mixer are the same value, both ways.
+- No per-speaker sliders. A speaker's level relative to the others is set on the speaker.
+- This PC's output, playing along, takes the same value as its stream's volume, and the same
+  mute.
+- A speaker with a controller can change the group's volume and mute too; the server carries
+  that out itself (`types.h`, `TransportCommand`). The library reports no group volume back to
+  the host, so the slider shows the last value set from this PC.
+- The value is kept across restarts and applied when the cast group is created.
 
 ## Playing along on this PC
 
@@ -577,8 +591,6 @@ As of 2026-09-10:
 
 - **sendspin-server-cpp** — early development, no release tags, API changes without deprecation:
   pin a commit. Needs C++20, CMake 3.25, OpenSSL 3, avahi-client. Missing for this spec:
-  - **A player's own volume**: no call sets one speaker's volume or mute, and `ClientInfo`
-    doesn't report it. Only the group's (`set_group_volume()`). The per-speaker slider needs it.
   - **A floor on a live input's lead**, as `SourceRouteOptions::min_latency_us` gives a routed
     source, for when this PC's output is slower than every speaker.
   - **The format a speaker receives**, to show on hover as the Mac does. Nice to have.
@@ -600,7 +612,8 @@ As of 2026-09-10:
 Answered since the last draft, by the Mac or by the libraries: encryption in sendspin-cpp
 (merged); key storage (files, 0600); source codec (FLAC); inputs (the Sendspin output only); the
 app ID; where source audio plays (the app's own server lets the user choose; with MA, MA
-chooses).
+chooses); per-speaker volume (not in v1: the group's volume only, which the server library
+already sets).
 
 Still open:
 
@@ -608,25 +621,23 @@ Still open:
    pre-selects "This device". On a desktop that plays your own audio back out of your own
    speakers, delayed, until the user changes it. Ask MA to default it to Off or to ask during
    pairing; or point the user at the setting after pairing. Not re-checked since 2026-08-26.
-2. **Per-speaker volume.** Add it to sendspin-server-cpp, or ship the first version with the
-   group volume alone and a slider only on this PC's output?
-3. **This PC's output slower than the group.** A Bluetooth output can need more than the speaker
+2. **This PC's output slower than the group.** A Bluetooth output can need more than the speaker
    buffer. Raise the lead (needs the library change above), or show the row as unable to play
    along?
-4. **The sink's volume.** PipeWire applies a node's volume in its adapter. Find the way to
+3. **The sink's volume.** PipeWire applies a node's volume in its adapter. Find the way to
    receive it without it scaling the audio, or accept scaling and keep the speakers' volume
    separate.
-5. **Who honours the sink's latency.** Check mpv, Firefox, Chromium and GStreamer players through
+4. **Who honours the sink's latency.** Check mpv, Firefox, Chromium and GStreamer players through
    pipewire-pulse and natively, and what PipeWire does when the latency changes mid-stream.
-6. **Where the picker appears on Wayland.** A window can't place itself next to the tray icon.
+5. **Where the picker appears on Wayland.** A window can't place itself next to the tray icon.
    Plasma has layer-shell; GNOME does not. Centre it, or accept the compositor's placement?
-7. **Switching the default output.** Ticking a speaker changes the system default, as the Mac
+6. **Switching the default output.** Ticking a speaker changes the system default, as the Mac
    does. Fedora users objected when AirPlay outputs took the default uninvited; this is the
    user's own click, but confirm it reads that way.
-8. **More than one server.** One row, for the server that holds the connection. A second paired
+7. **More than one server.** One row, for the server that holds the connection. A second paired
    server displaces an idle first one (mac: `TODO.md` item 6). Show them all?
-9. **Reuse from sendspin-cpp-cli.** Copy its PipeWire sink and source, or extract them into a
+8. **Reuse from sendspin-cpp-cli.** Copy its PipeWire sink and source, or extract them into a
    library both use?
-10. **Offline builds.** Vendor the FetchContent dependencies, or get the libraries packaged?
-11. **How fast a dead speaker is noticed.** Measure it against real speakers; if it takes the
+9. **Offline builds.** Vendor the FetchContent dependencies, or get the libraries packaged?
+10. **How fast a dead speaker is noticed.** Measure it against real speakers; if it takes the
     write-stall limit, ask for a liveness check in sendspin-server-cpp.
