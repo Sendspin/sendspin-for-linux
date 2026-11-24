@@ -30,6 +30,21 @@ private slots:
         QVERIFY(QDir(dir.path()).isEmpty());
     }
 
+    void statusLineFollowsTheClient() {
+        QCOMPARE(App::status_text(Client::State::Stopped, {}), "Not connected");
+        QCOMPARE(App::status_text(Client::State::Waiting, {}), "Waiting for a server");
+        QCOMPARE(App::status_text(Client::State::Connected, "Music Assistant"),
+                 "Connected to Music Assistant");
+        QCOMPARE(App::status_text(Client::State::Pairing, "Music Assistant"),
+                 "Pairing with Music Assistant…");
+        QCOMPARE(App::status_text(Client::State::Pairing, {}), "Pairing…");
+    }
+
+    void pairingCodeIsGrouped() {
+        QCOMPARE(App::grouped_code("042735"), "042-735");
+        QCOMPARE(App::grouped_code("0427"), "0427");
+    }
+
     void secondLaunchIsHandled() {
         const QTemporaryDir dir;
         App app(dir.path().toStdString());

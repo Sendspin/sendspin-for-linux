@@ -3,6 +3,11 @@ add_library(sendspin_app STATIC
     app.cpp
     audio/sendspin_output.cpp
     blob_store.cpp
+    client/client.cpp
+    client/mdns_advertiser.cpp
+    client/source_feed.cpp
+    device_name.cpp
+    notifier.cpp
     persistence.cpp
     single_instance.cpp
 )
@@ -13,9 +18,11 @@ target_link_libraries(sendspin_app PUBLIC
     Qt6::Gui
     Qt6::Widgets
     Qt6::Network
+    Qt6::DBus
     sendspin_server_cpp
     sendspin
     PkgConfig::PIPEWIRE
+    PkgConfig::AVAHI
 )
 
 add_executable(sendspin-for-linux main.cpp)
@@ -39,6 +46,10 @@ if(BUILD_TESTING)
     sendspin_add_test(app_test)
     sendspin_add_test(audio/sendspin_output_test)
     sendspin_add_test(blob_store_test)
+    sendspin_add_test(client/client_test)
+    sendspin_add_test(client/mdns_advertiser_test)
+    sendspin_add_test(client/source_feed_test)
+    sendspin_add_test(device_name_test)
     sendspin_add_test(persistence_test)
     sendspin_add_test(single_instance_test)
 endif()

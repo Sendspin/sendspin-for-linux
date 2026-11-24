@@ -18,5 +18,6 @@ int main(int argc, char** argv) {
 
     App app(data_dir());
     QObject::connect(&instance, &SingleInstance::secondLaunch, &app, &App::onSecondLaunch);
+    app.start();
     return QApplication::exec();
 }

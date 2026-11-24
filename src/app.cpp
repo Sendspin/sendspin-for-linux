@@ -1,43 +1,107 @@
 #include "app.h"
 
+#include "device_name.h"
+
 #include <QApplication>
 #include <QIcon>
 #include <QLoggingCategory>
 #include <QStyle>
-#include <QSysInfo>
 
 #include <pipewire/pipewire.h>
 
+#include <utility>
+
 Q_LOGGING_CATEGORY(lc_app, "sendspin.app")
-
-namespace {
-
-sendspin::SendspinClientConfig client_config() {
-    sendspin::SendspinClientConfig config;
-    config.name = QSysInfo::machineHostName().toStdString();
-    return config;
-}
-
-}  // namespace
 
 App::App(const std::filesystem::path& data_dir, QObject* parent)
     : QObject(parent),
       server_persistence_(data_dir),
       client_persistence_(data_dir),
-      client_(client_config()) {
-    this->client_.set_persistence_provider(&this->client_persistence_);
+      client_({.name = device_name(), .port = Client::free_port()}, &this->client_persistence_) {
     qCInfo(lc_app, "PipeWire %s", pw_get_library_version());
 
-    this->menu_.addAction(tr("Not connected"))->setEnabled(false);
+    this->status_ = this->menu_.addAction(QString());
+    this->status_->setEnabled(false);
     this->menu_.addSeparator();
     this->menu_.addAction(tr("Settings…"))->setEnabled(false);
     this->menu_.addAction(tr("Quit"), qApp, &QCoreApplication::quit);
+    this->update_status_();
 
     this->tray_.setIcon(QIcon::fromTheme(QIcon::ThemeIcon::MultimediaPlayer,
                                          qApp->style()->standardIcon(QStyle::SP_MediaVolume)));
     this->tray_.setToolTip(tr("Sendspin"));
     this->tray_.setContextMenu(&this->menu_);
     this->tray_.show();
+
+    connect(&this->client_, &Client::stateChanged, this, &App::update_status_);
+    connect(&this->client_, &Client::serverNameChanged, this, &App::update_status_);
+    connect(&this->client_, &Client::pairingCodeChanged, this, &App::on_pairing_code_);
+    connect(&this->client_, &Client::paired, this, [this](const QString& server_name) {
+        this->show_result_(server_name.isEmpty() ? tr("Paired")
+                                                 : tr("Paired with %1").arg(server_name));
+    });
+    connect(&this->client_, &Client::pairingEnded, this,
+            [this] { this->show_result_(tr("Pairing ended")); });
+
+    this->output_.set_consumer(
+        [this](const CapturedBlock& block) { this->client_.source().write(block); });
+}
+
+App::~App() {
+    // The capture thread writes into the client
+    this->output_.stop();
+}
+
+void App::start() {
+    QString error;
+    if (!this->output_.start(&error)) {
+        qCWarning(lc_app, "no Sendspin output: %s", qUtf8Printable(error));
+    }
+    this->client_.start();
+}
+
+QString App::status_text(Client::State state, const QString& server_name) {
+    switch (state) {
+        case Client::State::Stopped:
+            break;
+        case Client::State::Waiting:
+            return tr("Waiting for a server");
+        case Client::State::Connected:
+            return tr("Connected to %1").arg(server_name);
+        case Client::State::Pairing:
+            return server_name.isEmpty() ? tr("Pairing…") : tr("Pairing with %1…").arg(server_name);
+    }
+    return tr("Not connected");
+}
+
+QString App::grouped_code(const QString& code) {
+    return code.size() == 6 ? code.first(3) + QLatin1Char('-') + code.last(3) : code;
+}
+
+void App::update_status_() {
+    this->status_->setText(status_text(this->client_.state(), this->client_.server_name()));
+}
+
+void App::on_pairing_code_(const QString& code) {
+    if (code.isEmpty()) {
+        // The result may already have taken the code's place
+        if (std::exchange(this->code_showing_, false)) {
+            this->notifier_.close();
+        }
+        return;
+    }
+    this->code_showing_ = true;
+    const QString server_name = this->client_.server_name();
+    this->notifier_.show(tr("Pairing code: %1").arg(grouped_code(code)),
+                         server_name.isEmpty()
+                             ? tr("Enter it in the server to pair this PC.")
+                             : tr("Enter it in %1 to pair this PC.").arg(server_name),
+                         true);
+}
+
+void App::show_result_(const QString& summary) {
+    this->code_showing_ = false;
+    this->notifier_.show(summary);
 }
 
 void App::onSecondLaunch() {
