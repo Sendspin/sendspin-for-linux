@@ -117,7 +117,7 @@ As of 2026-09-10 unless noted.
   needed, pairing required, pairing pending, code needed, pairing result, credential mismatch.
 - **Groups** (`server.h`; `src/server_core.cpp`): one default group that every client that may
   play joins; a client that may not is held alone with no roles. `create_group()` needs a first
-  member that is connected; `move_client()`; a non-default group goes once it has no member, no
+  member that is connected or holds a place; `move_client()`; a non-default group goes once it has no member, no
   input and no client keeping its place. One input per group. A place is kept for 180 s after a
   drop or a `restart` goodbye only.
 - **`switch`** (`types.h`; `src/server_core.cpp`, `switch_group()`): always offered to
@@ -139,6 +139,8 @@ As of 2026-09-10 unless noted.
 - **Sources** (`server.h`, `route_source()`; `src/server.cpp`): accepts PCM and FLAC from a
   source, Opus when enabled.
 - **Clock** (`src/clock.h`): `CLOCK_MONOTONIC_RAW` on Linux.
+- **Liveness** (`config.h`): a write-stall limit (15 s) and a dial backoff (1–60 s). No ping or
+  liveness timeout in the public headers or `docs/internals.md`.
 - **Build** (`README.md`): C++20, CMake 3.25, OpenSSL 3, avahi-client. FetchContent for
   Boost.Beast/Asio (a system Boost ≥ 1.90 is used when installed), ArduinoJson, noise-c,
   micro-flac, micro-opus, pffft. Its tests fetch sendspin-cpp and build both in one tree.
@@ -163,7 +165,9 @@ tag v0.10.0. Apache-2.0. Builds for ESP-IDF and host.
   `pairing_code_formats` switch the dynamic code on; `on_pairing_code()` /
   `on_clear_pairing_code()` deliver and withdraw it; `client_pairing_token()` builds the
   `SP:0…` token. A static code is advertised only when no dynamic code is. 12 pairing records by
-  default, least recently used evicted. No call forgets one server.
+  default, least recently used evicted. No call lists the records or forgets one, and no callback
+  reports an unpair; a `server/unpair` drops the record and closes with an `unpaired` goodbye
+  (`src/connection_manager_pairing.cpp`).
 - **Unpaired access** (`client.h`): `set_unpaired_access_enabled()`, off until called, never
   persisted by the library.
 - **Source** (`source_role.h`, `config.h` `SourceRoleConfig`): PCM, FLAC or Opus; 5–150 ms

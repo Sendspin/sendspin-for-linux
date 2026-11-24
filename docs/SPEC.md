@@ -111,8 +111,8 @@ tray, that is the only way in; its gear button opens Settings.
   follow the system default); open at login.
 - *Speakers:* the paired speakers, each with Forget; the speakers on the network that aren't
   paired, each with Pair…; a field to paste a pairing token.
-- *Music Assistant:* which server is connected, or none; the pairing code while pairing; paired
-  servers; Copy pairing token; allow playback without pairing (on by default); media controls
+- *Music Assistant:* which server is connected, or none; the pairing code while pairing; the
+  servers this PC paired with, from the app's own record of `on_paired()`; Copy pairing token; allow playback without pairing (on by default); media controls
   on/off.
 
 One instance per user session.
@@ -186,16 +186,18 @@ it isn't ticked.
 | Unavailable | It can't be reached, or it shut down. | `on_client_disconnected()` with `CONNECTION_LOST`, or a goodbye with `SHUTDOWN` or `RESTART`; or no longer in `clients()`. | It's back. A browsed speaker is redialed by the library while it advertises. |
 | In use elsewhere | Another server has it. Ticked: it was taken over. Unticked: it refused our idle connection. | A goodbye with `GoodbyeReason::ANOTHER_SERVER`, or `on_error()` with `GOODBYE_BEFORE_ACTIVATION` and `ANOTHER_SERVER` or `CONCURRENT_ATTEMPT`. | The user clicks its name or ticks it: `connect()`, which dials for playback. The library does not take it back by itself. |
 | Disconnected | Its user disconnected it from this PC. | A goodbye with `USER_REQUEST`. | The user unticks it and ticks it again. |
-| Can't connect | It answers, but the connection fails. | `on_error()` with `DIAL_FAILED` or `HANDSHAKE_FAILED`, or `DisconnectReason::CLOSED_BY_SERVER`. | It works. The library retries a browsed speaker with backoff. |
+| Can't connect | It answers, but the connection fails. | `on_error()` with `DIAL_FAILED` or `HANDSHAKE_FAILED`, `DisconnectReason::CLOSED_BY_SERVER`, or a goodbye with `UNAUTHORIZED`. | It works. The library retries a browsed speaker with backoff. |
 | Can't play | It lists no format the server can produce. | `on_error()` with `NO_PLAYABLE_FORMAT`. | – |
-| Needs pairing | It only plays for paired servers. | `on_pairing_required()`, or a goodbye with `PAIRING_REQUIRED` or `UNAUTHORIZED`. | Ticking it starts pairing. |
-| Needs pairing again | It lost its pairing with this PC. | `on_credential_mismatch()`, or a goodbye with `UNPAIRED`. | It's paired again. |
+| Needs pairing | It only plays for paired servers. | `on_pairing_required()`, or a goodbye with `PAIRING_REQUIRED`. | Ticking it starts pairing. |
+| Needs pairing again | It lost its pairing with this PC. | `on_credential_mismatch()`. | It's paired again. |
 | Identity changed | A different device presents itself under a ticked speaker's name. | App logic, not the library's: a `client_id` the app hasn't seen, under a ticked speaker's name or URL. It arrives as any new speaker does (`on_approval_needed()` or `on_pairing_required()`). | The user clicks it, accepting the new identity. |
 | nothing | Not ticked; also a speaker that connected to this PC and waits. | In the lobby, or held alone (`on_approval_needed()`). | The user ticks it. |
 
 The events are in `server: include/sendspin/server/server.h` (`ServerListener`) and `types.h`
 (`ClientInfo`, `DisconnectReason`, `GoodbyeReason`, `ErrorKind`).
 
+- A goodbye with `UNPAIRED` is the answer to our own Forget, not a status: the speaker is a new
+  speaker again.
 - `connect()` only reaches a speaker the server can dial. One that connected to us and left is
   gone from `clients()`; it shows again when it connects again.
 
@@ -274,10 +276,13 @@ and the tray status.
 | An unticked speaker shuts down properly | It leaves the list at once. | It appears when it announces itself. |
 | A paired server goes offline | Unavailable, chosen or not. | The server connects again by itself. |
 | A server that was never paired goes away | Its row leaves. | It appears again, ready to pair. |
-| The server unpairs this PC | Connected: ready to pair again. Not connected: the row leaves, and the speakers become the destination. | Pairing again needs the code. |
+| The server unpairs this PC | Unavailable. The client library drops its record and closes the connection without telling the app; see [Depends on](#depends-on). | The server pairs again, with the code. |
 
-How fast each of these shows is the libraries' timing (pings, liveness, backoff), not the app's.
-The Mac's figures don't carry over.
+How fast each of these shows is the libraries' doing, not the app's, and the Mac's figures don't
+carry over. The server library has a write-stall limit (15 s) and a dial backoff (1–60 s)
+(`server: include/sendspin/server/config.h`); its public headers name no ping. The client drops
+a silent connection after 30 s (`SendspinClientConfig::liveness_timeout_ms`). Whether a speaker
+that loses power shows Unavailable fast enough is open question 11.
 
 ### Where this differs from the Mac's menu
 
@@ -579,8 +584,9 @@ As of 2026-09-10:
   - **The format a speaker receives**, to show on hover as the Mac does. Nice to have.
 - **sendspin-cpp** — v0.10.0 is the latest tag; pin a commit until the next one. Encryption, pairing, unpaired access and
   `source@v1` are all on `main`. Missing:
-  - **Forgetting one server** from the client side. Only a server can unpair
-    (`server/unpair`); Settings can list paired servers but not forget one.
+  - **Its pairing records, to the host.** No call lists them, none forgets one, and no callback
+    reports a `server/unpair` or an eviction. The app keeps its own list from `on_paired()`,
+    which can go stale, and Settings cannot offer Forget for a server.
   - mDNS, by design. The app advertises.
 - **Both** fetch their dependencies with CMake FetchContent (noise-c, ArduinoJson, micro-flac,
   micro-opus; Boost.Beast and IXWebSocket). The server's tests build the two libraries in one
@@ -622,3 +628,5 @@ Still open:
 9. **Reuse from sendspin-cpp-cli.** Copy its PipeWire sink and source, or extract them into a
    library both use?
 10. **Offline builds.** Vendor the FetchContent dependencies, or get the libraries packaged?
+11. **How fast a dead speaker is noticed.** Measure it against real speakers; if it takes the
+    write-stall limit, ask for a liveness check in sendspin-server-cpp.
