@@ -112,7 +112,8 @@ tray, that is the only way in; its gear button opens Settings.
 - *Speakers:* the paired speakers, each with Forget; the speakers on the network that aren't
   paired, each with Pair…; a field to paste a pairing token.
 - *Music Assistant:* which server is connected, or none; the pairing code while pairing; the
-  servers this PC paired with, from the app's own record of `on_paired()`; Copy pairing token; allow playback without pairing (on by default); media controls
+  servers this PC paired with, from the app's own record of `on_paired()`; Copy pairing token;
+  allow playback without pairing (on by default); media controls
   on/off.
 
 One instance per user session.
@@ -606,7 +607,8 @@ CMake FetchContent. So the release source tree carries them:
 
 - sendspin-server-cpp and sendspin-cpp at their pinned commits.
 - What they fetch: noise-c, ArduinoJson, micro-flac, micro-opus, pffft, IXWebSocket, and
-  Boost.Beast and Boost.Asio (`server: cmake/dependencies.cmake`, `cmake/noise_c.cmake`; `client: cmake/host.cmake`).
+  Boost.Beast and Boost.Asio (`server: cmake/dependencies.cmake`, `cmake/noise_c.cmake`;
+  `client: cmake/host.cmake`).
   The server uses a system Boost 1.90 or later when there is one.
 - The build runs with FetchContent disconnected and pointed at the vendored copies. A build that
   reaches for the network is a bug.
@@ -635,7 +637,8 @@ As of 2026-09-10:
   - **A floor on a live input's lead**, as `SourceRouteOptions::min_latency_us` gives a routed
     source, for when this PC's output is slower than every speaker.
   - **The format a speaker receives**, to show on hover as the Mac does. Nice to have.
-- **sendspin-cpp** — v0.10.0 is the latest tag; pin a commit until the next one. Encryption, pairing, unpaired access and
+- **sendspin-cpp** — v0.10.0 is the latest tag; pin a commit until the next one. Encryption,
+  pairing, unpaired access and
   `source@v1` are all on `main`. Missing:
   - **Its pairing records, to the host.** No call lists them, none forgets one, and no callback
     reports a `server/unpair` or an eviction. The app keeps its own list from `on_paired()`,
