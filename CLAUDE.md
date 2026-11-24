@@ -30,6 +30,8 @@ than 6.8 or PipeWire newer than 1.4.2 API without a fallback.
 ## Layout
 
 - `src/` — the app. Everything except `main.cpp` is the `sendspin_app` library the tests link.
+- `src/audio/` — PipeWire. Its tests need a running daemon (and `pw-play`, `pw-dump`, `wpctl`) and
+  skip without one, as in CI.
 - `cmake/sendspin_libs.cmake` — the pinned Sendspin libraries. Both fetch the same third-party
   dependencies; the order of declarations there is what keeps them to one copy. Fix collisions
   there, never by forking a library.
