@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    container: ${{ matrix.image }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Fedora 44
+            image: registry.fedoraproject.org/fedora:44
+            install: >-
+              dnf -y install cmake ninja-build gcc-c++ git patch pkgconf-pkg-config xz
+              qt6-qtbase-devel qt6-qtdeclarative-devel pipewire-devel avahi-devel openssl-devel
+          # The floor: the oldest Qt and PipeWire we support
+          - name: Debian 13
+            image: debian:13
+            install: >-
+              apt-get update && apt-get install -y --no-install-recommends
+              ca-certificates cmake ninja-build g++ git patch pkg-config xz-utils
+              qt6-base-dev qt6-declarative-dev libpipewire-0.3-dev libavahi-client-dev libssl-dev
+    steps:
+      - name: Install dependencies
+        run: ${{ matrix.install }}
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -B build -G Ninja
+      - name: Build
+        run: cmake --build build
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
