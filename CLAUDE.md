@@ -16,7 +16,7 @@ than 6.8 or PipeWire newer than 1.4.2 API without a fallback.
 
 - **KISS.** No abstraction ahead of a second user of it. No options, layers or interfaces "for
   later".
-- **C++20.** Format with the repo's `.clang-format` (`clang-format -i src/*.cpp src/*.h`).
+- **C++20.** Format with the repo's `.clang-format` (`clang-format -i src/*.cpp src/*.h src/*/*.cpp src/*/*.h`).
 - **Naming** follows the Sendspin libraries: `PascalCase` types, `snake_case` functions and
   variables, `trailing_underscore_` members reached through `this->`. Qt signals, slots,
   properties and test slots use Qt's `camelCase`.
@@ -30,6 +30,8 @@ than 6.8 or PipeWire newer than 1.4.2 API without a fallback.
 ## Layout
 
 - `src/` — the app. Everything except `main.cpp` is the `sendspin_app` library the tests link.
+- `src/audio/` — PipeWire. Its tests need a running daemon (and `pw-play`, `pw-dump`, `wpctl`) and
+  skip without one, as in CI.
 - `cmake/sendspin_libs.cmake` — the pinned Sendspin libraries. Both fetch the same third-party
   dependencies; the order of declarations there is what keeps them to one copy. Fix collisions
   there, never by forking a library.

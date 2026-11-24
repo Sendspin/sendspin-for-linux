@@ -525,9 +525,9 @@ Two controls, independent of each other:
   `GroupInput::latency_us()`.
 - It rises as soon as a joiner needs more. It comes back down by itself, inaudibly: the library
   plays 300 ppm fast until the excess is gone (`types.h`, `InputKind::LIVE`).
-- **Sink latency.** The Sendspin output reports `latency_us()` plus its own capture delay as the
-  node's latency, and updates it when it changes, so players that honour output latency keep lip
-  sync.
+- **Sink latency.** The Sendspin output reports `latency_us()` as the node's latency, and updates
+  it when it changes, so players that honour output latency keep lip sync. It adds no capture
+  delay of its own: a frame's capture time is the start of the graph cycle that delivered it.
 - **Write jitter.** Declare what the PipeWire quantum needs (`InputOptions::write_jitter_us`,
   default 20 ms). A write later than that is heard as a gap.
 - **Clocks.** Both libraries count `CLOCK_MONOTONIC_RAW` on Linux (`server: src/clock.h`,
