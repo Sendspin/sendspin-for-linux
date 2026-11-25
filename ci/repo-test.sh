@@ -44,7 +44,7 @@ case "$ID" in
         }
         refresh
         apt-get install -y --no-install-recommends "$package=0"
-        apt-get upgrade -y --with-new-pkgs --no-install-recommends
+        apt-get install -y --no-install-recommends "$package"
         sed -i 's/^Origin: .*/Origin: Somebody else/' "$served/changed/apt/dists/$ID$VERSION_ID/InRelease"
         ;;
     fedora)
