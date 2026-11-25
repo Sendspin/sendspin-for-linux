@@ -192,7 +192,8 @@ def test_a_player_added_anew_gets_the_kept_volume_and_mute(cast):
 def test_this_pc_plays_along_beside_the_player(cast):
     # Its own output here is the private daemon's null sink
     cast.stop_app()
-    cast.start_app("--add", NAME, "--play-along")
+    # The timing line is debug
+    cast.start_app("--add", NAME, "--play-along", "--verbose")
     cast.app.wait_for(TICKED, 20)
     mark = cast.app.mark()
     playing = play_to_sendspin(cast.tone)
