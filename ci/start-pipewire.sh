@@ -22,6 +22,8 @@ cleanup() {
     rm -rf "$work"
 }
 trap cleanup EXIT
+# sh runs the EXIT trap on exit, not on a signal
+trap 'exit 130' INT TERM
 
 fail() {
     echo "start-pipewire: $1" >&2
