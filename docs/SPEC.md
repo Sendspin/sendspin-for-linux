@@ -662,6 +662,8 @@ Listed in this order in the README and on the website:
    - `--share=network`
    - `--filesystem=xdg-run/pipewire-0` (not `--socket=pulseaudio`)
    - `--talk-name=org.kde.StatusNotifierWatcher`
+   - `--talk-name=org.freedesktop.Notifications`: the pairing code, until it goes through the
+     notification portal
    - `--system-talk-name=org.freedesktop.Avahi`
    - MPRIS name is auto-granted — do not declare it
    - Background portal for autostart. Only this build gets GNOME's Background Apps entry.
