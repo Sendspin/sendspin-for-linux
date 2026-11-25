@@ -18,20 +18,20 @@ class FakePortal : public QObject {
     Q_CLASSINFO("D-Bus Interface", "org.freedesktop.portal.Background")
 
 public:
-    bool grant = true;
-    QVariantMap asked;
+    bool grant_ = true;
+    QVariantMap asked_;
 
 public slots:
     QDBusObjectPath RequestBackground(const QString& /*parent_window*/, const QVariantMap& options,
                                       const QDBusMessage& message) {
-        this->asked = options;
+        this->asked_ = options;
         const QString path = QStringLiteral("/org/freedesktop/portal/desktop/request/%1/%2")
                                  .arg(message.service().mid(1).replace(u'.', u'_'),
                                       options.value("handle_token").toString());
         QDBusMessage response = QDBusMessage::createSignal(
             path, QStringLiteral("org.freedesktop.portal.Request"), QStringLiteral("Response"));
-        const bool autostart = this->grant && options.value("autostart").toBool();
-        response << (this->grant ? 0U : 1U) << QVariantMap{{"autostart", autostart}};
+        const bool autostart = this->grant_ && options.value("autostart").toBool();
+        response << (this->grant_ ? 0U : 1U) << QVariantMap{{"autostart", autostart}};
         QDBusConnection::sessionBus().send(response);
         return QDBusObjectPath(path);
     }
@@ -120,8 +120,8 @@ private slots:
         autostart::ask_portal(true, service, this, done);
         QTRY_VERIFY(granted.has_value());
         QVERIFY(*granted);
-        QCOMPARE(portal.asked.value("autostart").toBool(), true);
-        QCOMPARE(portal.asked.value("commandline").toStringList(),
+        QCOMPARE(portal.asked_.value("autostart").toBool(), true);
+        QCOMPARE(portal.asked_.value("commandline").toStringList(),
                  QStringList({"sendspin-for-linux", "--background"}));
 
         granted.reset();
@@ -130,7 +130,7 @@ private slots:
         QVERIFY(!*granted);
 
         // Refused: nothing starts it
-        portal.grant = false;
+        portal.grant_ = false;
         granted.reset();
         autostart::ask_portal(true, service, this, done);
         QTRY_VERIFY(granted.has_value());
