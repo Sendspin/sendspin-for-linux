@@ -1,24 +1,51 @@
 #include "app.h"
 
+#include "app_id.h"
 #include "device_name.h"
 
 #include <QApplication>
 #include <QIcon>
 #include <QLoggingCategory>
+#include <QSettings>
+#include <QStandardPaths>
 #include <QStyle>
 
 #include <pipewire/pipewire.h>
 
+#include <algorithm>
 #include <utility>
 
 Q_LOGGING_CATEGORY(lc_app, "sendspin.app")
+
+namespace {
+
+// Settings has no window yet; these are its keys
+constexpr const char* SETTING_OUTPUT = "player/output";  ///< a node.name; empty for the default
+constexpr const char* SETTING_MPRIS = "mpris/enabled";   ///< on unless set false
+
+QSettings settings() {
+    return QSettings(QStringLiteral("sendspin"), QStringLiteral("sendspin"));
+}
+
+/// Flatpak's place for files other apps are pointed at
+QString art_dir() {
+    return QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation) +
+           QStringLiteral("/app/") + QLatin1String(APP_ID);
+}
+
+}  // namespace
 
 App::App(const std::filesystem::path& data_dir, QObject* parent)
     : QObject(parent),
       server_persistence_(data_dir),
       client_persistence_(data_dir),
-      client_({.name = device_name(), .port = Client::free_port()}, &this->client_persistence_) {
+      advertised_(this->probe_formats_()),
+      client_(
+          {.name = device_name(), .port = Client::free_port(), .player_formats = this->advertised_},
+          &this->client_persistence_),
+      mpris_(this->client_, art_dir()) {
     qCInfo(lc_app, "PipeWire %s", pw_get_library_version());
+    this->mpris_.set_enabled(settings().value(SETTING_MPRIS, true).toBool());
 
     this->status_ = this->menu_.addAction(QString());
     this->status_->setEnabled(false);
@@ -35,6 +62,10 @@ App::App(const std::filesystem::path& data_dir, QObject* parent)
 
     connect(&this->client_, &Client::stateChanged, this, &App::update_status_);
     connect(&this->client_, &Client::serverNameChanged, this, &App::update_status_);
+    connect(&this->client_.player(), &Player::streamingChanged, this, &App::update_status_);
+    connect(&this->client_.now_playing(), &NowPlaying::changed, this, &App::update_status_);
+    connect(&this->outputs_, &Outputs::targetChanged, this, &App::on_target_changed_);
+    this->client_.player().stream().set_target(this->outputs_.target());
     connect(&this->client_, &Client::pairingCodeChanged, this, &App::on_pairing_code_);
     connect(&this->client_, &Client::pairingApprovalNeededChanged, this,
             &App::on_pairing_approval_needed_);
@@ -67,13 +98,57 @@ void App::start() {
     this->client_.start();
 }
 
-QString App::status_text(Client::State state, const QString& server_name) {
+std::vector<sendspin::AudioSupportedFormatObject> App::probe_formats_() {
+    if (!this->outputs_.start()) {
+        qCWarning(lc_app, "PipeWire's outputs cannot be listed");
+    }
+    this->outputs_.set_chosen(settings().value(SETTING_OUTPUT).toByteArray());
+    auto formats = this->target_formats_();
+    QStringList listed;
+    for (const auto& format : formats) {
+        if (format.codec == sendspin::SendspinCodecFormat::FLAC) {
+            listed << QStringLiteral("%1/%2").arg(format.sample_rate).arg(format.bit_depth);
+        }
+    }
+    qCInfo(lc_app, "the player takes %s, as FLAC or PCM", qUtf8Printable(listed.join(u' ')));
+    return formats;
+}
+
+std::vector<sendspin::AudioSupportedFormatObject> App::target_formats_() {
+    const auto target = this->outputs_.target();
+    return player_formats(target ? this->outputs_.formats(*target) : SinkFormats{},
+                          this->outputs_.clock());
+}
+
+void App::on_target_changed_() {
+    this->client_.player().stream().set_target(this->outputs_.target());
+    if (!this->outputs_.target().has_value()) {
+        return;
+    }
+    // The role's formats are fixed once the client exists; PipeWire resamples the difference
+    const auto formats = this->target_formats_();
+    const bool same = std::equal(formats.begin(), formats.end(), this->advertised_.begin(),
+                                 this->advertised_.end(), [](const auto& a, const auto& b) {
+                                     return a.codec == b.codec && a.channels == b.channels &&
+                                            a.sample_rate == b.sample_rate &&
+                                            a.bit_depth == b.bit_depth;
+                                 });
+    if (!same) {
+        qCInfo(lc_app, "this output plays other formats than the ones advertised at startup");
+    }
+}
+
+QString App::status_text(Client::State state, const QString& server_name, const Track& playing) {
     switch (state) {
         case Client::State::Stopped:
             break;
         case Client::State::Waiting:
             return tr("Waiting for a server");
         case Client::State::Connected:
+            if (!playing.title.isEmpty()) {
+                return playing.artist.isEmpty() ? playing.title
+                                                : tr("%1 — %2").arg(playing.title, playing.artist);
+            }
             return tr("Connected to %1").arg(server_name);
         case Client::State::Pairing:
             return server_name.isEmpty() ? tr("Pairing…") : tr("Pairing with %1…").arg(server_name);
@@ -86,7 +161,9 @@ QString App::grouped_code(const QString& code) {
 }
 
 void App::update_status_() {
-    this->status_->setText(status_text(this->client_.state(), this->client_.server_name()));
+    this->status_->setText(status_text(
+        this->client_.state(), this->client_.server_name(),
+        this->client_.player().streaming() ? this->client_.now_playing().track() : Track{}));
 }
 
 void App::on_pairing_code_(const QString& code) {

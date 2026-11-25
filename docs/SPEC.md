@@ -493,14 +493,23 @@ Two controls, independent of each other:
 
 - `add_player()`, `add_controller()`, `add_metadata()`, `add_artwork()`.
 - `on_audio_output()` writes to a PipeWire playback stream named "Sendspin" (`media.role=Music`)
-  that follows the default output, or the device chosen in Settings.
-  `notify_audio_played()` reports each buffer with the time it finishes playing
+  that follows the default output, or the device chosen in Settings (`player/output`, a node
+  name). `notify_audio_played()` reports each buffer with the time it finishes playing
   (`client: include/sendspin/player_role.h`).
+- The stream names its output itself (`target.object`) and reopens on the new one when the
+  default changes. Left to the session manager it would be moved into the Sendspin output the
+  moment that became the default; see [Loop guards](#loop-guards).
 - Advertise only formats that play without a resampler: the sink's `EnumFormat` intersected with
-  the daemon's `clock.allowed-rates`, as FLAC and PCM.
+  the daemon's `clock.allowed-rates`, as FLAC and PCM, stereo, 24-bit ahead of 16-bit where the
+  sink carries it, the graph's own rate first.
+- The formats are read once, at startup, for the output in use then: a role's formats cannot
+  change while the client runs. After a switch to an output with other rates PipeWire resamples,
+  and the app logs it.
 - The player's volume and mute are that stream's volume in the OS mixer, both ways
   (`on_volume_changed()`, `update_volume()`), converted with the spec's curve; see
-  [Volume](#volume).
+  [Volume](#volume). The stream takes no saved volume from the session manager
+  (`state.restore-props=false`): the player's is the one that holds. A new stream is silent until
+  it has its volume, as PipeWire creates it at full volume.
 - Transport commands go through the controller role and act on the group. Offer only what
   `supported_commands` lists.
 
@@ -510,10 +519,14 @@ Two controls, independent of each other:
   players with streams by process).
 - Registered while a server is connected; `CanPlay=false` while the group is idle, so GNOME hides
   the card; unregistered on disconnect.
+- Idle is stopped with no track. The protocol has no paused state: stopped on a track is
+  `Paused`, with `CanPlay` when the server lists `play`, so a media key can resume it.
 - Metadata from `on_track_metadata()`. Artwork written as a `file://` path named by a hash of the
   image bytes, under `$XDG_RUNTIME_DIR/app/<app-id>/`.
 - `Volume` is the group volume from the controller state.
-- Can be switched off in Settings.
+- `Seek` and `SetPosition` both go out as the controller's absolute `seek`. No `LoopStatus` or
+  `Shuffle`.
+- Can be switched off in Settings (`mpris/enabled`).
 - MPRIS never describes what the PC casts: the app playing into the Sendspin output keeps its own
   card and controls.
 
@@ -554,7 +567,8 @@ Two controls, independent of each other:
 
 1. **The player stream never plays into our own Sendspin output.** If Sendspin is the system
    default, the player stream and the play-along stream both target the remembered hardware
-   output. Otherwise MA's audio would come back in as the PC's input.
+   output: the last default that was another output, else the best of the others, and with no
+   other output they do not play. Otherwise MA's audio would come back in as the PC's input.
 2. **Never capture our own output.** The only capture is the Sendspin sink's own input. No
    monitor of the default sink, no monitor of the hardware output.
 3. **Our server never connects to our client.** The server browses `_sendspin._tcp` and would
