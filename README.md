@@ -136,6 +136,29 @@ yours differs: to switch the package's off, or to switch it on where there is no
 asks the desktop's Background portal instead. The servers that paired with this PC are listed
 from `~/.local/share/sendspin/paired_servers.ini`.
 
+## Troubleshooting
+
+The app logs little while it works: its start, what it plays on, a server or a speaker coming
+and going, and anything that went wrong. To see what it logged since you logged in:
+
+```sh
+journalctl --user -b /usr/bin/sendspin-for-linux
+```
+
+For a bug report, quit the app from the tray and start it from a terminal with `--verbose`
+(or `-v`), which adds every dial, connection and timing line:
+
+```sh
+sendspin-for-linux --verbose 2> sendspin.log
+# the Flatpak
+flatpak run com.sendspin_audio.Sendspin --verbose 2> sendspin.log
+```
+
+No key, PSK or pairing code is logged at any level. `QT_LOGGING_RULES` works as in any Qt app
+and wins over both: `QT_LOGGING_RULES="sendspin.*.debug=true"` is `--verbose`, and
+`sendspin.cast.debug=true` alone turns up one part. `sendspin.server.lib` and
+`sendspin.client.lib` are the two Sendspin libraries.
+
 # For developers
 
 ## Build
@@ -209,7 +232,7 @@ from that server.
 
 With this PC's output ticked in the picker beside a speaker, the app plays along on it: the
 system's default output, or the one that was the default before the Sendspin output. With
-`QT_LOGGING_RULES=sendspin.cast.info=true` it logs every 5 s how far off the group's time it
+`--verbose` it logs every 5 s how far off the group's time it
 plays. An output whose delay is longer than the speakers' buffer, as Bluetooth's can be, cannot
 play along and stays silent.
 
