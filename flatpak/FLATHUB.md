@@ -49,7 +49,7 @@ reviewer reads them all the same (`docs/SPEC.md`, "Install methods"):
 
 ## Each release
 
-1. Tag and publish the release as always (README, "Packages and releases"). The tag's run
+1. Tag and publish the release as always (`docs/MAINTAINING.md`, "Packages and releases"). The tag's run
    fails if the linter would turn the release down.
 2. Flathub's bot reads the manifest's `x-checker-data`, finds the new tarball and opens a pull
    request on `flathub/com.sendspin_audio.Sendspin` with its URL and sha256. Merge it when its

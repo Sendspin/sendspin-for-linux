@@ -3,6 +3,9 @@
 Qt 6 tray app on sendspin-cpp (client) and sendspin-server-cpp (server), with PipeWire for
 audio. The design is `docs/SPEC.md`.
 
+`README.md` is for users alone: installing, using, troubleshooting. Building and testing go in
+`docs/DEVELOPING.md`, packages, releases and the repositories in `docs/MAINTAINING.md`.
+
 ## Build and test
 
 ```sh
@@ -97,8 +100,9 @@ than 1.4.2 API without a fallback.
   packages; it names no package, so another project's can go through it. `repositories.yml`
   runs it over every published release and deploys to GitHub Pages. `packages.yml` runs it with
   a throwaway key (`ci/repo-fixture.sh`) and installs from the result in clean containers
-  (`ci/repo-test.sh`). The README's setup lines and `repo-test.sh` say the same thing: change
-  them together.
+  (`ci/repo-test.sh`). `repo-test.sh` runs the README's install blocks, the ones marked
+  `<!-- repo-setup: … -->`, with the site's address swapped: each ends with the install line,
+  alone.
 - `ci/` — `start-pipewire.sh` and the daemon config it loads: a null sink, no hardware.
 - `tests/interop/` — the app end to end, in Python on pytest, run by `uv`: `test_cast.py` casts to
   a real sendspin-cpp-cli player, `test_music_assistant.py` is a server on aiosendspin that pairs
