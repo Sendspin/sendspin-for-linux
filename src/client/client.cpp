@@ -53,6 +53,8 @@ Client::Client(const Config& config, sendspin::SendspinPersistenceProvider* pers
 }
 
 Client::~Client() {
+    // Whoever listens is being torn down with this
+    this->blockSignals(true);
     this->stop();
 }
 
@@ -96,6 +98,12 @@ QString Client::pairing_token() const {
 
 QString Client::client_id() const {
     return QString::fromStdString(this->client_.client_id());
+}
+
+void Client::allow_pairing() {
+    this->client_.confirm_pairing_window();
+    this->window_wanted_ = false;
+    this->sync_();
 }
 
 void Client::tick_() {
@@ -147,6 +155,13 @@ void Client::sync_() {
         this->pairing_code_ = this->code_;
         emit this->pairingCodeChanged(this->pairing_code_);
     }
+    // The library keeps its window open until the attempt ends; the question is answered once
+    // the code shows
+    const bool approval_needed = this->window_wanted_ && this->code_.isEmpty();
+    if (approval_needed != this->approval_needed_) {
+        this->approval_needed_ = approval_needed;
+        emit this->pairingApprovalNeededChanged(this->approval_needed_);
+    }
     if (std::exchange(this->paired_event_, false)) {
         emit this->paired(this->server_name_);
     }
@@ -180,4 +195,19 @@ void Client::on_pairing_code(std::string_view code,
 
 void Client::on_clear_pairing_code() {
     this->code_.clear();
+    // The end of a code attempt, also when the server just moves on with a server/activate,
+    // which reports neither paired nor aborted
+    this->pairing_ = false;
+}
+
+void Client::on_open_pairing_window() {
+    this->window_wanted_ = true;
+}
+
+void Client::on_close_pairing_window() {
+    this->window_wanted_ = false;
+    // As above, for an attempt that never got to show its code
+    if (this->code_.isEmpty()) {
+        this->pairing_ = false;
+    }
 }

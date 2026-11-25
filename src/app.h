@@ -44,12 +44,15 @@ private:
     void update_status_();
     void on_pairing_code_(const QString& code);
     void show_result_(const QString& summary);
+    void on_pairing_approval_needed_(bool needed);
 
     QMenu menu_;
     QAction* status_{nullptr};
     QSystemTrayIcon tray_;
     Notifier notifier_;
-    bool code_showing_{false};  ///< the notification up is the pairing code
+    /// The notification up, when it is one to take down again
+    enum class Notice { None, Code, Approval };
+    Notice notice_{Notice::None};
 
     // The providers outlive the server and client that use them
     ServerPersistence server_persistence_;

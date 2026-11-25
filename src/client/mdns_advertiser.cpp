@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <utility>
 
 Q_LOGGING_CATEGORY(lc_mdns, "sendspin.mdns")
 
@@ -166,9 +167,14 @@ void MdnsAdvertiser::connect_() {
     this->client_ = avahi_client_new(avahi_threaded_poll_get(this->poll_), AVAHI_CLIENT_NO_FAIL,
                                      &MdnsAdvertiser::on_client_state, this, &error);
     if (this->client_ == nullptr) {
-        qCWarning(lc_mdns, "avahi is unavailable (%s); servers will not find this PC",
-                  avahi_strerror(error));
+        // Tried again on every refresh; said once
+        if (!std::exchange(this->warned_, true)) {
+            qCWarning(lc_mdns, "avahi is unavailable (%s); servers will not find this PC",
+                      avahi_strerror(error));
+        }
         this->reconnect_.store(true);
+    } else {
+        this->warned_ = false;
     }
 }
 
@@ -179,7 +185,8 @@ void MdnsAdvertiser::refresh_() {
     if (this->reconnect_.load()) {
         this->announcements_ = current;
         this->connect_();
-    } else if (current != this->announcements_) {
+    } else if (current != this->announcements_ || this->republish_) {
+        this->republish_ = false;
         this->announcements_ = current;
         if (this->client_ != nullptr &&
             avahi_client_get_state(this->client_) == AVAHI_CLIENT_S_RUNNING) {
@@ -289,6 +296,7 @@ void MdnsAdvertiser::on_group_state(AvahiEntryGroup* group, AvahiEntryGroupState
         case AVAHI_ENTRY_GROUP_FAILURE:
             qCWarning(lc_mdns, "advertising failed: %s",
                       avahi_strerror(avahi_client_errno(avahi_entry_group_get_client(group))));
+            self->republish_ = true;
             break;
         case AVAHI_ENTRY_GROUP_UNCOMMITED:
         case AVAHI_ENTRY_GROUP_REGISTERING:

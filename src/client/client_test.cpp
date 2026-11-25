@@ -6,12 +6,15 @@
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QtEndian>
 
 #include <sendspin/server/server.h>
 
 #include <unistd.h>
 
+#include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <mutex>
 #include <optional>
 #include <vector>
@@ -31,7 +34,26 @@ public:
 
     bool connected{false};
     bool paired_session{false};
-    bool code_needed{false};
+    int code_requests{0};
+    /// Source audio chunks received, and the furthest a chunk's timestamp was from its arrival
+    int chunks{0};
+    int64_t worst_chunk_age_us{0};
+
+    /// ServerConfig::trace: called for every message, on the server's dispatch thread
+    void trace(const server::TracedMessage& message) {
+        // roles/source/v1.md "Source Audio Chunks (Binary)": the type, then the capture time of
+        // the first sample in server time, big-endian microseconds
+        constexpr uint8_t SOURCE_AUDIO = 12;
+        if (message.direction != server::TraceDirection::INBOUND || !message.binary ||
+            message.plaintext.size() <= 9 || message.plaintext[0] != SOURCE_AUDIO) {
+            return;
+        }
+        const auto timestamp_us = qFromBigEndian<qint64>(message.plaintext.data() + 1);
+        const std::lock_guard lock(this->mutex_);
+        ++this->chunks;
+        this->worst_chunk_age_us =
+            std::max<int64_t>(this->worst_chunk_age_us, std::abs(message.stamp_us - timestamp_us));
+    }
     std::optional<server::PairingResult> pairing_result;
     std::optional<server::StreamFormat> source_format;
     std::optional<server::SourceSignal> source_signal;
@@ -53,7 +75,7 @@ private:
     void on_pairing_code_needed(const server::ClientInfo& /*client*/, server::PairMethod /*method*/,
                                 server::CodeFormat /*format*/) override {
         const std::lock_guard lock(this->mutex_);
-        this->code_needed = true;
+        ++this->code_requests;
     }
     void on_pairing_result(const server::ClientInfo& /*client*/,
                            server::PairingResult result) override {
@@ -154,6 +176,9 @@ private slots:
         config.listen_port = 0;
         config.advertise = false;
         config.browse = false;
+        config.trace = [this](const server::TracedMessage& message) {
+            this->events_.trace(message);
+        };
         this->server_persistence_.emplace(this->data_dir());
         QCOMPARE(this->server_.start(config, &*this->server_persistence_, &this->events_),
                  server::StartResult::OK);
@@ -188,6 +213,50 @@ private slots:
         QVERIFY(!QDir(this->dir_.filePath("client")).exists());
     }
 
+    // The library gives a server 20 tries at the code, then holds pairing until someone at the
+    // PC allows it
+    void wrongCodesNeedApprovalToPairAgain() {
+        ClientPersistence persistence(this->data_dir());
+        Client client(this->config_, &persistence);
+        QSignalSpy approvals(&client, &Client::pairingApprovalNeededChanged);
+        QVERIFY(client.start());
+        const std::string id = client.client_id().toStdString();
+        this->dial();
+        QTRY_COMPARE(client.state(), Client::State::Connected);
+
+        QVERIFY(this->server_.begin_pairing(id, {}));
+        QTRY_COMPARE(client.pairing_code().size(), 6);
+        QString wrong = client.pairing_code();
+        wrong[0] = wrong[0] == QLatin1Char('0') ? QLatin1Char('1') : QLatin1Char('0');
+        int requests = 0;
+        while (!client.pairing_code().isEmpty()) {
+            QTRY_VERIFY(this->events_.get(&ServerEvents::code_requests) > requests ||
+                        client.pairing_code().isEmpty());
+            requests = this->events_.get(&ServerEvents::code_requests);
+            QVERIFY(requests <= 25);
+            (void)this->server_.submit_pairing_code(id, wrong.toStdString());
+            QTest::qWait(20);
+        }
+        // The next attempt waits; the server may already have begun it
+        if (!client.pairing_approval_needed()) {
+            (void)this->server_.begin_pairing(id, {});
+        }
+        QTRY_VERIFY(client.pairing_approval_needed());
+        QVERIFY(client.pairing_code().isEmpty());
+        client.allow_pairing();
+        QTRY_COMPARE(client.pairing_code().size(), 6);
+        QTRY_VERIFY(!client.pairing_approval_needed());
+
+        // A server that gives up takes the code and the state down with it
+        QVERIFY(this->server_.cancel_pairing(id));
+        QTRY_VERIFY(client.pairing_code().isEmpty());
+        QTRY_COMPARE(client.state(), Client::State::Connected);
+        QVERIFY(!client.is_paired());
+
+        client.stop();
+        QTRY_VERIFY(!this->events_.get(&ServerEvents::connected));
+    }
+
     void pairsByTheDynamicCode() {
         ClientPersistence persistence(this->data_dir());
         Client client(this->config_, &persistence);
@@ -213,11 +282,12 @@ private slots:
 
         // The server starts pairing; the PC shows the code; the operator types it in
         const std::string id = this->client_id_.toStdString();
+        const int requests = this->events_.get(&ServerEvents::code_requests);
         QVERIFY(this->server_.begin_pairing(id, {}));
         QTRY_COMPARE(client.pairing_code().size(), 6);
         QCOMPARE(client.state(), Client::State::Pairing);
         QCOMPARE(codes.size(), 1);
-        QTRY_VERIFY(this->events_.get(&ServerEvents::code_needed));
+        QTRY_VERIFY(this->events_.get(&ServerEvents::code_requests) > requests);
         QVERIFY(this->server_.submit_pairing_code(id, client.pairing_code().toStdString()));
 
         QTRY_COMPARE(this->events_.get(&ServerEvents::pairing_result),
@@ -250,6 +320,9 @@ private slots:
         QTRY_VERIFY(this->events_.get(&ServerEvents::paired_session));
         QCOMPARE(codes.size(), 0);
 
+        // Streaming is checked on this session and not right after pairing: there the server
+        // starts the source without declaring `playback`, which roles/source/v1.md forbids and
+        // the client rightly ignores (Sendspin/sendspin-server-cpp#107)
         const std::string id = this->client_id_.toStdString();
         // The server takes the PC as an input
         const auto group = this->server_.default_group();
@@ -268,6 +341,10 @@ private slots:
             QTest::qWait(10);
         }
         QVERIFY(client.source().signal());
+        // The audio arrived, stamped when it was captured: half a second in 20 ms chunks, each
+        // received within moments of its timestamp
+        QTRY_VERIFY(this->events_.get(&ServerEvents::chunks) >= 20);
+        QVERIFY(this->events_.get(&ServerEvents::worst_chunk_age_us) < 500'000);
         QTRY_COMPARE(this->events_.get(&ServerEvents::source_signal),
                      std::optional(server::SourceSignal::PRESENT));
 

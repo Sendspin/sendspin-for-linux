@@ -36,6 +36,13 @@ App::App(const std::filesystem::path& data_dir, QObject* parent)
     connect(&this->client_, &Client::stateChanged, this, &App::update_status_);
     connect(&this->client_, &Client::serverNameChanged, this, &App::update_status_);
     connect(&this->client_, &Client::pairingCodeChanged, this, &App::on_pairing_code_);
+    connect(&this->client_, &Client::pairingApprovalNeededChanged, this,
+            &App::on_pairing_approval_needed_);
+    connect(&this->notifier_, &Notifier::actionInvoked, this, [this] {
+        if (this->notice_ == Notice::Approval) {
+            this->client_.allow_pairing();
+        }
+    });
     connect(&this->client_, &Client::paired, this, [this](const QString& server_name) {
         this->show_result_(server_name.isEmpty() ? tr("Paired")
                                                  : tr("Paired with %1").arg(server_name));
@@ -85,12 +92,13 @@ void App::update_status_() {
 void App::on_pairing_code_(const QString& code) {
     if (code.isEmpty()) {
         // The result may already have taken the code's place
-        if (std::exchange(this->code_showing_, false)) {
+        if (this->notice_ == Notice::Code) {
+            this->notice_ = Notice::None;
             this->notifier_.close();
         }
         return;
     }
-    this->code_showing_ = true;
+    this->notice_ = Notice::Code;
     const QString server_name = this->client_.server_name();
     this->notifier_.show(tr("Pairing code: %1").arg(grouped_code(code)),
                          server_name.isEmpty()
@@ -99,8 +107,21 @@ void App::on_pairing_code_(const QString& code) {
                          true);
 }
 
+void App::on_pairing_approval_needed_(bool needed) {
+    if (needed) {
+        // The library holds pairing back after too many wrong codes, until someone here allows it
+        this->notice_ = Notice::Approval;
+        this->notifier_.show(tr("A server wants to pair with this PC"),
+                             tr("Pairing was paused after too many wrong codes."), true,
+                             tr("Allow pairing"));
+    } else if (this->notice_ == Notice::Approval) {
+        this->notice_ = Notice::None;
+        this->notifier_.close();
+    }
+}
+
 void App::show_result_(const QString& summary) {
-    this->code_showing_ = false;
+    this->notice_ = Notice::None;
     this->notifier_.show(summary);
 }
 

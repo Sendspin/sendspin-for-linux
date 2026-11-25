@@ -67,6 +67,13 @@ public:
     bool is_paired() const {
         return this->client_.is_paired();
     }
+    /// @brief A server's pairing waits for the user to allow it: after too many wrong codes the
+    /// library holds pairing back until someone at this PC says so
+    bool pairing_approval_needed() const {
+        return this->approval_needed_;
+    }
+    /// @brief The user allows the pairing that waits, and pairing in general again
+    void allow_pairing();
     /// @brief The token to paste into a server to pair by Pairing PSK ("SP:0…"); empty before
     /// start(). A secret: show it only when asked, never log it.
     QString pairing_token() const;
@@ -84,6 +91,7 @@ signals:
     void stateChanged(Client::State state);
     void serverNameChanged(const QString& name);
     void pairingCodeChanged(const QString& code);
+    void pairingApprovalNeededChanged(bool needed);
     void paired(const QString& serverName);
     /// A pairing ended without pairing
     void pairingEnded();
@@ -96,6 +104,8 @@ private:
     void on_pairing_code(std::string_view code,
                          sendspin::SendspinPairingCodeFormat format) override;
     void on_clear_pairing_code() override;
+    void on_open_pairing_window() override;
+    void on_close_pairing_window() override;
     bool is_network_ready() override {
         return true;
     }
@@ -116,6 +126,7 @@ private:
     bool pairing_{false};
     bool pairing_connected_{false};  ///< the pairing server's connection was seen up
     QString code_;
+    bool window_wanted_{false};
     bool paired_event_{false};
     bool ended_event_{false};
 
@@ -123,4 +134,5 @@ private:
     State state_{State::Stopped};
     QString server_name_;
     QString pairing_code_;
+    bool approval_needed_{false};
 };

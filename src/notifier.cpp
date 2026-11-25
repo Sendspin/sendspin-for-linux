@@ -23,7 +23,23 @@ void close_notification(quint32 id) {
 
 }  // namespace
 
-void Notifier::show(const QString& summary, const QString& body, bool persistent) {
+Notifier::Notifier(QObject* parent) : QObject(parent) {
+    QDBusConnection::sessionBus().connect(QStringLiteral("org.freedesktop.Notifications"),
+                                          QStringLiteral("/org/freedesktop/Notifications"),
+                                          QStringLiteral("org.freedesktop.Notifications"),
+                                          QStringLiteral("ActionInvoked"), this,
+                                          SLOT(onActionInvoked(quint32, QString)));
+}
+
+void Notifier::onActionInvoked(quint32 id, const QString& /*key*/) {
+    // The signal is broadcast for every app's notifications
+    if (id != 0 && id == this->id_) {
+        emit this->actionInvoked();
+    }
+}
+
+void Notifier::show(const QString& summary, const QString& body, bool persistent,
+                    const QString& action) {
     const QDBusConnection bus = QDBusConnection::sessionBus();
     if (!bus.isConnected()) {
         return;
@@ -32,7 +48,9 @@ void Notifier::show(const QString& summary, const QString& body, bool persistent
     // app_name, replaces_id, app_icon, summary, body, actions, hints, expire_timeout (0: never,
     // -1: the server's default)
     message << QGuiApplication::applicationDisplayName() << this->id_ << QString() << summary
-            << body << QStringList() << QVariantMap() << (persistent ? 0 : -1);
+            << body
+            << (action.isEmpty() ? QStringList() : QStringList{QStringLiteral("act"), action})
+            << QVariantMap() << (persistent ? 0 : -1);
 
     const quint32 generation = ++this->generation_;
     auto* watcher = new QDBusPendingCallWatcher(bus.asyncCall(message), this);

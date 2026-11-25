@@ -65,6 +65,7 @@ private slots:
                                 {QHostAddress("2001:db8::1"), false},
                                 {QHostAddress("2001:db8::5dd2:4d7e:511e:1557"), true},
                                 {QHostAddress("fe80::1%enp3s0"), true},
+                                {QHostAddress("fe80::2%enp3s0"), false},
                                 {QHostAddress("169.254.10.1"), false}})});
         QCOMPARE(result.size(), 1);
         QCOMPARE(result[0].addresses,

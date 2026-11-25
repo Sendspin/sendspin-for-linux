@@ -89,4 +89,6 @@ private:
     QByteArray host_name_;  ///< `<label>.local`, renamed on a collision
     uint16_t port_{0};
     QList<Announcement> announcements_;
+    bool republish_{false};  ///< the group failed; publish again on the next refresh
+    bool warned_{false};     ///< said once that avahi is unavailable
 };

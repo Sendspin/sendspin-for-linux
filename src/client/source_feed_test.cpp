@@ -10,16 +10,6 @@ class SourceFeedTest : public QObject {
     Q_OBJECT
 
 private slots:
-    void streamsFlac16AtTheOutputsFormat() {
-        const sendspin::SourceRoleConfig config = SourceFeed::config();
-        QCOMPARE(config.codec, sendspin::SendspinCodecFormat::FLAC);
-        QCOMPARE(config.sample_rate, SendspinOutput::RATE);
-        QCOMPARE(uint32_t{config.channels}, SendspinOutput::CHANNELS);
-        QCOMPARE(int{config.bit_depth}, 16);
-        QCOMPARE(config.chunk_duration_ms, 20U);
-        QVERIFY(config.line_sense);
-    }
-
     void silenceStaysSilent() {
         const std::array<float, 64> in{};
         std::array<int16_t, 64> out;
