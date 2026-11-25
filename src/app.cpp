@@ -9,6 +9,7 @@
 #include <QSettings>
 #include <QStandardPaths>
 #include <QStyle>
+#include <QTimer>
 
 #include <pipewire/pipewire.h>
 
@@ -22,6 +23,8 @@ namespace {
 constexpr const char* SETTING_OUTPUT = "player/output";  ///< a node.name; empty for the default
 constexpr const char* SETTING_MPRIS = "mpris/enabled";   ///< on unless set false
 constexpr const char* SETTING_UNPAIRED = "client/unpaired_access";  ///< on unless set false
+
+constexpr int SOURCE_POLL_MS = 500;
 
 QSettings settings() {
     return QSettings(QStringLiteral("sendspin"), QStringLiteral("sendspin"));
@@ -68,6 +71,19 @@ App::App(const std::filesystem::path& data_dir, QObject* parent)
     connect(&this->outputs_, &Outputs::targetChanged, this,
             [this] { this->client_.player().stream().set_target(this->outputs_.target()); });
     this->client_.player().stream().set_target(this->outputs_.target());
+    // This PC's own output plays along on what the system uses, whatever the player is set to
+    const auto set_local = [this] {
+        const std::optional<OutputSink> local = this->outputs_.local();
+        this->cast_.set_local_target(local ? std::optional(local->name) : std::nullopt);
+    };
+    connect(&this->outputs_, &Outputs::changed, this, set_local);
+    set_local();
+    // Captured audio is never played directly while a server takes it (docs/SPEC.md, "Loop
+    // guards"). Until the picker says where the sound goes, the server's open stream does.
+    auto* guard = new QTimer(this);
+    guard->callOnTimeout(
+        this, [this] { this->cast_.setLocalInGroup(!this->client_.source().streaming()); });
+    guard->start(SOURCE_POLL_MS);
     connect(&this->client_, &Client::pairingCodeChanged, this, &App::on_pairing_code_);
     connect(&this->client_, &Client::pairingApprovalNeededChanged, this,
             &App::on_pairing_approval_needed_);
@@ -85,6 +101,7 @@ App::App(const std::filesystem::path& data_dir, QObject* parent)
 
     // Both get every block. Which of the two the sound goes to is the picker's choice, still to
     // come: the cast takes it while a speaker is added, the server while it has the PC as input.
+    // Until then this PC's own output is in the group, and plays what neither takes.
     this->output_.set_consumer([this](const CapturedBlock& block) {
         this->client_.source().write(block);
         this->cast_.feed().take(block);

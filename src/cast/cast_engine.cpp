@@ -1,5 +1,6 @@
 #include "cast/cast_engine.h"
 
+#include "audio/volume_curve.h"
 #include "device_name.h"
 
 #include <QLoggingCategory>
@@ -36,6 +37,8 @@ constexpr int64_t STEP_NS = 2'000'000'000;
 /// A latency change smaller than this isn't worth telling the graph
 constexpr int64_t LATENCY_STEP_NS = 1'000'000;
 const char* const PLAYER_ROLE = "player@v1";
+/// How often its timing is logged while it plays
+constexpr int64_t LOCAL_LOG_NS = 5'000'000'000;
 
 /// The clock of CapturedBlock::capture_time_ns
 int64_t raw_now_ns() {
@@ -188,6 +191,7 @@ CastEngine::CastEngine(const std::filesystem::path& data_dir, SendspinOutput& ou
       persistence_(data_dir),
       settings_(settings_path(data_dir), QSettings::IniFormat),
       listener_(std::make_unique<Listener>(this)) {
+    this->feed_.set_play_along(&this->play_along_);
     this->load_settings_();
     this->publish_rows_();
     this->timer_.setInterval(REFRESH_MS);
@@ -253,6 +257,8 @@ bool CastEngine::start(uint16_t port, bool discovery) {
 
 void CastEngine::stop() {
     this->timer_.stop();
+    this->feed_.set_local(CastFeed::Local::NOTHING);
+    this->play_along_.set_active(false);
     this->release_cast_();
     // Joins the dispatch thread, so no callback runs past here
     this->server_.reset();
@@ -344,6 +350,35 @@ void CastEngine::setGroupMuted(bool muted) {
         (void)this->server_->set_group_mute(*this->cast_group_, muted);
     }
     emit this->groupMutedChanged(muted);
+}
+
+void CastEngine::setLocalInGroup(bool in_group) {
+    if (this->local_in_group_ != in_group) {
+        this->local_in_group_ = in_group;
+        this->refresh_();
+        emit this->localChanged();
+    }
+}
+
+void CastEngine::set_local_target(const std::optional<QByteArray>& target) {
+    const std::optional<QByteArray> before = this->play_along_.target();
+    this->play_along_.set_target(target);
+    if (this->play_along_.target() != before) {
+        // Another output, another delay
+        this->local_late_ = false;
+        this->refresh_();
+        emit this->localChanged();
+    }
+}
+
+speaker_menu::Output CastEngine::local_output() const {
+    speaker_menu::Output output;
+    output.is_local = true;
+    output.in_group = this->local_in_group_;
+    output.is_discovered = this->play_along_.target().has_value();
+    output.plays = this->local_plays_;
+    output.connection = this->local_late_ ? Connection::CANT_PLAY : Connection::CONNECTED;
+    return output;
 }
 
 bool CastEngine::pair(const QString& id) {
@@ -510,6 +545,7 @@ void CastEngine::refresh_() {
     this->detect_identity_changes_();
     this->take_steps_(now_ns);
     this->update_input_(now_ns);
+    this->update_local_(now_ns);
     this->publish_rows_();
 }
 
@@ -668,6 +704,62 @@ void CastEngine::update_input_(int64_t now_ns) {
     if (playing != this->playing_) {
         this->playing_ = playing;
         emit this->playingChanged(playing);
+    }
+}
+
+void CastEngine::update_local_(int64_t now_ns) {
+    using Local = CastFeed::Local;
+    const bool wanted = this->local_in_group_ && this->play_along_.target().has_value();
+    const int64_t delay_ns = this->play_along_.delay_ns();
+
+    Local local = Local::NOTHING;
+    if (!wanted || !this->feed_.input()) {
+        this->local_late_ = false;
+        // With no group to keep time with it plays what is captured as it comes: alone, or
+        // until an added speaker is there. Never beside a speaker that plays: that is an echo.
+        local = wanted ? Local::DIRECT : Local::NOTHING;
+    } else {
+        const bool late =
+            speaker_menu::local_is_late(delay_ns, this->latency_ns_, this->local_late_);
+        if (late && !this->local_late_) {
+            qCWarning(lc_cast,
+                      "this PC's output can't play along: its delay is %lld ms, the speaker "
+                      "buffer %lld ms",
+                      static_cast<long long>(delay_ns / 1'000'000),
+                      static_cast<long long>(this->latency_ns_ / 1'000'000));
+        }
+        this->local_late_ = late;
+        local = late ? Local::NOTHING : Local::GROUP;
+    }
+
+    const bool active = local != Local::NOTHING && this->feed_.has_sound(now_ns);
+    float gain = 1.0F;
+    if (local == Local::GROUP) {
+        // The group's volume and mute, like the speakers; alone, the desktop's own is all
+        gain =
+            this->muted_ ? 0.0F : volume_to_amplitude(static_cast<uint8_t>(this->group_volume()));
+    }
+    this->play_along_.set_gain(gain);
+    this->feed_.set_local(local);
+    this->play_along_.set_active(active);
+
+    if (active && now_ns - this->local_logged_ns_ >= LOCAL_LOG_NS) {
+        this->local_logged_ns_ = now_ns;
+        const PlayAlong::Stats stats = this->play_along_.stats();
+        qCInfo(lc_cast,
+               "this PC plays %s: %lld us off, delay %lld ms, buffer %lld ms, resyncs %u, "
+               "dropped %u, repeated %u, underruns %u, overflows %u",
+               local == Local::GROUP ? "along" : "directly",
+               static_cast<long long>(stats.error_ns / 1000),
+               static_cast<long long>(delay_ns / 1'000'000),
+               static_cast<long long>(this->latency_ns_ / 1'000'000), stats.resyncs, stats.dropped,
+               stats.repeated, stats.underruns, stats.overflows);
+    }
+
+    const bool plays = wanted && !this->local_late_;
+    if (plays != this->local_plays_) {
+        this->local_plays_ = plays;
+        emit this->localChanged();
     }
 }
 

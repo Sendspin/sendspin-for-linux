@@ -210,6 +210,19 @@ void Outputs::stop() {
     this->clock_ = {};
 }
 
+std::optional<OutputSink> Outputs::local() const {
+    if (this->loop_ == nullptr) {
+        return std::nullopt;
+    }
+    const LoopLock lock(this->loop_);
+    const std::optional<QByteArray> name =
+        choose_target(this->sinks_, this->default_sink_, {}, this->own_sink_, this->last_default_);
+    if (!name) {
+        return std::nullopt;
+    }
+    return *std::ranges::find(this->sinks_, *name, &OutputSink::name);
+}
+
 void Outputs::set_chosen(const QByteArray& name) {
     this->chosen_ = name;
     this->update_target_();
@@ -287,6 +300,7 @@ void Outputs::update_target_() {
         qCInfo(lc_outputs, "playing on %s", target ? target->constData() : "nothing");
         emit this->targetChanged();
     }
+    emit this->changed();
 }
 
 void Outputs::lost_() {

@@ -181,6 +181,32 @@ private slots:
     }
 
     // This PC's own output is always there to take over
+    void thisPcsOutputThatCantKeepTimeSaysCantPlay() {
+        Output output = local(true, false);
+        output.connection = Connection::CANT_PLAY;
+        const Row shown = row(output, {.group_count = 2});
+        QCOMPARE(shown.check, Check::GREY);
+        QCOMPARE(shown.status, Status::CANT_PLAY);
+        QVERIFY(shown.warning);
+        QCOMPARE(shown.click, Click::REMOVE);
+    }
+
+    // The speaker buffer is the library's: an output slower than it can't be on time
+    void thisPcsOutputIsLateWhenItsDelayDoesNotFitTheSpeakerBuffer() {
+        constexpr int64_t MS = 1'000'000;
+        QVERIFY(!local_is_late(40 * MS, 200 * MS, false));
+        QVERIFY(local_is_late(250 * MS, 200 * MS, false));
+        // It needs some of the buffer to get the audio there
+        QVERIFY(local_is_late(195 * MS, 200 * MS, false));
+        QVERIFY(!local_is_late(190 * MS, 200 * MS, false));
+        // Late once, it comes back only with room to spare
+        QVERIFY(local_is_late(185 * MS, 200 * MS, true));
+        QVERIFY(!local_is_late(180 * MS, 200 * MS, true));
+        // Until both are known there is nothing to say
+        QVERIFY(!local_is_late(0, 200 * MS, false));
+        QVERIFY(!local_is_late(250 * MS, 0, true));
+    }
+
     void aSendspinSpeakerAloneCanBeRemoved() {
         QCOMPARE(speaker_menu::row(speaker(true, true), {.group_count = 1}).click, Click::REMOVE);
     }

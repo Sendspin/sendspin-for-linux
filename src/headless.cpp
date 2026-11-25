@@ -1,5 +1,6 @@
 #include "headless.h"
 
+#include "audio/outputs.h"
 #include "audio/sendspin_output.h"
 #include "cast/cast_engine.h"
 #include "persistence.h"
@@ -61,7 +62,8 @@ void print(QTextStream& out, const CastEngine& engine, const SpeakerModel& model
 std::optional<int> run_headless(int argc, char** argv) {
     const bool asked = std::any_of(argv + 1, argv + argc, [](const char* arg) {
         const std::string_view text(arg);
-        return text == "--list" || text.starts_with("--add") || text.starts_with("--remove");
+        return text == "--list" || text.starts_with("--add") || text.starts_with("--remove") ||
+               text == "--play-along";
     });
     if (!asked) {
         return std::nullopt;
@@ -75,6 +77,7 @@ std::optional<int> run_headless(int argc, char** argv) {
         {"list", "Print the speakers as they change."},
         {"add", "Add the speaker with this name to the group.", "name"},
         {"remove", "Take the speaker with this name out of the group.", "name"},
+        {"play-along", "Play on this PC's own output too, in time with the speakers."},
     });
     parser.process(qt);
 
@@ -90,6 +93,20 @@ std::optional<int> run_headless(int argc, char** argv) {
     SendspinOutput output;
     CastEngine engine(data_dir(), output);
     output.set_consumer([&engine](const CapturedBlock& block) { engine.feed().take(block); });
+    // The speakers only, unless asked: this mode is for a machine that is not listened at
+    Outputs outputs(output.node_name());
+    engine.setLocalInGroup(parser.isSet("play-along"));
+    if (parser.isSet("play-along")) {
+        const auto set_local = [&] {
+            const std::optional<OutputSink> local = outputs.local();
+            engine.set_local_target(local ? std::optional(local->name) : std::nullopt);
+        };
+        QObject::connect(&outputs, &Outputs::changed, &qt, set_local);
+        if (!outputs.start()) {
+            err << "PipeWire's outputs cannot be listed.\n";
+        }
+        set_local();
+    }
     QString error;
     if (!output.start(&error)) {
         err << "No Sendspin output: " << error << '\n';

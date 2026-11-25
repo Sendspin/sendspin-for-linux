@@ -256,6 +256,13 @@ std::optional<Plan> plan(const Action& action, const State& state) {
     return std::nullopt;
 }
 
+bool local_is_late(int64_t delay_ns, int64_t buffer_ns, bool late) {
+    if (delay_ns == 0 || buffer_ns == 0) {
+        return false;
+    }
+    return delay_ns + ((late ? 2 : 1) * LOCAL_MARGIN_NS) > buffer_ns;
+}
+
 bool sendspin_plays(bool has_sound, Route route, bool speaker_connected, bool server_streaming) {
     if (!has_sound) {
         return false;

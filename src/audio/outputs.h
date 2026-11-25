@@ -54,6 +54,10 @@ public:
         return this->target_;
     }
 
+    /// @brief This PC's own output: the one the system uses, or used last before the Sendspin
+    /// output; when that's gone, the best other one. nullopt when there is none.
+    std::optional<OutputSink> local() const;
+
     ClockRates clock() const;
 
     /// @brief Asks an output what it plays. Waits for the answer, briefly; empty without one.
@@ -61,6 +65,8 @@ public:
 
 signals:
     void targetChanged();
+    /// The outputs or the default may have changed
+    void changed();
 
 private:
     struct Metadata {

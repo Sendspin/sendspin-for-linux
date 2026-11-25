@@ -1,5 +1,6 @@
 #pragma once
 
+#include "audio/play_along.h"
 #include "audio/sendspin_output.h"
 #include "cast/cast_feed.h"
 #include "cast/speaker_menu.h"
@@ -35,6 +36,10 @@ bool is_own_client(const sendspin::server::DiscoveredClient& found, uint16_t own
 /// The server's own group is a lobby that never gets an input. The engine casts into a group of
 /// its own, which holds exactly the added speakers, so nothing plays on a speaker the user
 /// didn't add (docs/SPEC.md, "What ticking does").
+///
+/// This PC's own output is in the group or not, like a speaker, though it is no Sendspin player:
+/// beside a speaker the engine plays the group's audio on it, in time with the group; alone it
+/// gets the captured audio directly (docs/SPEC.md, "This PC's output").
 ///
 /// Main thread only. The library's callbacks arrive on its dispatch thread and are queued here.
 class CastEngine : public QObject {
@@ -102,6 +107,19 @@ public:
         return this->feed_;
     }
 
+    /// @brief The output this PC plays along on, a node.name; nullopt for none. Never the
+    /// Sendspin output.
+    void set_local_target(const std::optional<QByteArray>& target);
+    bool local_in_group() const {
+        return this->local_in_group_;
+    }
+    /// @brief This PC's own output as the picker's rules see it: in the group, found, and
+    /// whether it plays. Beside speakers whose buffer is shorter than its own delay it can't.
+    speaker_menu::Output local_output() const;
+    PlayAlong& play_along() {
+        return this->play_along_;
+    }
+
 public slots:
     // id is a row's SpeakerModel::IdRole
 
@@ -114,6 +132,10 @@ public slots:
 
     void setGroupVolume(int volume);
     void setGroupMuted(bool muted);
+
+    /// @brief Puts this PC's own output in the group or takes it out. The engine does not keep
+    /// the choice: in the group until told otherwise.
+    void setLocalInGroup(bool in_group);
 
     /// @brief Starts pairing by the best method the speaker offers: the dynamic code, the static
     /// code, then the token. pairingCodeNeeded() asks for what to submit.
@@ -131,6 +153,8 @@ signals:
     void groupMutedChanged(bool muted);
     void playingChanged(bool playing);
     void discoveryAvailableChanged(bool available);
+    /// local_output() changed
+    void localChanged();
 
     void pairingCodeNeeded(const QString& id, sendspin::server::PairMethod method,
                            sendspin::server::CodeFormat format);
@@ -176,6 +200,7 @@ private:
     void detect_identity_changes_();
     void take_steps_(int64_t now_ns);
     void update_input_(int64_t now_ns);
+    void update_local_(int64_t now_ns);
     void publish_rows_();
     void release_cast_();
 
@@ -204,6 +229,9 @@ private:
     std::string own_client_id_;
     std::unique_ptr<Listener> listener_;
     std::unique_ptr<sendspin::server::SendspinServer> server_;
+    // Before the feed, which writes to it. It knows the Sendspin output by its default name, as
+    // Outputs does: the app's output is not constructed yet when the engine is.
+    PlayAlong play_along_;
     CastFeed feed_;
     SpeakerModel model_;
     QTimer timer_;
@@ -222,4 +250,11 @@ private:
     bool playing_{false};
     bool discovery_available_{true};
     int64_t latency_ns_{0};
+
+    bool local_in_group_{true};
+    /// Its delay is longer than the speaker buffer: it can't play in time
+    bool local_late_{false};
+    /// What local_output() last said, to tell a change
+    bool local_plays_{false};
+    int64_t local_logged_ns_{0};
 };

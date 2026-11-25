@@ -213,6 +213,21 @@ std::optional<Plan> plan(const Action& action, const State& state);
 Route route(const State& state);
 
 // ==============================================================================
+// This PC's own output
+// ==============================================================================
+
+/// What this PC's output needs of the speaker buffer beyond its own delay to play in time
+constexpr int64_t LOCAL_MARGIN_NS = 10'000'000;
+
+/// @brief This PC's own output can't play along: the speaker buffer is the library's, set by its
+/// speakers, and an output that needs longer than that is late whatever it does. Late once, it
+/// stays out until the buffer has room to spare, so it doesn't come and go.
+/// @param delay_ns how long before it is due a frame has to reach the output; 0 for unknown
+/// @param buffer_ns the speaker buffer; 0 for unknown
+/// @param late what this said last
+bool local_is_late(int64_t delay_ns, int64_t buffer_ns, bool late);
+
+// ==============================================================================
 // The tray icon and the dot
 // ==============================================================================
 
