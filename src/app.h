@@ -50,11 +50,9 @@ private:
     void on_pairing_code_(const QString& code);
     void show_result_(const QString& summary);
     void on_pairing_approval_needed_(bool needed);
-    /// Starts watching the outputs; returns target_formats_()
+    /// Starts watching the outputs. What the player advertises: read once, here, as a role's
+    /// formats cannot change while the client runs.
     std::vector<sendspin::AudioSupportedFormatObject> probe_formats_();
-    /// What the player would advertise for the output a server's audio plays on now
-    std::vector<sendspin::AudioSupportedFormatObject> target_formats_();
-    void on_target_changed_();
 
     QMenu menu_;
     QAction* status_{nullptr};
@@ -70,7 +68,6 @@ private:
     sendspin::server::SendspinServer server_;
     // Before the client, which is created with what the outputs play
     Outputs outputs_;
-    std::vector<sendspin::AudioSupportedFormatObject> advertised_;
     Client client_;
     Mpris mpris_;
     // After the client, so its capture thread is gone before the client it writes to

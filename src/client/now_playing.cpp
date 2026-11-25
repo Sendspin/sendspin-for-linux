@@ -1,6 +1,7 @@
 #include "now_playing.h"
 
 #include <algorithm>
+#include <cstdlib>
 #include <utility>
 
 namespace {
@@ -8,6 +9,8 @@ namespace {
 constexpr uint16_t ARTWORK_SIZE = 512;
 /// A 512-pixel JPEG stays well under this
 constexpr uint32_t ARTWORK_MAX_BYTES = 1024 * 1024;
+/// A position this far from where playing on would have put it was moved
+constexpr int64_t SEEK_JUMP_MS = 1000;
 
 sendspin::ArtworkRoleConfig artwork_config() {
     sendspin::ArtworkRoleConfig config;
@@ -94,15 +97,28 @@ void NowPlaying::on_track_metadata(const sendspin::TrackMetadata& metadata) {
     track.album_artist = text(metadata.album_artist);
     track.number = metadata.track.value_or(0);
     track.duration_ms = metadata.progress ? metadata.progress->track_duration : 0;
-    if (track != this->track_) {
+    // Where the track would be had it only played on from the last state
+    const int64_t now_us = sendspin::SendspinClient::now_us();
+    const bool same_track = track == this->track_;
+    if (same_track && this->progress_ && metadata.progress) {
+        const int64_t expected_ms =
+            this->progress_->track_progress +
+            ((now_us - this->progress_us_) * this->progress_->playback_speed / 1'000'000);
+        if (std::abs(static_cast<int64_t>(metadata.progress->track_progress) - expected_ms) >
+            SEEK_JUMP_MS) {
+            this->seeked_ = true;
+        }
+    }
+    this->progress_ = metadata.progress;
+    this->progress_us_ = now_us;
+    if (!same_track) {
         this->track_ = std::move(track);
         this->dirty_ = true;
     }
-    // Every state restates the position
-    this->seeked_ = true;
 }
 
 void NowPlaying::on_metadata_clear() {
+    this->progress_.reset();
     if (this->track_ != Track{}) {
         this->track_ = {};
         this->dirty_ = true;

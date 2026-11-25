@@ -35,8 +35,8 @@ constexpr int OPEN_TIMEOUT_MS = 500;
 constexpr auto RETRY_INTERVAL = std::chrono::seconds(2);
 /// How long a new stream may stay silent waiting to take its volume
 constexpr int64_t GATE_NS = 1'000'000'000;
-/// How long after a volume is set the stream's reports may still be of an older one
-constexpr int64_t OWN_NS = 300'000'000;
+/// How long the echo of a volume set from here is waited for
+constexpr int64_t ECHO_NS = 1'000'000'000;
 constexpr float GAIN_EPSILON = 1e-5F;
 
 spa_audio_format sample_format_for(uint8_t bits) {
@@ -132,6 +132,12 @@ size_t PlaybackStream::write(const uint8_t* data, size_t length, const Format& f
         }
     }
 
+    if (!this->gate_warned_ && clock_ns(CLOCK_MONOTONIC) >= this->gate_until_ns_.load() &&
+        !(this->gain_applied_.load() && this->mute_applied_.load())) {
+        this->gate_warned_ = true;
+        qCWarning(lc_playback, "the stream does not take its volume; silent unless at full volume");
+    }
+
     const uint64_t generation = this->generation_;
     size_t done = 0;
     while (done < usable && !this->stopping_.load()) {
@@ -175,7 +181,7 @@ void PlaybackStream::stop() {
 void PlaybackStream::set_gain(float gain) {
     const std::lock_guard lock(this->mutex_);
     this->gain_.store(std::max(gain, 0.0F));
-    this->gain_own_until_ns_.store(clock_ns(CLOCK_MONOTONIC) + OWN_NS);
+    this->gain_sets_.fetch_add(1);
     if (this->stream_ != nullptr) {
         const LoopLock loop_lock(this->loop_);
         this->apply_gain_();
@@ -185,7 +191,7 @@ void PlaybackStream::set_gain(float gain) {
 void PlaybackStream::set_muted(bool muted) {
     const std::lock_guard lock(this->mutex_);
     this->muted_.store(muted);
-    this->mute_own_until_ns_.store(clock_ns(CLOCK_MONOTONIC) + OWN_NS);
+    this->mute_sets_.fetch_add(1);
     if (this->stream_ != nullptr) {
         const LoopLock loop_lock(this->loop_);
         this->apply_mute_();
@@ -244,14 +250,15 @@ bool PlaybackStream::open_(const Format& format) {
     // The stream's controls appear after it connects; on_control_info() sets them then
     this->gain_applied_.store(false);
     this->mute_applied_.store(false);
-    const int64_t now_ns = clock_ns(CLOCK_MONOTONIC);
-    this->gain_own_until_ns_.store(now_ns + GATE_NS);
-    this->mute_own_until_ns_.store(now_ns + GATE_NS);
-    this->gate_until_ns_.store(now_ns + GATE_NS);
+    this->gain_echoes_.clear();
+    this->mute_echoes_.clear();
+    this->gate_until_ns_.store(clock_ns(CLOCK_MONOTONIC) + GATE_NS);
+    this->gate_warned_ = false;
 
     // An explicit target, which the session manager may not replace: left to follow the default
     // it would be moved into the Sendspin output the moment that becomes the default, and what
-    // a server plays here would come back in as this PC's input. Nor does it restore a volume
+    // a server plays here would come back in as this PC's input. node.dont-move keeps a mixer's
+    // "move this stream" from doing the same. Nor does it restore a volume
     // or a target of its own: both are set from here.
     const std::string latency =
         std::to_string(frames / RING_QUANTA) + "/" + std::to_string(format.rate);
@@ -259,8 +266,9 @@ bool PlaybackStream::open_(const Format& format) {
         PW_KEY_MEDIA_TYPE, "Audio", PW_KEY_MEDIA_CATEGORY, "Playback", PW_KEY_MEDIA_ROLE, "Music",
         PW_KEY_APP_NAME, STREAM_NAME, PW_KEY_APP_ID, APP_ID, PW_KEY_NODE_NAME,
         this->node_name_.constData(), PW_KEY_TARGET_OBJECT, this->target_->constData(),
-        PW_KEY_NODE_DONT_RECONNECT, "true", "node.dont-fallback", "true", "state.restore-props",
-        "false", "state.restore-target", "false", PW_KEY_NODE_LATENCY, latency.c_str(), nullptr);
+        PW_KEY_NODE_DONT_RECONNECT, "true", "node.dont-fallback", "true", "node.dont-move", "true",
+        "state.restore-props", "false", "state.restore-target", "false", PW_KEY_NODE_LATENCY,
+        latency.c_str(), nullptr);
     if (props == nullptr) {
         return false;
     }
@@ -370,23 +378,50 @@ bool PlaybackStream::alive_() const {
 void PlaybackStream::apply_gain_() {
     float gains[SPA_AUDIO_MAX_CHANNELS];
     std::fill_n(gains, this->format_.channels, this->gain_.load());
+    this->gain_echoes_.sent(gains[0]);
     pw_stream_set_control(this->stream_, SPA_PROP_channelVolumes, this->format_.channels, gains, 0);
 }
 
 void PlaybackStream::apply_mute_() {
     float value = this->muted_.load() ? 1.0F : 0.0F;
+    this->mute_echoes_.sent(value);
     pw_stream_set_control(this->stream_, SPA_PROP_mute, 1, &value, 0);
 }
 
-void PlaybackStream::took_(std::atomic<bool>& applied, std::atomic<int64_t>& own_until_ns) {
-    if (!applied.exchange(true)) {
-        // The newborn's long wait is over; a mixer may speak after the usual one
-        own_until_ns.store(clock_ns(CLOCK_MONOTONIC) + OWN_NS);
-    }
+void PlaybackStream::Echoes::sent(float value) {
+    const std::lock_guard lock(this->mutex_);
+    this->expire_();
+    this->sent_.push_back({value, clock_ns(CLOCK_MONOTONIC)});
 }
 
-bool PlaybackStream::own_time_(const std::atomic<int64_t>& own_until_ns) {
-    return clock_ns(CLOCK_MONOTONIC) < own_until_ns.load();
+bool PlaybackStream::Echoes::take(float value) {
+    const std::lock_guard lock(this->mutex_);
+    this->expire_();
+    // The newest match: PipeWire may report only the last of several sets
+    for (size_t i = this->sent_.size(); i-- > 0;) {
+        if (std::abs(this->sent_[i].value - value) < GAIN_EPSILON) {
+            this->sent_.erase(this->sent_.begin(), this->sent_.begin() + static_cast<long>(i) + 1);
+            return true;
+        }
+    }
+    return false;
+}
+
+bool PlaybackStream::Echoes::awaited() {
+    const std::lock_guard lock(this->mutex_);
+    this->expire_();
+    return !this->sent_.empty();
+}
+
+void PlaybackStream::Echoes::clear() {
+    const std::lock_guard lock(this->mutex_);
+    this->sent_.clear();
+}
+
+/// A set that changed nothing has no echo
+void PlaybackStream::Echoes::expire_() {
+    const int64_t oldest = clock_ns(CLOCK_MONOTONIC) - ECHO_NS;
+    std::erase_if(this->sent_, [oldest](const Sent& sent) { return sent.at_ns < oldest; });
 }
 
 void PlaybackStream::on_state_changed(void* data, pw_stream_state /*old*/, pw_stream_state state,
@@ -410,42 +445,42 @@ void PlaybackStream::on_control_info(void* data, uint32_t id, const pw_stream_co
         for (uint32_t i = 0; i < control->n_values; i++) {
             gain += control->values[i] / static_cast<float>(control->n_values);
         }
-        if (reported && std::abs(gain - self->gain_.load()) < GAIN_EPSILON) {
-            self->took_(self->gain_applied_, self->gain_own_until_ns_);
-        } else if (own_time_(self->gain_own_until_ns_)) {
-            if (!self->gain_applied_.load()) {
-                self->apply_gain_();
-            }
-        } else if (reported) {
+        // What is wanted is taken, echo or not: a set that changes nothing has no echo
+        const bool echo = reported && self->gain_echoes_.take(gain);
+        if (echo || (reported && std::abs(gain - self->gain_.load()) < GAIN_EPSILON)) {
+            self->gain_applied_.store(true);
+        } else if (!self->gain_applied_.load()) {
+            // The volume it was born with
+            self->apply_gain_();
+        } else if (reported && !self->gain_echoes_.awaited()) {
+            // The mixer's doing
+            const uint32_t sets = self->gain_sets_.load();
             QMetaObject::invokeMethod(
                 self,
-                [self, gain] {
-                    // Set from here since: this report is of the volume before that
-                    if (own_time_(self->gain_own_until_ns_)) {
-                        return;
+                [self, gain, sets] {
+                    if (self->gain_sets_.load() == sets) {
+                        self->gain_.store(gain);
+                        emit self->gainChanged(gain);
                     }
-                    self->gain_.store(gain);
-                    emit self->gainChanged(gain);
                 },
                 Qt::QueuedConnection);
         }
     } else if (id == SPA_PROP_mute && control->n_values != 0) {
         const bool muted = control->values[0] >= 0.5F;
-        if (muted == self->muted_.load()) {
-            self->took_(self->mute_applied_, self->mute_own_until_ns_);
-        } else if (own_time_(self->mute_own_until_ns_)) {
-            if (!self->mute_applied_.load()) {
-                self->apply_mute_();
-            }
-        } else {
+        const bool echo = self->mute_echoes_.take(muted ? 1.0F : 0.0F);
+        if (echo || muted == self->muted_.load()) {
+            self->mute_applied_.store(true);
+        } else if (!self->mute_applied_.load()) {
+            self->apply_mute_();
+        } else if (!self->mute_echoes_.awaited()) {
+            const uint32_t sets = self->mute_sets_.load();
             QMetaObject::invokeMethod(
                 self,
-                [self, muted] {
-                    if (own_time_(self->mute_own_until_ns_)) {
-                        return;
+                [self, muted, sets] {
+                    if (self->mute_sets_.load() == sets) {
+                        self->muted_.store(muted);
+                        emit self->mutedChanged(muted);
                     }
-                    self->muted_.store(muted);
-                    emit self->mutedChanged(muted);
                 },
                 Qt::QueuedConnection);
         }
@@ -471,10 +506,13 @@ void PlaybackStream::on_process(void* data) {
     if (buffer->requested != 0) {
         frames = std::min<size_t>(frames, buffer->requested);
     }
-    // Silence until the stream has its volume: it is born at full volume
-    const bool gated = !(self->gain_applied_.load(std::memory_order_relaxed) &&
-                         self->mute_applied_.load(std::memory_order_relaxed)) &&
-                       clock_ns(CLOCK_MONOTONIC) < self->gate_until_ns_.load();
+    // Silence until the stream has its volume: it is born at full volume and unmuted. Past the
+    // wait it plays only if that is the volume wanted; never louder than asked.
+    bool gated = !(self->gain_applied_.load(std::memory_order_relaxed) &&
+                   self->mute_applied_.load(std::memory_order_relaxed));
+    if (gated && clock_ns(CLOCK_MONOTONIC) >= self->gate_until_ns_.load()) {
+        gated = self->muted_.load() || self->gain_.load() < 1.0F - GAIN_EPSILON;
+    }
     uint32_t played = 0;
     if (gated) {
         std::fill_n(dest, frames * stride, uint8_t{0});

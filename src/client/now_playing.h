@@ -10,6 +10,7 @@
 #include <sendspin/metadata_role.h>
 
 #include <mutex>
+#include <optional>
 
 /// @brief The track the group is on, as the server describes it
 struct Track {
@@ -70,7 +71,7 @@ public:
 signals:
     /// The track, the artwork, the volume, the commands or playing() changed
     void changed();
-    /// The server moved the position, other than by playing on
+    /// The server moved the position within the track, other than by playing on
     void seeked();
 
 private:
@@ -93,6 +94,9 @@ private:
     sendspin::ServerStateControllerObject controls_;
     bool dirty_{false};
     bool seeked_{false};
+    /// The last state's position and when it was given, to tell a seek from playing on
+    std::optional<sendspin::MetadataProgressObject> progress_;
+    int64_t progress_us_{0};
 
     /// The image that arrived, on the library's decode thread, until it is due
     std::mutex pending_mutex_;

@@ -15,6 +15,7 @@
 #include <functional>
 #include <mutex>
 #include <optional>
+#include <vector>
 
 /// @brief The "Sendspin" playback stream: what a server plays to this PC, into a PipeWire output.
 /// The stream opens with the first audio written and reopens when the format or the target
@@ -96,11 +97,26 @@ private:
     /// Caller holds the loop lock, or is a PipeWire callback
     void apply_gain_();
     void apply_mute_();
-    /// The stream reported a volume or mute that was set from here
-    static void took_(std::atomic<bool>& applied, std::atomic<int64_t>& own_until_ns);
-    /// A value reported now is not the mixer's doing: the one the stream was born with, or the
-    /// echo of a value since replaced
-    static bool own_time_(const std::atomic<int64_t>& own_until_ns);
+    /// Values set from here whose reports are still to come back. A report that matches one is
+    /// its echo; any other that arrives while one is awaited was made before it, and loses to it.
+    class Echoes {
+    public:
+        void sent(float value);
+        /// @return true for an echo, which is forgotten with every value sent before it
+        bool take(float value);
+        bool awaited();
+        void clear();
+
+    private:
+        struct Sent {
+            float value;
+            int64_t at_ns;
+        };
+        void expire_();
+
+        std::mutex mutex_;
+        std::vector<Sent> sent_;
+    };
 
     const QByteArray node_name_;
     Played played_;
@@ -128,11 +144,14 @@ private:
     std::atomic<bool> muted_{false};
     std::atomic<bool> gain_applied_{false};
     std::atomic<bool> mute_applied_{false};
-    /// CLOCK_MONOTONIC nanoseconds: see own_time_()
-    std::atomic<int64_t> gain_own_until_ns_{0};
-    std::atomic<int64_t> mute_own_until_ns_{0};
-    /// By then a new stream plays whether it took its volume or not
+    Echoes gain_echoes_;
+    Echoes mute_echoes_;
+    /// Bumped by every set from here: a mixer's report queued before one is dropped after it
+    std::atomic<uint32_t> gain_sets_{0};
+    std::atomic<uint32_t> mute_sets_{0};
+    /// CLOCK_MONOTONIC nanoseconds: how long a new stream is given to take its volume quietly
     std::atomic<int64_t> gate_until_ns_{0};
+    bool gate_warned_{false};  ///< under mutex_
 
     /// Set before stop() takes the mutex, so a waiting write() gives up
     std::atomic<bool> stopping_{false};

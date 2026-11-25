@@ -12,7 +12,6 @@
 
 #include <pipewire/pipewire.h>
 
-#include <algorithm>
 #include <utility>
 
 Q_LOGGING_CATEGORY(lc_app, "sendspin.app")
@@ -40,11 +39,10 @@ App::App(const std::filesystem::path& data_dir, QObject* parent)
     : QObject(parent),
       server_persistence_(data_dir),
       client_persistence_(data_dir),
-      advertised_(this->probe_formats_()),
       client_({.name = device_name(),
                .port = Client::free_port(),
                .unpaired_access = settings().value(SETTING_UNPAIRED, true).toBool(),
-               .player_formats = this->advertised_},
+               .player_formats = this->probe_formats_()},
               &this->client_persistence_),
       mpris_(this->client_, art_dir()) {
     qCInfo(lc_app, "PipeWire %s", pw_get_library_version());
@@ -67,7 +65,8 @@ App::App(const std::filesystem::path& data_dir, QObject* parent)
     connect(&this->client_, &Client::serverNameChanged, this, &App::update_status_);
     connect(&this->client_.player(), &Player::streamingChanged, this, &App::update_status_);
     connect(&this->client_.now_playing(), &NowPlaying::changed, this, &App::update_status_);
-    connect(&this->outputs_, &Outputs::targetChanged, this, &App::on_target_changed_);
+    connect(&this->outputs_, &Outputs::targetChanged, this,
+            [this] { this->client_.player().stream().set_target(this->outputs_.target()); });
     this->client_.player().stream().set_target(this->outputs_.target());
     connect(&this->client_, &Client::pairingCodeChanged, this, &App::on_pairing_code_);
     connect(&this->client_, &Client::pairingApprovalNeededChanged, this,
@@ -106,7 +105,9 @@ std::vector<sendspin::AudioSupportedFormatObject> App::probe_formats_() {
         qCWarning(lc_app, "PipeWire's outputs cannot be listed");
     }
     this->outputs_.set_chosen(settings().value(SETTING_OUTPUT).toByteArray());
-    auto formats = this->target_formats_();
+    const auto target = this->outputs_.target();
+    auto formats = player_formats(target ? this->outputs_.formats(*target) : SinkFormats{},
+                                  this->outputs_.clock());
     QStringList listed;
     for (const auto& format : formats) {
         if (format.codec == sendspin::SendspinCodecFormat::FLAC) {
@@ -115,30 +116,6 @@ std::vector<sendspin::AudioSupportedFormatObject> App::probe_formats_() {
     }
     qCInfo(lc_app, "the player takes %s, as FLAC or PCM", qUtf8Printable(listed.join(u' ')));
     return formats;
-}
-
-std::vector<sendspin::AudioSupportedFormatObject> App::target_formats_() {
-    const auto target = this->outputs_.target();
-    return player_formats(target ? this->outputs_.formats(*target) : SinkFormats{},
-                          this->outputs_.clock());
-}
-
-void App::on_target_changed_() {
-    this->client_.player().stream().set_target(this->outputs_.target());
-    if (!this->outputs_.target().has_value()) {
-        return;
-    }
-    // The role's formats are fixed once the client exists; PipeWire resamples the difference
-    const auto formats = this->target_formats_();
-    const bool same = std::equal(formats.begin(), formats.end(), this->advertised_.begin(),
-                                 this->advertised_.end(), [](const auto& a, const auto& b) {
-                                     return a.codec == b.codec && a.channels == b.channels &&
-                                            a.sample_rate == b.sample_rate &&
-                                            a.bit_depth == b.bit_depth;
-                                 });
-    if (!same) {
-        qCInfo(lc_app, "this output plays other formats than the ones advertised at startup");
-    }
 }
 
 QString App::status_text(Client::State state, const QString& server_name, const Track& playing) {

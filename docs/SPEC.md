@@ -443,9 +443,13 @@ Two controls, independent of each other:
 - No per-speaker sliders. A speaker's level relative to the others is set on the speaker.
 - **Volume is perceived loudness, 0–100, not amplitude** (spec `README.md`, "Player messages",
   line 1333): 50 should sound half as loud as 100. Wherever the app turns a Sendspin volume into
-  a gain itself, it uses `amplitude = (volume / 100)^1.5` and ramps the change:
-  - this PC's output playing along, which takes the group's volume and mute;
-  - the player role's stream, below.
+  a gain itself, it uses `amplitude = (volume / 100)^1.5`:
+  - this PC's output playing along, which takes the group's volume and mute, and ramps the
+    change;
+  - the player role's stream, below. Its gain is PipeWire's own stream volume, so that the OS
+    mixer shows and moves it, and PipeWire steps a change there. Its converter can only ramp the
+    master volume, not the per-channel one mixers drive, and that ramp can hang or stop short
+    of its target in PipeWire 1.4.2 (`audioconvert.c`, `generate_ramp_up_seq()`).
 
 **The Sendspin output's volume**
 
@@ -498,18 +502,19 @@ Two controls, independent of each other:
   (`client: include/sendspin/player_role.h`).
 - The stream names its output itself (`target.object`) and reopens on the new one when the
   default changes. Left to the session manager it would be moved into the Sendspin output the
-  moment that became the default; see [Loop guards](#loop-guards).
+  moment that became the default; see [Loop guards](#loop-guards). `node.dont-move` keeps a
+  mixer's "move this stream" from doing the same, so the output is chosen in Settings only.
 - Advertise only formats that play without a resampler: the sink's `EnumFormat` intersected with
   the daemon's `clock.allowed-rates`, as FLAC and PCM, stereo, 24-bit ahead of 16-bit where the
   sink carries it, the graph's own rate first.
 - The formats are read once, at startup, for the output in use then: a role's formats cannot
-  change while the client runs. After a switch to an output with other rates PipeWire resamples,
-  and the app logs it.
+  change while the client runs. After a switch to an output with other rates PipeWire resamples.
 - The player's volume and mute are that stream's volume in the OS mixer, both ways
   (`on_volume_changed()`, `update_volume()`), converted with the spec's curve; see
   [Volume](#volume). The stream takes no saved volume from the session manager
   (`state.restore-props=false`): the player's is the one that holds. A new stream is silent until
-  it has its volume, as PipeWire creates it at full volume.
+  it has its volume, as PipeWire creates it at full volume; one that never takes it stays silent
+  unless full volume is what was asked.
 - Transport commands go through the controller role and act on the group. Offer only what
   `supported_commands` lists.
 

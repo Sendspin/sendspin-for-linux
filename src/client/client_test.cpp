@@ -473,6 +473,19 @@ private slots:
         QCOMPARE(streaming.size(), 1);
         QVERIFY(now_playing.position_ms() >= 60'000);
 
+        // The position restated as it plays on is no seek; one moved is
+        QSignalSpy seeks(&now_playing, &NowPlaying::seeked);
+        metadata.progress->track_progress_ms = static_cast<uint32_t>(now_playing.position_ms());
+        QVERIFY(this->server_.set_metadata(*group, metadata, this->server_.now_us()));
+        metadata.album = "Kind of Blue (Legacy Edition)";
+        QVERIFY(this->server_.set_metadata(*group, metadata, this->server_.now_us()));
+        QTRY_COMPARE(now_playing.track().album, "Kind of Blue (Legacy Edition)");
+        QCOMPARE(seeks.size(), 0);
+        metadata.progress->track_progress_ms = 200'000;
+        QVERIFY(this->server_.set_metadata(*group, metadata, this->server_.now_us()));
+        QTRY_COMPARE(seeks.size(), 1);
+        QVERIFY(now_playing.position_ms() >= 200'000);
+
         // The server sets the player's volume: the stream's, by the spec's curve
         PlaybackStream& stream = client.player().stream();
         QVERIFY(this->server_.set_group_volume(*group, 25));
