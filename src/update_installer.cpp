@@ -23,6 +23,8 @@ constexpr const char* SUMS = "SHA256SUMS";
 constexpr const char* SIGNATURE = "SHA256SUMS.asc";
 /// pkexec's own: the prompt was dismissed, or nobody may authorize
 constexpr int NOT_AUTHORIZED = 126;
+/// install-update takes no larger a package
+constexpr qint64 MAX_PACKAGE_BYTES = 256 << 20;
 /// Without a byte for this long, a download has failed
 constexpr std::chrono::seconds STALLED = 60s;
 
@@ -87,13 +89,10 @@ UpdateInstaller::System UpdateInstaller::this_system() {
                   .cpu = QSysInfo::currentCpuArchitecture(),
                   .sandboxed = QFileInfo::exists(QStringLiteral("/.flatpak-info")),
                   .origin_command = {}};
-    // Where the README's repository setup puts it, and where install-update looks
-    for (const char* key :
-         {"/etc/apt/keyrings/sendspin.asc", "/etc/pki/rpm-gpg/RPM-GPG-KEY-sendspin"}) {
-        if (QFileInfo(QLatin1String(key)).size() > 0) {
-            system.key = QLatin1String(key);
-            break;
-        }
+    // The one the package installed, and the only one install-update reads as root
+    const QString key = QStringLiteral("/usr/share/sendspin-for-linux/sendspin.asc");
+    if (QFileInfo(key).size() > 0) {
+        system.key = key;
     }
     if (is_deb(system.os_id)) {
         system.origin_command = {QStringLiteral("apt-cache"), QStringLiteral("policy"),
@@ -201,13 +200,29 @@ void UpdateInstaller::install(const Release& release) {
 void UpdateInstaller::fetch_(const QUrl& url, const QString& name, bool is_package) {
     QNetworkRequest request(url);
     request.setTransferTimeout(STALLED);
+    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
+                         QNetworkRequest::UserVerifiedRedirectPolicy);
     QNetworkReply* reply = this->network_.get(request);
+    // GitHub hands a download on to its storage; nowhere else is followed
+    connect(reply, &QNetworkReply::redirected, this, [reply, url](const QUrl& to) {
+        if (update::trusted(to, url)) {
+            emit reply->redirectAllowed();
+        } else {
+            reply->abort();
+        }
+    });
+    const qint64 limit = is_package ? MAX_PACKAGE_BYTES : update::MAX_TEXT_BYTES;
     auto* file = new QFile(this->dir_->filePath(name), reply);
     const bool opened = file->open(QIODevice::WriteOnly);
     ++this->fetching_;
     const int attempt = this->attempt_;
-    connect(reply, &QNetworkReply::readyRead, this,
-            [reply, file] { file->write(reply->readAll()); });
+    connect(reply, &QNetworkReply::readyRead, this, [reply, file, limit] {
+        if (file->size() + reply->bytesAvailable() > limit) {
+            reply->abort();
+            return;
+        }
+        file->write(reply->readAll());
+    });
     if (is_package) {
         connect(reply, &QNetworkReply::downloadProgress, this,
                 [this, attempt](qint64 got, qint64 total) {

@@ -57,6 +57,45 @@ private slots:
         QVERIFY(!UpdateChecker::parse(reply).has_value());
     }
 
+    void onlyGitHubAndTheCheckedServerAreTrusted_data() {
+        QTest::addColumn<QString>("url");
+        QTest::addColumn<bool>("trusted");
+        QTest::newRow("the API") << "https://api.github.com/repos/x/y/releases/latest" << true;
+        QTest::newRow("a release's file")
+            << "https://github.com/Sendspin/sendspin-for-linux/releases/download/v1/a.deb" << true;
+        QTest::newRow("where GitHub stores it")
+            << "https://release-assets.githubusercontent.com/a.deb" << true;
+        QTest::newRow("GitHub without TLS") << "http://github.com/a.deb" << false;
+        QTest::newRow("a name that ends like GitHub's") << "https://evilgithub.com/a.deb" << false;
+        QTest::newRow("a name that starts like GitHub's")
+            << "https://github.com.example.org/a.deb" << false;
+        QTest::newRow("anywhere else") << "https://example.org/a.deb" << false;
+        QTest::newRow("a file") << "file:///etc/passwd" << false;
+    }
+    void onlyGitHubAndTheCheckedServerAreTrusted() {
+        QFETCH(QString, url);
+        QTEST(update::trusted(QUrl(url), UpdateChecker::releases_url()), "trusted");
+    }
+
+    // What a release says is somewhere else is not a file of it
+    void filesElsewhereAreNotTheReleases() {
+        ReleaseServer server;
+        server.elsewhere["elsewhere.deb"] = QUrl("https://example.org/elsewhere.deb");
+        server.elsewhere["other-port.deb"] = QUrl("http://127.0.0.1:1/other-port.deb");
+        UpdateChecker checker(OLDER, server.url());
+        QSignalSpy checked(&checker, &UpdateChecker::checked);
+        checker.start();
+        QVERIFY(checked.wait());
+        QVERIFY(checker.update().has_value());
+        QCOMPARE(checker.update()->files.size(), 3);
+        QVERIFY(!checker.update()->files.contains("elsewhere.deb"));
+        QVERIFY(!checker.update()->files.contains("other-port.deb"));
+        // Nor after a restart, from what was kept
+        UpdateChecker next(OLDER, server.url());
+        next.start();
+        QCOMPARE(next.update()->files.size(), 3);
+    }
+
     void aNewerReleaseIsFoundAndKept() {
         ReleaseServer server;
         {

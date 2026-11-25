@@ -113,18 +113,35 @@ jobs:
     environment: package-signing
     permissions:
       contents: write
+      # gh run download
+      actions: read
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
     steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: sums
+      # No action runs beside the key: the checksums and the packaged public key come by gh
       - name: Sign SHA256SUMS and add the signature to the draft
         env:
           REPO_GPG_PRIVATE_KEY: ${{ secrets.REPO_GPG_PRIVATE_KEY }}
           REPO_GPG_PASSPHRASE: ${{ secrets.REPO_GPG_PASSPHRASE }}
         run: |
+          published() {
+            [ "$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft)" != true ]
+          }
+          refuse() {
+            echo "::error::$GITHUB_REF_NAME is already published. A release's files don't change: tag a new version."
+            exit 1
+          }
+          ! published || refuse
+          # An artifact uploaded seconds ago can be missing from the run's list
+          for try in 1 2 3 4 5 6; do
+            gh run download "$GITHUB_RUN_ID" --name sums && break
+            sleep 10
+          done
+          [ -s SHA256SUMS ] || { echo "::error::no SHA256SUMS from this run"; exit 1; }
+          gh api "repos/$GH_REPO/contents/data/sendspin.asc?ref=$GITHUB_SHA" \
+            -H "Accept: application/vnd.github.raw" >packaged.asc
+
           # The key lives only here, and goes with it
           GNUPGHOME=$(mktemp -d)
           export GNUPGHOME
@@ -133,9 +150,14 @@ jobs:
           printf '%s\n' "$REPO_GPG_PRIVATE_KEY" | gpg --batch --quiet --import
           gpg --batch --pinentry-mode loopback --passphrase-file "$GNUPGHOME/passphrase" \
             --armor --detach-sign --output SHA256SUMS.asc SHA256SUMS
-          # Since the job before, somebody may have published it
-          if [ "$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft)" != true ]; then
-            echo "::error::$GITHUB_REF_NAME is already published. A release's files don't change: tag a new version."
+
+          # As an installed app will: against the key its package carries, data/sendspin.asc.
+          # A signature that key does not verify would only ever be refused
+          gpg --batch --dearmor <packaged.asc >"$GNUPGHOME/packaged.gpg"
+          if ! gpgv --keyring "$GNUPGHOME/packaged.gpg" SHA256SUMS.asc SHA256SUMS; then
+            echo "::error::data/sendspin.asc is not the public half of the signing key"
             exit 1
           fi
+          # Since this job started, somebody may have published it
+          ! published || refuse
           gh release upload "$GITHUB_REF_NAME" --clobber SHA256SUMS.asc

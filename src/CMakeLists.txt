@@ -89,6 +89,9 @@ target_link_libraries(sendspin-for-linux PRIVATE sendspin_app)
 install(TARGETS sendspin-for-linux)
 install(PROGRAMS ${CMAKE_SOURCE_DIR}/data/install-update
     DESTINATION ${CMAKE_INSTALL_LIBEXECDIR}/sendspin-for-linux)
+# The key it verifies with: the package repositories' public key. install-update names this path
+install(FILES ${CMAKE_SOURCE_DIR}/data/sendspin.asc
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/sendspin-for-linux)
 # The words of pkexec's prompt for it
 configure_file(${CMAKE_SOURCE_DIR}/data/com.sendspin_audio.Sendspin.policy.in
     com.sendspin_audio.Sendspin.policy @ONLY)

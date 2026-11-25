@@ -742,10 +742,12 @@ file).
 1. Downloads the release's package for this system (`sendspin-for-linux-<version>-<ID><VERSION_ID>-<arch>`,
    from `/etc/os-release`), `SHA256SUMS` and `SHA256SUMS.asc`.
 2. Verifies them: `SHA256SUMS` is signed with the package repositories' key, and lists the
-   package under its name with its sum. The key is the copy this machine already has
-   (`/etc/apt/keyrings/sendspin.asc` or `/etc/pki/rpm-gpg/RPM-GPG-KEY-sendspin`, as the README's
-   repository setup puts it). No key is ever downloaded for this: without one on the machine,
-   the update is only announced.
+   package under its name with its sum. The key is the file the installed package carries,
+   `/usr/share/sendspin-for-linux/sendspin.asc` (`data/sendspin.asc`), and no other: none is
+   ever downloaded, and a key elsewhere on the machine is not looked at. Its primary
+   fingerprint is `85FF 9044 844F D44C 8BE6  98B9 C117 75C2 E4CA 1288`. The signing subkey
+   expires on 2028-11-24: an installed app knows the key as its package has it, so a release
+   that carries the extended key has to be out, and installed, before then.
 3. Installs through `pkexec`, which asks for an administrator's password: `apt-get install` or
    `dnf upgrade` on the file, so new dependencies come with it.
 4. Starts the new version in this one's place.
@@ -756,18 +758,27 @@ own, verifies the copies exactly as step 2 does (the app's own check is the same
 unprivileged, so a bad download is refused before anyone is asked for a password), and installs
 the copy. So a download that is changed between the check and the install is refused, and
 whoever calls the script directly gets nothing installed that the key did not sign. It also
-refuses a package that is not this app or is not newer than the installed one: an old signed
-release is not an update.
+refuses a package that is not this app, is not newer than the installed one, or is named for
+another distro release than this machine's: an old signed release is not an update, and
+another release's package is built against other libraries.
+
+The check and the downloads go to GitHub over https and nowhere else, redirects included
+(`api.github.com`, `github.com`, `*.githubusercontent.com`), and stop at a size no release
+reaches. The signature is what is trusted; this only keeps the app from fetching what it would
+refuse.
 
 The release workflow signs `SHA256SUMS` in the `package-signing` environment, behind its
-reviewer, before the draft is published. A release without the signature is only announced.
+reviewer, before the draft is published, in a job that runs no action beside the key. It
+verifies the signature against `data/sendspin.asc` as an installed app will, and fails when
+they don't match. A release without the signature is only announced.
 
 `sendspin-for-linux --update` does the same from a terminal: checks now, installs, exits.
 
 Tests: the checker and the installer run against a stand-in release server on the loopback
 interface, with a signature from a throwaway key (`src/update_test_data/`). CI installs each
 `.deb` and `.rpm` from its file in a clean container and has it update itself to a later build
-(`ci/update-test.sh`), with a stand-in for `pkexec`, which a container has no polkit for.
+(`ci/update-test.sh`), with a stand-in for `pkexec`, which a container has no polkit for. It
+also calls `install-update install` directly, with nothing having checked the files first.
 
 ## Depends on
 

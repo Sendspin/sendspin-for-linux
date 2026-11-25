@@ -28,6 +28,7 @@ cleanup:
   - /etc
   - /libexec
   - /share/polkit-1
+  - /share/sendspin-for-linux
 modules:
   - name: sendspin-for-linux
     buildsystem: cmake-ninja

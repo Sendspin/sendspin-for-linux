@@ -35,8 +35,8 @@ QString package_name(const QVersionNumber& version, const QString& os_id, const 
 }  // namespace update
 
 /// @brief Takes a release's package for this system to an installed one: downloads it with the
-/// release's signed SHA256SUMS, has `install-update` verify them against the key this machine
-/// already trusts, and runs that again through pkexec to install. Only where nothing else
+/// release's signed SHA256SUMS, has `install-update` verify them against the key the package
+/// came with, and runs that again through pkexec to install. Only where nothing else
 /// updates the app: a package installed from a downloaded file, not from a repository, not the
 /// Flatpak.
 class UpdateInstaller : public QObject {
@@ -47,7 +47,7 @@ public:
     struct System {
         QString helper;  ///< install-update, as the package installed it
         QString pkexec;  ///< empty for none
-        QString key;     ///< the repositories' signing key on this machine; empty for none
+        QString key;     ///< the signing key the package installed; empty for none
         QString os_id;
         QString os_version;
         QString cpu;

@@ -20,6 +20,18 @@ struct Release {
     QMap<QString, QUrl> files;
 };
 
+namespace update {
+
+/// @brief Where a release and its files may come from: GitHub over https, or the stand-in the
+/// check itself goes to (`$SENDSPIN_UPDATE_URL`, a test's server)
+/// @param releases where the check goes
+bool trusted(const QUrl& url, const QUrl& releases);
+
+/// No reply about a release, and no SHA256SUMS, is ever near this
+constexpr qint64 MAX_TEXT_BYTES = 1 << 20;
+
+}  // namespace update
+
 /// @brief Asks GitHub for the latest published release, at most once a day, and keeps the
 /// answer between runs. The app's only request that nobody clicked for; the setting
 /// `updates/check` turns it off.
@@ -56,6 +68,8 @@ signals:
 
 private:
     void on_reply_();
+    /// parse(), less what is not trusted()
+    std::optional<Release> read_(const QByteArray& json) const;
 
     const QVersionNumber current_;
     const QUrl url_;

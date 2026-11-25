@@ -265,6 +265,18 @@ private slots:
         QCOMPARE(installer.state(), State::INSTALLED);
     }
 
+    void aFileLargerThanAReleasesIsNotTaken() {
+        ReleaseServer server;
+        server.files["SHA256SUMS"] = QByteArray(update::MAX_TEXT_BYTES + 1, 'x');
+        const UpdateMachine machine;
+        UpdateInstaller installer(machine.system);
+        QVERIFY(probe(installer));
+        install(installer, release_of(server));
+        QCOMPARE(installer.state(), State::FAILED);
+        QCOMPARE(installer.failure(), Failure::DOWNLOAD);
+        QVERIFY(machine.ran().isEmpty());
+    }
+
     void aFileThatDoesNotDownloadFailsIt() {
         ReleaseServer server;
         const UpdateMachine machine;

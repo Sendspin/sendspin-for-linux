@@ -43,6 +43,32 @@ QByteArray kept(const Release& release) {
 
 }  // namespace
 
+namespace update {
+
+bool trusted(const QUrl& url, const QUrl& releases) {
+    const QString host = url.host();
+    if (url.scheme() == u"https" && (host == u"github.com" || host == u"api.github.com" ||
+                                     host.endsWith(u".githubusercontent.com"))) {
+        return true;
+    }
+    return url.scheme() == releases.scheme() && host == releases.host() &&
+           url.port() == releases.port();
+}
+
+}  // namespace update
+
+std::optional<Release> UpdateChecker::read_(const QByteArray& json) const {
+    std::optional<Release> release = parse(json);
+    if (release) {
+        release->files.removeIf(
+            [this](const auto& file) { return !update::trusted(file.value(), this->url_); });
+        if (!update::trusted(release->page, this->url_)) {
+            release->page.clear();
+        }
+    }
+    return release;
+}
+
 QUrl UpdateChecker::releases_url() {
     const QString stand_in = qEnvironmentVariable("SENDSPIN_UPDATE_URL");
     return QUrl(stand_in.isEmpty()
@@ -89,7 +115,7 @@ void UpdateChecker::start() {
         return;
     }
     const QSettings settings = store();
-    this->latest_ = parse(settings.value(KEY_LATEST).toByteArray());
+    this->latest_ = this->read_(settings.value(KEY_LATEST).toByteArray());
     const qint64 since =
         QDateTime::currentSecsSinceEpoch() - settings.value(KEY_LAST, 0).toLongLong();
     // A clock set back would otherwise put the next check off for as long
@@ -110,7 +136,22 @@ void UpdateChecker::check() {
     request.setHeader(QNetworkRequest::UserAgentHeader,
                       QStringLiteral("sendspin-for-linux/%1").arg(this->current_.toString()));
     request.setTransferTimeout(REPLY_TIMEOUT);
+    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
+                         QNetworkRequest::UserVerifiedRedirectPolicy);
     this->reply_ = this->network_.get(request);
+    QNetworkReply* reply = this->reply_;
+    connect(reply, &QNetworkReply::redirected, this, [this, reply](const QUrl& to) {
+        if (update::trusted(to, this->url_)) {
+            emit reply->redirectAllowed();
+        } else {
+            reply->abort();
+        }
+    });
+    connect(reply, &QNetworkReply::downloadProgress, this, [reply](qint64 got) {
+        if (got > update::MAX_TEXT_BYTES) {
+            reply->abort();
+        }
+    });
     connect(this->reply_, &QNetworkReply::finished, this, &UpdateChecker::on_reply_);
 }
 
@@ -119,7 +160,7 @@ void UpdateChecker::on_reply_() {
     this->reply_.clear();
     reply->deleteLater();
     const std::optional<Release> release =
-        reply->error() == QNetworkReply::NoError ? parse(reply->readAll()) : std::nullopt;
+        reply->error() == QNetworkReply::NoError ? this->read_(reply->readAll()) : std::nullopt;
     if (!release) {
         qCInfo(lc_update_check, "no answer about the latest release: %s",
                qUtf8Printable(reply->errorString()));

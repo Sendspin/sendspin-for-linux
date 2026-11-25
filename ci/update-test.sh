@@ -1,9 +1,12 @@
 #!/bin/sh
-# A clean machine with the package installed from a downloaded file, and the signing key set up
-# as the README says, takes itself to a later version: `sendspin-for-linux --update` against a
-# stand-in for the release on GitHub, signed with a key made here. And leaves alone a download
+# A clean machine with the package installed from a downloaded file takes itself to a later
+# version: `sendspin-for-linux --update` against a
+# stand-in for the release on GitHub, signed with a key made here, which takes the place of the
+# one the package came with. And leaves alone a download
 # the key did not sign, one that is changed after the app verified it, and a signed package
-# that is older than the installed one. As root; needs
+# that is older than the installed one. install-update, called directly as anyone may through
+# pkexec, refuses another key's signature, changed sums and another distro's package by itself.
+# As root; needs
 # python3 to serve the release, gpg to sign it, and gpgv.
 #
 #     ci/update-test.sh <package> <later package> <version> <later version>
@@ -25,25 +28,28 @@ fail() {
 }
 
 work=$(mktemp -d)
-mkdir -p "$work/gnupg" "$work/good" "$work/changed"
-chmod 700 "$work/gnupg"
+mkdir -p "$work/gnupg" "$work/gnupg-other" "$work/good" "$work/changed"
+chmod 700 "$work/gnupg" "$work/gnupg-other"
 gpg_ci() {
-    GNUPGHOME=$work/gnupg gpg --batch --quiet --pinentry-mode loopback --passphrase '' "$@"
+    GNUPGHOME=${home:-$work/gnupg} gpg --batch --quiet --pinentry-mode loopback --passphrase '' "$@"
+}
+gpg_other() {
+    home=$work/gnupg-other gpg_ci "$@"
 }
 gpg_ci --quick-generate-key "Sendspin CI" rsa4096 sign never
+gpg_other --quick-generate-key "Somebody else" rsa4096 sign never
+gpg_other --armor --export >"$work/other.asc"
 
 . /etc/os-release
 case "$ID" in
     debian | ubuntu)
         export DEBIAN_FRONTEND=noninteractive
-        key=/etc/apt/keyrings/sendspin.asc
         apt-get install -y --no-install-recommends "$old"
         installed() {
             dpkg-query -W -f '${Version}' "$package"
         }
         ;;
     fedora)
-        key=/etc/pki/rpm-gpg/RPM-GPG-KEY-sendspin
         dnf -y install "$old"
         installed() {
             rpm -q --qf '%{VERSION}' "$package"
@@ -51,7 +57,13 @@ case "$ID" in
         ;;
     *) fail "no test for $ID" ;;
 esac
-gpg_ci --armor --export >"$key"
+# The package's own key is the release's, which nobody here can sign with
+key=/usr/share/sendspin-for-linux/sendspin.asc
+[ -s "$key" ] || fail "the package installed no key at $key"
+trust_ci_key() {
+    gpg_ci --armor --export >"$key"
+}
+trust_ci_key
 
 # The release: its files, their sums, the signature, and what GitHub's API says of them
 name=$(basename "$new")
@@ -71,7 +83,10 @@ echo "changed after signing" >>"$work/changed/$name"
 ln -s good "$work/now"
 python3 -m http.server --bind 127.0.0.1 --directory "$work/now" 8000 >/dev/null 2>&1 &
 server=$!
-trap 'kill $server; GNUPGHOME=$work/gnupg gpgconf --kill gpg-agent 2>/dev/null || true' EXIT
+trap 'kill $server
+    for home in "$work/gnupg" "$work/gnupg-other"; do
+        GNUPGHOME=$home gpgconf --kill gpg-agent 2>/dev/null || true
+    done' EXIT
 for _ in 1 2 3 4 5; do
     python3 -c "import urllib.request; urllib.request.urlopen('$url/latest')" 2>/dev/null && break
     sleep 1
@@ -104,8 +119,42 @@ $honest"
 ! update || fail "installed a file that was swapped after the app verified it"
 unchanged "a file that was swapped after the app verified it"
 
+# What runs as root, with no app before it to have checked anything
+helper=/usr/libexec/sendspin-for-linux/install-update
+install_directly() {
+    "$helper" install "$work/$1/$2" "$work/$1/SHA256SUMS" "$work/$1/SHA256SUMS.asc"
+}
+
+mkdir "$work/other-key"
+cp "$work/good/$name" "$work/good/SHA256SUMS" "$work/other-key/"
+gpg_other --armor --detach-sign --output "$work/other-key/SHA256SUMS.asc" "$work/other-key/SHA256SUMS"
+# The key it is told of is one that `verify` takes, and `install` does not look at
+SENDSPIN_UPDATE_KEY=$work/other.asc "$helper" verify "$work/other-key/$name" \
+    "$work/other-key/SHA256SUMS" "$work/other-key/SHA256SUMS.asc" ||
+    fail "verify did not take the key it was given"
+! SENDSPIN_UPDATE_KEY=$work/other.asc install_directly other-key "$name" ||
+    fail "install-update took another key's signature"
+unchanged "another key's signature"
+
+mkdir "$work/resummed"
+cp "$work/changed/$name" "$work/good/SHA256SUMS.asc" "$work/resummed/"
+(cd "$work/resummed" && sha256sum -- "$name" >SHA256SUMS)
+! install_directly resummed "$name" || fail "install-update took sums changed after signing"
+unchanged "sums changed after signing"
+
+# Signed, and built for another release's libraries
+elsewhere=$(echo "$name" | sed "s/-$ID$VERSION_ID-/-otheros1-/")
+mkdir "$work/elsewhere"
+cp "$work/good/$name" "$work/elsewhere/$elsewhere"
+(cd "$work/elsewhere" && sha256sum -- * >SHA256SUMS)
+gpg_ci --armor --detach-sign --output "$work/elsewhere/SHA256SUMS.asc" "$work/elsewhere/SHA256SUMS"
+! install_directly elsewhere "$elsewhere" || fail "install-update took another distro's package"
+unchanged "another distro's package"
+
 stand_in "$honest"
 update || fail "the update failed"
+# The later package brought its own key again
+trust_ci_key
 [ "$(installed)" = "$later" ] || fail "version $(installed) after the update, expected $later"
 [ "$("$package" --version)" = "$later" ] || fail "the app is not the later one"
 update || fail "the newest version found something to do"

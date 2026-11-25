@@ -42,8 +42,12 @@ their `SHA256SUMS`.
    prints the key's fingerprint, which should be:
 
    ```
-   (not created yet: the fingerprint goes here with the first release)
+   85FF 9044 844F D44C 8BE6  98B9 C117 75C2 E4CA 1288
    ```
+
+   It is the same key for apt and for dnf, and the one every package carries as
+   `/usr/share/sendspin-for-linux/sendspin.asc`, which Sendspin verifies its own
+   [updates](#updates) with.
 
    Or, and on Arch for now,
    download a release's package and install it with its dependencies. Nothing but Sendspin
@@ -92,10 +96,9 @@ request.
   package, verifies it, asks for an administrator's password and installs it, then restarts
   Sendspin. `sendspin-for-linux --update` does the same from a terminal.
 
-  It verifies the download against the signing key on your machine, and never fetches one. So
-  the button is there once the key is: the first line of the repository setup above, for your
-  distro, with the fingerprint checked as it says. Without the key, Sendspin opens the release's
-  page instead.
+  It verifies the download against the signing key that came with the package you installed,
+  `/usr/share/sendspin-for-linux/sendspin.asc`, and never fetches one. It is the package
+  repositories' key, with the fingerprint above.
 
 ## Settings and files
 
@@ -234,7 +237,8 @@ starts each package in a clean container. To release, set `project(VERSION)` in
 packages, the Flatpak bundle, the manifest Flathub builds from and `SHA256SUMS` to a draft
 release. Its last job signs `SHA256SUMS` with the repositories' key, once the
 `package-signing` environment's reviewer approves it: that signature is what an installed app
-verifies an update with, so publish the draft after it is there. CI has each package update
+verifies an update with, so publish the draft after it is there. The job fails if `data/sendspin.asc`, the public key the packages
+carry, does not verify what it signed. CI has each package update
 itself to a later build in a clean container (`ci/update-test.sh`).
 [flatpak/FLATHUB.md](flatpak/FLATHUB.md) has the Flathub side: submitting the app, and what each
 release needs there.
@@ -263,7 +267,9 @@ Once, by a maintainer:
    gpg --armor --export-secret-subkeys '<subkey fingerprint>!'
    ```
 
-   Put the primary key's fingerprint in this README's install section. Keep the primary key and
+   Put the primary key's fingerprint in this README's install section and in docs/SPEC.md's
+   "Updates", and the public key (`gpg --armor --export`) in `data/sendspin.asc`: the packages
+   install it, and an installed app verifies its updates with that file alone. Keep the primary key and
    the passphrase somewhere safe: machines that installed from the repositories trust this key,
    and a new one means setting each of them up again.
 2. Create the environment `package-signing`, with a required reviewer and its deployment

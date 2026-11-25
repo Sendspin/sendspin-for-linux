@@ -59,6 +59,10 @@ public:
             assets.append(QJsonObject{{"name", file.key()},
                                       {"browser_download_url", this->url(file.key()).toString()}});
         }
+        for (auto file = this->elsewhere.begin(); file != this->elsewhere.end(); ++file) {
+            assets.append(QJsonObject{{"name", file.key()},
+                                      {"browser_download_url", file.value().toString()}});
+        }
         return QJsonDocument(QJsonObject{{"tag_name", this->tag},
                                          {"html_url", this->url("page").toString()},
                                          {"assets", assets}})
@@ -67,6 +71,8 @@ public:
 
     /// Each file's content by its name, as the release has them: a test may change or drop one
     QMap<QString, QByteArray> files;
+    /// Files the release says are at some other address
+    QMap<QString, QUrl> elsewhere;
     /// The release's tag
     QString tag{QStringLiteral("v9.0.0")};
     /// How often /latest was asked for

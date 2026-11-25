@@ -37,7 +37,7 @@ set(CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST_ADDITION
     /etc/xdg /etc/xdg/autostart /usr/share/applications /usr/share/metainfo /usr/share/icons
     /usr/share/icons/hicolor /usr/share/icons/hicolor/scalable /usr/share/icons/hicolor/scalable/apps
     /usr/share/icons/hicolor/symbolic /usr/share/icons/hicolor/symbolic/apps
-    /usr/share/polkit-1 /usr/share/polkit-1/actions)
+    /usr/share/polkit-1 /usr/share/polkit-1/actions /usr/libexec)
 foreach(_size 16 24 32 48 64 128 256 512)
     list(APPEND CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST_ADDITION
         /usr/share/icons/hicolor/${_size}x${_size} /usr/share/icons/hicolor/${_size}x${_size}/apps)
