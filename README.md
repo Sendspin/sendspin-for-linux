@@ -75,7 +75,8 @@ The Flatpak doesn't start with your session until you switch on **Open at login*
 ### A package from Releases
 
 If you'd rather not add a repository, download the `.deb` or `.rpm` for your system from
-[Releases](https://github.com/Sendspin/sendspin-for-linux/releases):
+[Releases](https://github.com/Sendspin/sendspin-for-linux/releases), where `SHA256SUMS` has
+each file's checksum:
 
 ```sh
 sudo apt install ./sendspin-for-linux-*-debian13-amd64.deb     # Debian 13
@@ -176,7 +177,8 @@ off.
 - **From a downloaded `.deb` or `.rpm`:** **Install update** in Settings downloads the new
   package, verifies it, asks for an administrator's password, installs it and restarts Sendspin.
   `sendspin-for-linux --update` does the same from a terminal. The download is verified against
-  the key that came with the package you installed, the one with the fingerprint above; Sendspin
+  the key that came with the package you installed,
+  `/usr/share/sendspin-for-linux/sendspin.asc`, the one with the fingerprint above; Sendspin
   never fetches a key.
 - **On Arch:** a new download, for now.
 
