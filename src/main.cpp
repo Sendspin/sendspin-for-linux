@@ -1,4 +1,5 @@
 #include "app.h"
+#include "app_id.h"
 #include "headless.h"
 #include "single_instance.h"
 
@@ -14,6 +15,8 @@ int main(int argc, char** argv) {
     QApplication qt(argc, argv);
     QApplication::setApplicationName(QStringLiteral("sendspin"));
     QApplication::setApplicationDisplayName(QStringLiteral("Sendspin"));
+    // Ties the windows to the launcher's entry
+    QApplication::setDesktopFileName(QLatin1String(APP_ID));
     // A tray app: no window is not a reason to exit
     QApplication::setQuitOnLastWindowClosed(false);
 
@@ -23,7 +26,9 @@ int main(int argc, char** argv) {
     }
 
     App app(data_dir());
-    QObject::connect(&instance, &SingleInstance::secondLaunch, &app, &App::onSecondLaunch);
+    QObject::connect(&instance, &SingleInstance::secondLaunch, &app, &App::showPicker);
     app.start();
+    // Without a tray (stock GNOME) the launcher is the only way in
+    app.showPicker();
     return QApplication::exec();
 }

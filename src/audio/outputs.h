@@ -4,6 +4,7 @@
 
 #include <QByteArray>
 #include <QObject>
+#include <QString>
 #include <QTimer>
 
 #include <pipewire/pipewire.h>
@@ -15,8 +16,9 @@
 /// @brief An output device in the graph: a node with media.class Audio/Sink
 struct OutputSink {
     uint32_t id{0};
-    QByteArray name;  ///< node.name
-    int priority{0};  ///< priority.session
+    QByteArray name;        ///< node.name
+    int priority{0};        ///< priority.session
+    QString description{};  ///< node.description: the name the desktop shows
 
     bool operator==(const OutputSink&) const = default;
 };
@@ -54,6 +56,22 @@ public:
         return this->target_;
     }
 
+    /// @brief The graph is listed; false while PipeWire can't be reached
+    bool connected() const {
+        return this->loop_ != nullptr;
+    }
+
+    /// @brief This PC's own output: the one the system uses, or used last before the Sendspin
+    /// output; when that's gone, the best other one. nullopt when there is none.
+    std::optional<OutputSink> local() const;
+
+    /// @brief The system's default output is the Sendspin output
+    bool own_is_default() const;
+
+    /// @brief Makes the Sendspin output the system's default, or hands the default back to
+    /// local(). The session manager carries it out, so own_is_default() follows later.
+    bool set_own_default(bool own);
+
     ClockRates clock() const;
 
     /// @brief Asks an output what it plays. Waits for the answer, briefly; empty without one.
@@ -61,6 +79,8 @@ public:
 
 signals:
     void targetChanged();
+    /// The outputs, the default or connected() may have changed
+    void changed();
 
 private:
     struct Metadata {

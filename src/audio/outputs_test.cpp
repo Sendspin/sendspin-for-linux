@@ -76,6 +76,37 @@ private slots:
         outputs.set_chosen("sendspin-test-outputs");
         QVERIFY(outputs.target() != std::optional<QByteArray>("sendspin-test-outputs"));
     }
+
+    // Needs a PipeWire daemon with a session manager and another output
+    void takesTheDefaultAndGivesItBack() {
+        // It changes the system's default output: never on a desktop's own daemon
+        if (!qEnvironmentVariableIsSet("SENDSPIN_REQUIRE_PIPEWIRE_TESTS")) {
+            QSKIP("only against the private daemon of ci/start-pipewire.sh");
+        }
+        SendspinOutput own(nullptr, "sendspin-test-default");
+        QString error;
+        if (!own.start(&error)) {
+            SKIP_UNLESS_REQUIRED(qPrintable(QStringLiteral("no PipeWire daemon: ") + error));
+        }
+        Outputs outputs("sendspin-test-default");
+        QVERIFY(outputs.start());
+        const std::optional<OutputSink> local = outputs.local();
+        if (!local) {
+            SKIP_UNLESS_REQUIRED("no output besides the Sendspin output");
+        }
+        QVERIFY(local->name != "sendspin-test-default");
+        QVERIFY(!local->description.isEmpty());
+        QVERIFY(!outputs.own_is_default());
+
+        QVERIFY(outputs.set_own_default(true));
+        QTRY_VERIFY(outputs.own_is_default());
+        // This PC's own output is still the one it replaced
+        QCOMPARE(outputs.local()->name, local->name);
+
+        QVERIFY(outputs.set_own_default(false));
+        QTRY_VERIFY(!outputs.own_is_default());
+        QCOMPARE(outputs.local()->name, local->name);
+    }
 };
 
 QTEST_GUILESS_MAIN(OutputsTest)

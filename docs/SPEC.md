@@ -284,7 +284,7 @@ How fast each of these shows is the libraries' doing, not the app's, and the Mac
 carry over. The server library has a write-stall limit (15 s) and a dial backoff (1–60 s)
 (`server: include/sendspin/server/config.h`); its public headers name no ping. The client drops
 a silent connection after 30 s (`SendspinClientConfig::liveness_timeout_ms`). Whether a speaker
-that loses power shows Unavailable fast enough is open question 7.
+that loses power shows Unavailable fast enough is open question 6.
 
 ### Where this differs from the Mac's menu
 
@@ -691,7 +691,9 @@ app ID; where source audio plays (the app's own server lets the user choose; wit
 chooses); per-speaker volume (not in v1: the group's volume only, which the server library
 already sets); the sink's volume (PipeWire scales the captured audio, and it does not drive the
 speakers); reuse from sendspin-cpp-cli (copy its PipeWire sink and source now, a shared library
-later); offline builds (vendor the FetchContent dependencies).
+later); offline builds (vendor the FetchContent dependencies); where the picker appears on
+Wayland (the compositor places it, no layer-shell in v1; beside the tray icon where the platform
+says where that is, centred otherwise).
 
 Still open:
 
@@ -704,12 +706,10 @@ Still open:
    along?
 3. **Who honours the sink's latency.** Check mpv, Firefox, Chromium and GStreamer players through
    pipewire-pulse and natively, and what PipeWire does when the latency changes mid-stream.
-4. **Where the picker appears on Wayland.** A window can't place itself next to the tray icon.
-   Plasma has layer-shell; GNOME does not. Centre it, or accept the compositor's placement?
-5. **Switching the default output.** Ticking a speaker changes the system default, as the Mac
+4. **Switching the default output.** Ticking a speaker changes the system default, as the Mac
    does. Fedora users objected when AirPlay outputs took the default uninvited; this is the
    user's own click, but confirm it reads that way.
-6. **More than one server.** One row, for the server that holds the connection. A second paired
+5. **More than one server.** One row, for the server that holds the connection. A second paired
    server displaces an idle first one (mac: `TODO.md` item 6). Show them all?
-7. **How fast a dead speaker is noticed.** Measure it against real speakers; if it takes the
+6. **How fast a dead speaker is noticed.** Measure it against real speakers; if it takes the
    write-stall limit, ask for a liveness check in sendspin-server-cpp.

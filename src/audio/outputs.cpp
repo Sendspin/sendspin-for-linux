@@ -210,6 +210,45 @@ void Outputs::stop() {
     this->clock_ = {};
 }
 
+std::optional<OutputSink> Outputs::local() const {
+    if (this->loop_ == nullptr) {
+        return std::nullopt;
+    }
+    const LoopLock lock(this->loop_);
+    const std::optional<QByteArray> name =
+        choose_target(this->sinks_, this->default_sink_, {}, this->own_sink_, this->last_default_);
+    if (!name) {
+        return std::nullopt;
+    }
+    return *std::ranges::find(this->sinks_, *name, &OutputSink::name);
+}
+
+bool Outputs::own_is_default() const {
+    if (this->loop_ == nullptr) {
+        return false;
+    }
+    const LoopLock lock(this->loop_);
+    return this->default_sink_ == this->own_sink_;
+}
+
+bool Outputs::set_own_default(bool own) {
+    const std::optional<OutputSink> local = this->local();
+    if (this->loop_ == nullptr || (!own && !local)) {
+        return false;
+    }
+    const LoopLock lock(this->loop_);
+    if (this->default_metadata_.proxy == nullptr) {
+        return false;
+    }
+    const QByteArray name = own ? this->own_sink_ : local->name;
+    const QByteArray value = QJsonDocument(QJsonObject{{"name", QString::fromUtf8(name)}})
+                                 .toJson(QJsonDocument::Compact);
+    // The user's choice of default, which the session manager makes the default while it exists
+    return pw_metadata_set_property(reinterpret_cast<pw_metadata*>(this->default_metadata_.proxy),
+                                    0, "default.configured.audio.sink", "Spa:String:JSON",
+                                    value.constData()) >= 0;
+}
+
 void Outputs::set_chosen(const QByteArray& name) {
     this->chosen_ = name;
     this->update_target_();
@@ -287,6 +326,7 @@ void Outputs::update_target_() {
         qCInfo(lc_outputs, "playing on %s", target ? target->constData() : "nothing");
         emit this->targetChanged();
     }
+    emit this->changed();
 }
 
 void Outputs::lost_() {
@@ -361,7 +401,9 @@ void Outputs::on_global(void* data, uint32_t id, uint32_t /*permissions*/, const
         return;
     }
     const char* priority = spa_dict_lookup(props, PW_KEY_PRIORITY_SESSION);
-    self->sinks_.push_back({id, name, priority != nullptr ? std::atoi(priority) : 0});
+    const char* description = spa_dict_lookup(props, PW_KEY_NODE_DESCRIPTION);
+    self->sinks_.push_back({id, name, priority != nullptr ? std::atoi(priority) : 0,
+                            QString::fromUtf8(description != nullptr ? description : name)});
     self->changed_();
 }
 

@@ -711,6 +711,7 @@ void CastEngine::publish_rows_() {
         row.plays = output.plays;
         row.paired = speaker.facts.paired;
         row.can_pair = speaker.can_pair;
+        row.can_play = speaker_menu::can_play(output);
         row.row = speaker_menu::row(output, {.plays_groupable = true, .group_count = added});
         rows.push_back(std::move(row));
     }
