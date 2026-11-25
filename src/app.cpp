@@ -1,11 +1,13 @@
 #include "app.h"
 
 #include "app_id.h"
-#include "device_name.h"
+#include "autostart.h"
 
 #include <QApplication>
 #include <QIcon>
 #include <QLoggingCategory>
+#include <QQuickImageProvider>
+#include <QQuickStyle>
 #include <QSettings>
 #include <QStandardPaths>
 
@@ -18,16 +20,37 @@ Q_LOGGING_CATEGORY(lc_app, "sendspin.app")
 
 namespace {
 
-// Settings has no window yet; these are its keys
-constexpr const char* SETTING_OUTPUT = "player/output";  ///< a node.name; empty for the default
+// The player's own, kept as a server sets them; the rest are SettingsModel's
 constexpr const char* SETTING_VOLUME = "player/volume";  ///< 0-100; 100 unless set
 constexpr const char* SETTING_MUTED = "player/muted";
-constexpr const char* SETTING_MPRIS = "mpris/enabled";              ///< on unless set false
-constexpr const char* SETTING_UNPAIRED = "client/unpaired_access";  ///< on unless set false
 
-QSettings settings() {
+QSettings conf() {
     return QSettings(QStringLiteral("sendspin"), QStringLiteral("sendspin"));
 }
+
+/// The QR code a pairing server asked for, as `image://qr/…`: the code stays out of QML
+class QrProvider final : public QQuickImageProvider {
+public:
+    explicit QrProvider(const SettingsModel& settings)
+        : QQuickImageProvider(QQuickImageProvider::Image), settings_(settings) {}
+
+    QImage requestImage(const QString& /*id*/, QSize* size, const QSize& requested) override {
+        constexpr int MODULE_PX = 6;
+        const QImage code = this->settings_.pairing_qr_image();
+        if (code.isNull()) {
+            return {};
+        }
+        // Whole pixels a module, so it stays sharp
+        const int scale =
+            requested.isValid() ? qMax(1, requested.width() / code.width()) : MODULE_PX;
+        const QImage image = code.scaled(code.size() * scale);
+        *size = image.size();
+        return image;
+    }
+
+private:
+    const SettingsModel& settings_;
+};
 
 /// Flatpak's place for files other apps are pointed at
 QString art_dir() {
@@ -40,20 +63,22 @@ QString art_dir() {
 App::App(const std::filesystem::path& data_dir, QObject* parent)
     : QObject(parent),
       client_persistence_(data_dir),
-      client_({.name = device_name(),
+      client_({.name = SettingsModel::stored_device_name(),
                .port = Client::free_port(),
-               .unpaired_access = settings().value(SETTING_UNPAIRED, true).toBool(),
+               .unpaired_access = SettingsModel::stored_unpaired_access(),
                .player_formats = this->probe_formats_(),
                .player_volume = static_cast<uint8_t>(
-                   std::clamp(settings().value(SETTING_VOLUME, 100).toInt(), 0, 100)),
-               .player_muted = settings().value(SETTING_MUTED, false).toBool()},
+                   std::clamp(conf().value(SETTING_VOLUME, 100).toInt(), 0, 100)),
+               .player_muted = conf().value(SETTING_MUTED, false).toBool()},
               &this->client_persistence_),
       mpris_(this->client_, art_dir()),
       cast_(data_dir, output_),
       picker_(cast_, client_, outputs_),
-      picker_window_(picker_, cast_) {
+      picker_window_(picker_, cast_),
+      paired_servers_(data_dir),
+      settings_(client_, cast_, outputs_, mpris_, paired_servers_) {
     qCInfo(lc_app, "PipeWire %s", pw_get_library_version());
-    this->mpris_.set_enabled(settings().value(SETTING_MPRIS, true).toBool());
+    this->mpris_.set_enabled(SettingsModel::stored_media_controls());
 
     this->status_ = this->menu_.addAction(QString());
     this->status_->setEnabled(false);
@@ -75,7 +100,7 @@ App::App(const std::filesystem::path& data_dir, QObject* parent)
                 }
             });
     connect(&this->client_.player(), &Player::volumeChanged, this, [](int volume, bool muted) {
-        QSettings kept = settings();
+        QSettings kept = conf();
         kept.setValue(SETTING_VOLUME, volume);
         kept.setValue(SETTING_MUTED, muted);
     });
@@ -85,6 +110,9 @@ App::App(const std::filesystem::path& data_dir, QObject* parent)
     connect(&this->client_, &Client::pairingCodeChanged, this, &App::on_pairing_code_);
     connect(&this->client_, &Client::pairingApprovalNeededChanged, this,
             &App::on_pairing_approval_needed_);
+    // Every notification is about a server pairing
+    connect(&this->notifier_, &Notifier::clicked, this,
+            [this] { this->show_settings_(Section::MusicAssistant); });
     connect(&this->notifier_, &Notifier::actionInvoked, this, [this] {
         if (this->notice_ == Notice::Approval) {
             this->client_.allow_pairing();
@@ -116,6 +144,8 @@ void App::start() {
     if (!this->output_.start(&error)) {
         qCWarning(lc_app, "no Sendspin output: %s", qUtf8Printable(error));
     }
+    // What the entry starts may have changed since it was written
+    autostart::refresh();
     // First: its client_id comes with its start
     this->client_.start();
     // Our server never connects to our own client
@@ -129,7 +159,7 @@ std::vector<sendspin::AudioSupportedFormatObject> App::probe_formats_() {
     if (!this->outputs_.start()) {
         qCWarning(lc_app, "PipeWire's outputs cannot be listed");
     }
-    this->outputs_.set_chosen(settings().value(SETTING_OUTPUT).toByteArray());
+    this->outputs_.set_chosen(SettingsModel::stored_output());
     const auto target = this->outputs_.target();
     auto formats = player_formats(target ? this->outputs_.formats(*target) : SinkFormats{},
                                   this->outputs_.clock());
@@ -174,6 +204,17 @@ void App::on_pairing_code_(const QString& code) {
     }
     this->notice_ = Notice::Code;
     const QString server_name = this->client_.server_name();
+    if (this->client_.pairing_code_is_qr()) {
+        // Nothing to read out: the code is on show in Settings
+        this->show_settings_(Section::MusicAssistant);
+        this->notifier_.show(
+            tr("Scan the code to pair this PC"),
+            server_name.isEmpty()
+                ? tr("It is in Sendspin's settings.")
+                : tr("%1 asked for it. It is in Sendspin's settings.").arg(server_name),
+            true);
+        return;
+    }
     this->notifier_.show(tr("Pairing code: %1").arg(Picker::grouped_code(code)),
                          server_name.isEmpty()
                              ? tr("Enter it in the server to pair this PC.")
@@ -203,7 +244,42 @@ void App::showPicker(const QString& activationToken) {
     this->picker_window_.show(PickerWindow::Place::CENTRE, activationToken);
 }
 
+QQuickWindow* App::settings_window() const {
+    if (!this->window_ || this->window_->rootObjects().isEmpty()) {
+        return nullptr;
+    }
+    return qobject_cast<QQuickWindow*>(this->window_->rootObjects().first());
+}
+
 void App::showSettings() {
-    // The Settings window is still to come
-    qCInfo(lc_app, "Settings asked for");
+    this->show_settings_(Section::Current);
+}
+
+void App::show_settings_(Section section) {
+    if (!this->window_) {
+        // As the picker does, whichever opens first: Fusion takes the platform's palette
+        if (QQuickStyle::name().isEmpty() &&
+            qEnvironmentVariableIsEmpty("QT_QUICK_CONTROLS_STYLE")) {
+            QQuickStyle::setStyle(QStringLiteral("Fusion"));
+        }
+        qmlRegisterUncreatableType<SettingsModel>("Sendspin", 1, 0, "SettingsModel",
+                                                  QStringLiteral("made by the app"));
+        this->window_ = std::make_unique<QQmlApplicationEngine>();
+        // The engine owns the provider
+        this->window_->addImageProvider(QStringLiteral("qr"), new QrProvider(this->settings_));
+        this->window_->setInitialProperties(
+            {{QStringLiteral("settings"), QVariant::fromValue(&this->settings_)}});
+        this->window_->load(QUrl(QStringLiteral("qrc:/qml/Settings.qml")));
+    }
+    QQuickWindow* window = this->settings_window();
+    if (window == nullptr) {
+        qCWarning(lc_app, "the Settings window did not load");
+        return;
+    }
+    if (section != Section::Current) {
+        window->setProperty("section", static_cast<int>(section));
+    }
+    window->show();
+    window->raise();
+    window->requestActivate();
 }

@@ -54,8 +54,10 @@ public:
         QString name{};
         bool connected{false};
         bool paired{false};
-        /// The pairing code showing; empty for none
+        /// The pairing code showing, digits to type in; empty for none
         QString code{};
+        /// The pairing code is a QR code, drawn in Settings and never spelled out
+        bool qr_code{false};
         bool chosen{false};
         /// It has the PC as its input
         bool streaming{false};

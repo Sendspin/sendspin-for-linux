@@ -9,6 +9,7 @@ add_library(sendspin_app STATIC
     audio/player_formats.cpp
     audio/sendspin_output.cpp
     audio/volume_curve.cpp
+    autostart.cpp
     blob_store.cpp
     cast/cast_engine.cpp
     cast/cast_feed.cpp
@@ -23,9 +24,11 @@ add_library(sendspin_app STATIC
     headless.cpp
     mpris.cpp
     notifier.cpp
+    paired_servers.cpp
     persistence.cpp
     picker/picker.cpp
     picker/picker_window.cpp
+    settings_model.cpp
     single_instance.cpp
 )
 # Plain resources rather than a QML module: a module in a static library needs its plugin
@@ -45,6 +48,9 @@ qt_add_resources(sendspin_app icons PREFIX /icons BASE ${SENDSPIN_ICONS} FILES
     ${SENDSPIN_ICONS}/speaker-muted.svg
     ${SENDSPIN_ICONS}/speaker.svg
 )
+# The Settings window, in the same way
+qt_add_resources(sendspin_app settings_qml PREFIX /
+    FILES qml/Settings.qml qml/ThisPc.qml qml/Speakers.qml qml/MusicAssistant.qml)
 target_include_directories(sendspin_app PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_options(sendspin_app PRIVATE -Wall -Wextra -Wpedantic)
 target_link_libraries(sendspin_app PUBLIC
@@ -61,6 +67,7 @@ target_link_libraries(sendspin_app PUBLIC
     PkgConfig::PIPEWIRE
     PkgConfig::AVAHI
 )
+target_link_libraries(sendspin_app PRIVATE qrcodegen)
 # PUBLIC reaches the app and the tests, and nothing third-party
 if(SENDSPIN_SANITIZE)
     target_compile_options(sendspin_app PUBLIC
@@ -99,6 +106,7 @@ if(BUILD_TESTING)
     endfunction()
 
     sendspin_add_test(app_test)
+    sendspin_add_test(autostart_test)
     sendspin_add_test(audio/drift_corrector_test)
     sendspin_add_test(audio/outputs_test)
     sendspin_add_test(audio/pcm_ring_test)
@@ -116,7 +124,9 @@ if(BUILD_TESTING)
     sendspin_add_test(client/source_feed_test)
     sendspin_add_test(device_name_test)
     sendspin_add_test(mpris_test)
+    sendspin_add_test(paired_servers_test)
     sendspin_add_test(persistence_test)
     sendspin_add_test(picker/picker_test)
+    sendspin_add_test(settings_model_test)
     sendspin_add_test(single_instance_test)
 endif()

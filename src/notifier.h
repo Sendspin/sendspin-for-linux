@@ -22,6 +22,8 @@ public:
 signals:
     /// The button of the notification showing was pressed
     void actionInvoked();
+    /// The notification showing was clicked
+    void clicked();
 
 private slots:
     void onActionInvoked(quint32 id, const QString& key);

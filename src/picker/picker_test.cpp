@@ -282,6 +282,11 @@ private slots:
         server.code = "123456";
         QCOMPARE(Picker::server_caption(server, "Desk"), "Enter 123-456 in Music Assistant.");
         server.code.clear();
+        // A QR code is drawn in Settings, not spelled out here
+        server.qr_code = true;
+        QCOMPARE(Picker::server_caption(server, "Desk"),
+                 "Scan the code in Settings with Music Assistant.");
+        server.qr_code = false;
         server.paired = true;
         QCOMPARE(Picker::server_caption(server, "Desk"), "");
         server.chosen = true;

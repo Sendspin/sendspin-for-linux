@@ -54,7 +54,8 @@ than 1.4.2 API without a fallback.
 - `src/cast/` — casting to speakers. `speaker_menu` is the picker's rules as plain functions, one
   test per rule; `cast_engine` carries them out on the embedded server; `cast_feed` is the only
   part on PipeWire's realtime thread. `cast_engine_test` runs a real sendspin-cpp player on the
-  loopback interface, so it needs no speaker and no mDNS.
+  loopback interface, so it needs no speaker and no mDNS; `test_peer.h` is that player, for any
+  test that needs a speaker.
 - `src/picker/` — the picker and what the tray shows. `picker` asks `speaker_menu` what each row
   shows and what a click leads to, and carries that out on the cast engine, the client and the
   default output; it holds no rules of its own. `qml/` is the window. `picker_test` loads the QML
@@ -62,6 +63,10 @@ than 1.4.2 API without a fallback.
 - `data/` — the launcher's entry and the icons, installed by `cmake --install`.
 - `src/client/` — the Sendspin client and its roles. `src/mpris.*` shows what a server plays here;
   its bus test needs a session bus and skips without one.
+- `src/settings_model.*` — what the Settings window shows and changes; `src/qml/` is the window,
+  one file per section, with no logic of its own. `app_test` loads it and fails on anything the
+  QML engine warns of.
+- `third_party/` — vendored sources, listed in its `README.md`. Not formatted, not edited.
 - `ci/` — `start-pipewire.sh` and the daemon config it loads: a null sink, no hardware.
 - `tests/interop/` — the app end to end, in Python on pytest, run by `uv`: `test_cast.py` casts to
   a real sendspin-cpp-cli player, `test_music_assistant.py` is a server on aiosendspin that pairs

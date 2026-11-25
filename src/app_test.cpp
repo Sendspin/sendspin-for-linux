@@ -2,9 +2,24 @@
 
 #include <QDir>
 #include <QFile>
+#include <QScopeGuard>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
+
+namespace {
+
+QStringList qml_complaints;
+
+/// Keeps what the QML engine says of the app's own files: a wrong name or binding only warns
+void note_qml_complaints(QtMsgType type, const QMessageLogContext& /*context*/,
+                         const QString& message) {
+    if (type != QtDebugMsg && type != QtInfoMsg && message.contains("qrc:/qml/")) {
+        qml_complaints << message;
+    }
+}
+
+}  // namespace
 
 class AppTest : public QObject {
     Q_OBJECT
@@ -69,6 +84,59 @@ private slots:
         QIcon::setThemeName(before);
     }
 
+    void settingsOpenInOneWindow() {
+        const QTemporaryDir dir;
+        App app(dir.path().toStdString());
+        QVERIFY(app.settings_window() == nullptr);
+
+        qml_complaints.clear();
+        const QtMessageHandler previous = qInstallMessageHandler(note_qml_complaints);
+        const auto restore = qScopeGuard([previous] { qInstallMessageHandler(previous); });
+
+        app.showSettings();
+        QQuickWindow* window = app.settings_window();
+        QVERIFY(window != nullptr);
+        QVERIFY(window->isVisible());
+        QCOMPARE(window->property("section").toInt(), 0);
+
+        // Every section, and the pairing dialog, with nothing the QML engine objects to
+        for (int section = 0; section < 3; section++) {
+            window->setProperty("section", section);
+            QTest::qWait(50);
+        }
+        app.settings()->pair("no-such-speaker");
+        QTest::qWait(50);
+        // A speaker names itself: its name is never read as rich text
+        const QObject* title = window->findChild<QObject*>("pairingTitle");
+        QVERIFY(title != nullptr);
+        QCOMPARE(title->property("textFormat").toInt(), int{Qt::PlainText});
+        app.settings()->cancelPairing();
+        QTest::qWait(50);
+        QCOMPARE(qml_complaints, QStringList());
+
+        // Asked for again, closed or not, it is the same window
+        window->close();
+        QVERIFY(!window->isVisible());
+        app.showSettings();
+        QCOMPARE(app.settings_window(), window);
+        QVERIFY(window->isVisible());
+        QCOMPARE(window->property("section").toInt(), 2);
+        app.showSettings();
+        QCOMPARE(app.settings_window(), window);
+    }
+
+    void theTraysSettingsOpensTheWindow() {
+        const QTemporaryDir dir;
+        App app(dir.path().toStdString());
+        for (QAction* action : app.menu()->actions()) {
+            if (action->text() == "Settings…") {
+                action->trigger();
+            }
+        }
+        QVERIFY(app.settings_window() != nullptr);
+        QVERIFY(app.settings_window()->isVisible());
+    }
+
     // The tray icon, the launcher and a second launch all end here
     void showPickerOpensThePicker() {
         const QTemporaryDir dir;
@@ -88,6 +156,9 @@ private slots:
         QVERIFY(gear != nullptr);
         QVERIFY(QMetaObject::invokeMethod(gear, "clicked"));
         QCOMPARE(asked.count(), 1);
+        // And gets them
+        QVERIFY(app.settings_window() != nullptr);
+        QVERIFY(app.settings_window()->isVisible());
     }
 };
 
