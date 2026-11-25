@@ -648,6 +648,23 @@ Two controls, independent of each other:
   an underscore, as D-Bus names and Flatpak IDs require. The Mac's bundle ID is
   `com.sendspin-audio.mac`.
 
+### Logging
+
+Through Qt's logging categories, all under `sendspin.`, to standard error or the journal as Qt
+decides.
+
+- **Info** is what a bug report needs and no more: the start, with the version; what plays where;
+  a server or a pairing coming and going; a speaker joining or leaving the group; an update.
+  Nothing that repeats on a timer or with each dial.
+- **Debug** is the rest, and off by default. `--verbose` turns it on for every category,
+  `QT_LOGGING_RULES` for any, and overrides both. `set_log_rules()` is the one place the
+  default is set.
+- **The libraries' info is the app's debug.** sendspin-server-cpp logs each dial and connection
+  at info: `sendspin.server.lib` takes its lines, and asks it for them only when its debug is
+  on. sendspin-cpp has no log callback and writes to standard error itself: `sendspin.client.lib`
+  only sets its level. Their warnings and errors always show.
+- No key, PSK or pairing code at any level.
+
 ### Install methods
 
 Listed in this order in the README and on the website:

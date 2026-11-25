@@ -272,19 +272,24 @@ off.
 
 ### Getting logs
 
-Quit Sendspin from the tray menu, then start it from a terminal with everything logged:
+Sendspin logs little while it works: its start, what it plays on, a server or a speaker coming
+and going, and anything that went wrong. To see what it logged since you logged in:
 
 ```sh
-QT_LOGGING_RULES="sendspin.*=true" sendspin-for-linux
+journalctl --user -b /usr/bin/sendspin-for-linux
 ```
 
-For the Flatpak:
+For a bug report, quit Sendspin from the tray menu and start it from a terminal with `--verbose`
+(or `-v`), which adds every dial, connection and timing line:
 
 ```sh
-flatpak run --env=QT_LOGGING_RULES="sendspin.*=true" com.sendspin_audio.Sendspin
+sendspin-for-linux --verbose 2> sendspin.log
+# the Flatpak
+flatpak run com.sendspin_audio.Sendspin --verbose 2> sendspin.log
 ```
 
-Reproduce the problem and copy what the terminal shows. The logs never contain keys.
+Reproduce the problem, then attach `sendspin.log`. No key or pairing code is logged at any
+level.
 
 ### Still stuck?
 

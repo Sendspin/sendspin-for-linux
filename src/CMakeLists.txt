@@ -22,6 +22,7 @@ add_library(sendspin_app STATIC
     client/source_feed.cpp
     device_name.cpp
     headless.cpp
+    logging.cpp
     mpris.cpp
     notifier.cpp
     paired_servers.cpp
@@ -176,6 +177,7 @@ if(BUILD_TESTING)
     sendspin_add_test(client/mdns_advertiser_test)
     sendspin_add_test(client/source_feed_test)
     sendspin_add_test(device_name_test)
+    sendspin_add_test(logging_test)
     sendspin_add_test(mpris_test)
     sendspin_add_test(notifier_test)
     sendspin_add_test(paired_servers_test)

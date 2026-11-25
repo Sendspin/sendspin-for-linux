@@ -90,13 +90,21 @@ from that server.
 
 With this PC's output ticked in the picker beside a speaker, the app plays along on it: the
 system's default output, or the one that was the default before the Sendspin output. With
-`QT_LOGGING_RULES=sendspin.cast.info=true` it logs every 5 s how far off the group's time it
-plays. An output whose delay is longer than the speakers' buffer, as Bluetooth's can be, cannot
+`--verbose` it logs every 5 s how far off the group's time it plays. An output whose delay is longer than the speakers' buffer, as Bluetooth's can be, cannot
 play along and stays silent.
 
 A speaker built on sendspin-cpp v0.10.0 or later stays silent for now: sendspin-server-cpp
 starts its stream before it declares playback, which those clients ignore. See "Depends on" in
 [SPEC.md](SPEC.md#depends-on).
+
+## Logging
+
+Info and up by default, debug with `--verbose`; the rules are in [SPEC.md](SPEC.md#logging), and
+what a user does with them in the README's "Getting logs". `QT_LOGGING_RULES` works as in any Qt
+app and wins over both: `QT_LOGGING_RULES="sendspin.*.debug=true"` is `--verbose`, and
+`sendspin.cast.debug=true` alone turns up one part. `sendspin.server.lib` and
+`sendspin.client.lib` are the two Sendspin libraries. No key, PSK or pairing code is logged at
+any level.
 
 ## Files
 
