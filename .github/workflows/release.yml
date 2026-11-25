@@ -52,7 +52,8 @@ jobs:
       # of a file would still look done: ask again until all of them are there
       - name: Download the artifacts
         run: |
-          expected="sendspin-for-linux-$VERSION-archlinux-x86_64.pkg.tar.zst
+          expected="com.sendspin_audio.Sendspin.yml
+          sendspin-for-linux-$VERSION-archlinux-x86_64.pkg.tar.zst
           sendspin-for-linux-$VERSION-debian13-amd64.deb
           sendspin-for-linux-$VERSION-fedora44-x86_64.rpm
           sendspin-for-linux-$VERSION-ubuntu26.04-amd64.deb

@@ -23,10 +23,27 @@
   <url type="bugtracker">https://github.com/Sendspin/sendspin-for-linux/issues</url>
   <url type="vcs-browser">https://github.com/Sendspin/sendspin-for-linux</url>
   <content_rating type="oars-1.1"/>
+  <branding>
+    <color type="primary" scheme_preference="light">#f5f4ec</color>
+    <color type="primary" scheme_preference="dark">#e25c4c</color>
+  </branding>
+  <!-- By the release's tag: a release's screenshots don't change under it -->
+  <screenshots>
+    <screenshot type="default">
+      <caption>Pick the speakers that play this PC's sound</caption>
+      <image>https://raw.githubusercontent.com/Sendspin/sendspin-for-linux/v@PROJECT_VERSION@/data/screenshots/picker.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Pair speakers in Settings</caption>
+      <image>https://raw.githubusercontent.com/Sendspin/sendspin-for-linux/v@PROJECT_VERSION@/data/screenshots/settings.png</image>
+    </screenshot>
+  </screenshots>
   <provides>
     <binary>sendspin-for-linux</binary>
   </provides>
   <releases>
-    <release version="@PROJECT_VERSION@" date="@SENDSPIN_RELEASE_DATE@"/>
+    <release version="@PROJECT_VERSION@" date="@SENDSPIN_RELEASE_DATE@">
+      <url type="details">https://github.com/Sendspin/sendspin-for-linux/releases/tag/v@PROJECT_VERSION@</url>
+    </release>
   </releases>
 </component>

@@ -104,8 +104,13 @@ install(FILES ${CMAKE_SOURCE_DIR}/data/autostart.desktop
 install(DIRECTORY ${SENDSPIN_ICONS}/hicolor DESTINATION ${CMAKE_INSTALL_DATADIR}/icons)
 install(FILES ${SENDSPIN_ICONS}/sendspin-symbolic.svg ${SENDSPIN_ICONS}/sendspin-waves-symbolic.svg
     DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/symbolic/apps)
-# The release's date is the build's, or SOURCE_DATE_EPOCH's
-string(TIMESTAMP SENDSPIN_RELEASE_DATE "%Y-%m-%d" UTC)
+# A release tarball says when its commit was made (scripts/vendor.sh): Flathub builds one again
+# months later. Any other build is today's.
+if(EXISTS ${CMAKE_SOURCE_DIR}/RELEASE_DATE)
+    file(STRINGS ${CMAKE_SOURCE_DIR}/RELEASE_DATE SENDSPIN_RELEASE_DATE LIMIT_COUNT 1)
+else()
+    string(TIMESTAMP SENDSPIN_RELEASE_DATE "%Y-%m-%d" UTC)
+endif()
 configure_file(${CMAKE_SOURCE_DIR}/data/com.sendspin_audio.Sendspin.metainfo.xml.in
     com.sendspin_audio.Sendspin.metainfo.xml @ONLY)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/com.sendspin_audio.Sendspin.metainfo.xml
@@ -177,4 +182,8 @@ if(BUILD_TESTING)
     sendspin_add_test(single_instance_test)
     sendspin_add_test(update_checker_test)
     sendspin_add_test(update_installer_test)
+
+    # Not a test: scripts/render-screenshots.sh runs it
+    add_executable(render-screenshots ${CMAKE_SOURCE_DIR}/scripts/render-screenshots.cpp)
+    target_link_libraries(render-screenshots PRIVATE sendspin_app Qt6::Test)
 endif()
