@@ -1,7 +1,12 @@
 # Everything but main(), so the tests link it
 add_library(sendspin_app STATIC
     app.cpp
+    audio/outputs.cpp
+    audio/pcm_ring.cpp
+    audio/playback_stream.cpp
+    audio/player_formats.cpp
     audio/sendspin_output.cpp
+    audio/volume_curve.cpp
     blob_store.cpp
     cast/cast_engine.cpp
     cast/cast_feed.cpp
@@ -9,9 +14,12 @@ add_library(sendspin_app STATIC
     cast/speaker_model.cpp
     client/client.cpp
     client/mdns_advertiser.cpp
+    client/now_playing.cpp
+    client/player.cpp
     client/source_feed.cpp
     device_name.cpp
     headless.cpp
+    mpris.cpp
     notifier.cpp
     persistence.cpp
     single_instance.cpp
@@ -50,12 +58,18 @@ if(BUILD_TESTING)
         target_compile_options(${NAME} PRIVATE -Wall -Wextra -Wpedantic)
         target_link_libraries(${NAME} PRIVATE sendspin_app Qt6::Test)
         add_test(NAME ${NAME} COMMAND ${NAME})
-        # No display in CI
-        set_tests_properties(${NAME} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+        # No display in CI, and never the settings of whoever runs the tests
+        set_tests_properties(${NAME} PROPERTIES ENVIRONMENT
+            "QT_QPA_PLATFORM=offscreen;XDG_CONFIG_HOME=${CMAKE_CURRENT_BINARY_DIR}/test-config")
     endfunction()
 
     sendspin_add_test(app_test)
+    sendspin_add_test(audio/outputs_test)
+    sendspin_add_test(audio/pcm_ring_test)
+    sendspin_add_test(audio/playback_stream_test)
+    sendspin_add_test(audio/player_formats_test)
     sendspin_add_test(audio/sendspin_output_test)
+    sendspin_add_test(audio/volume_curve_test)
     sendspin_add_test(blob_store_test)
     sendspin_add_test(cast/cast_engine_test)
     sendspin_add_test(cast/cast_feed_test)
@@ -64,6 +78,7 @@ if(BUILD_TESTING)
     sendspin_add_test(client/mdns_advertiser_test)
     sendspin_add_test(client/source_feed_test)
     sendspin_add_test(device_name_test)
+    sendspin_add_test(mpris_test)
     sendspin_add_test(persistence_test)
     sendspin_add_test(single_instance_test)
 endif()

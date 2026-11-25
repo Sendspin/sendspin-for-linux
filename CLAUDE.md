@@ -49,6 +49,8 @@ is the floor: do not use Qt newer than 6.8 or PipeWire newer than 1.4.2 API with
   test per rule; `cast_engine` carries them out on the embedded server; `cast_feed` is the only
   part on PipeWire's realtime thread. `cast_engine_test` runs a real sendspin-cpp player on the
   loopback interface, so it needs no speaker and no mDNS.
+- `src/client/` — the Sendspin client and its roles. `src/mpris.*` shows what a server plays here;
+  its bus test needs a session bus and skips without one.
 - `ci/` — `start-pipewire.sh` and the daemon config it loads: a null sink, no hardware.
 - `cmake/sendspin_libs.cmake` — the pinned Sendspin libraries. Both fetch the same third-party
   dependencies; the order of declarations there is what keeps them to one copy. Fix collisions

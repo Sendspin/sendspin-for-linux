@@ -40,6 +40,17 @@ private slots:
         QCOMPARE(App::status_text(Client::State::Pairing, {}), "Pairing…");
     }
 
+    void statusLineNamesWhatTheServerPlaysHere() {
+        QCOMPARE(App::status_text(Client::State::Connected, "Music Assistant",
+                                  {.title = "So What", .artist = "Miles Davis"}),
+                 "So What — Miles Davis");
+        QCOMPARE(App::status_text(Client::State::Connected, "Music Assistant", {.title = "Radio"}),
+                 "Radio");
+        // Only while connected
+        QCOMPARE(App::status_text(Client::State::Waiting, {}, {.title = "So What"}),
+                 "Waiting for a server");
+    }
+
     void pairingCodeIsGrouped() {
         QCOMPARE(App::grouped_code("042735"), "042-735");
         QCOMPARE(App::grouped_code("0427"), "0427");

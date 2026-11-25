@@ -1,5 +1,7 @@
 #include "client.h"
 
+#include "audio/player_formats.h"
+
 #include <QCryptographicHash>
 #include <QLoggingCategory>
 #include <QTcpServer>
@@ -43,10 +45,15 @@ Client::Client(const Config& config, sendspin::SendspinPersistenceProvider* pers
       port_(config.port),
       advertise_(config.advertise),
       client_(library_config(config)),
-      source_(this->client_) {
+      source_(this->client_),
+      player_(this->client_,
+              config.player_formats.empty() ? player_formats({}, {}) : config.player_formats),
+      now_playing_(this->client_) {
     this->client_.set_listener(this);
     this->client_.set_network_provider(this);
     this->client_.set_persistence_provider(persistence);
+    // The library does not keep this; before start(), so the first hello carries it
+    this->client_.set_unpaired_access_enabled(config.unpaired_access);
 
     this->loop_timer_.setInterval(LOOP_INTERVAL);
     connect(&this->loop_timer_, &QTimer::timeout, this, &Client::tick_);
@@ -86,6 +93,8 @@ void Client::stop() {
     this->advertiser_.stop();
     // Withdraws a code still showing, through the listener
     this->client_.stop();
+    this->player_.stop();
+    this->now_playing_.poll();
     this->pairing_ = false;
     this->sync_();
 }
@@ -109,6 +118,8 @@ void Client::allow_pairing() {
 void Client::tick_() {
     this->client_.loop();
     this->source_.poll();
+    this->player_.poll();
+    this->now_playing_.poll();
     this->sync_();
 }
 

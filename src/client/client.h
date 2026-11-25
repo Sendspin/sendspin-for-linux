@@ -1,6 +1,8 @@
 #pragma once
 
 #include "mdns_advertiser.h"
+#include "now_playing.h"
+#include "player.h"
 #include "source_feed.h"
 
 #include <QObject>
@@ -10,10 +12,11 @@
 #include <sendspin/client.h>
 
 #include <cstdint>
+#include <vector>
 
 /// @brief This PC as a Sendspin client: one sendspin-cpp client that a server (Music Assistant)
 /// finds over mDNS, connects to and pairs with, and the roles it has there. Each role is a member
-/// that adds itself to the library client; the source is the only one so far.
+/// that adds itself to the library client. The one connection owns them all.
 ///
 /// Signals are emitted from the event loop, never from inside a library callback, so a slot may
 /// call anything here.
@@ -38,6 +41,10 @@ public:
         uint16_t port{DEFAULT_PORT};
         /// Off in tests, which must not draw in the servers on the network
         bool advertise{true};
+        /// A server may play here without pairing; the source still needs pairing
+        bool unpaired_access{true};
+        /// What the player advertises, the preferred one first; empty for 48 kHz, 16-bit
+        std::vector<sendspin::AudioSupportedFormatObject> player_formats{};
     };
 
     /// @brief preferred when nothing listens on it, else a port the system picks
@@ -86,6 +93,12 @@ public:
     SourceFeed& source() {
         return this->source_;
     }
+    Player& player() {
+        return this->player_;
+    }
+    NowPlaying& now_playing() {
+        return this->now_playing_;
+    }
 
 signals:
     void stateChanged(Client::State state);
@@ -119,6 +132,8 @@ private:
 
     sendspin::SendspinClient client_;
     SourceFeed source_;
+    Player player_;
+    NowPlaying now_playing_;
     MdnsAdvertiser advertiser_;
     QTimer loop_timer_;
 

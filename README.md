@@ -70,3 +70,20 @@ starts its stream before it declares playback, which those clients ignore. See "
 
 Keys and pairing records are stored as owner-only files under `$XDG_DATA_HOME/sendspin/`
 (`~/.local/share/sendspin/`).
+
+Until there is a Settings window, three settings are read at startup from
+`~/.config/sendspin/sendspin.conf`:
+
+```ini
+[player]
+; the PipeWire node.name to play on, instead of the default output
+output=alsa_output.usb-Example_DAC-00.analog-stereo
+
+[mpris]
+; false keeps what a server plays here out of the desktop's media controls
+enabled=true
+
+[client]
+; false makes a server pair before it may play here
+unpaired_access=true
+```
