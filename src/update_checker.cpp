@@ -162,8 +162,9 @@ void UpdateChecker::on_reply_() {
     const std::optional<Release> release =
         reply->error() == QNetworkReply::NoError ? this->read_(reply->readAll()) : std::nullopt;
     if (!release) {
-        qCInfo(lc_update_check, "no answer about the latest release: %s",
-               qUtf8Printable(reply->errorString()));
+        // Asked again every hour, for as long as the PC is offline
+        qCDebug(lc_update_check, "no answer about the latest release: %s",
+                qUtf8Printable(reply->errorString()));
         this->timer_.start(AFTER_A_FAILURE);
         emit this->checked(false);
         return;
@@ -172,6 +173,9 @@ void UpdateChecker::on_reply_() {
     settings.setValue(KEY_LAST, QDateTime::currentSecsSinceEpoch());
     settings.setValue(KEY_LATEST, kept(*release));
     this->latest_ = release;
+    if (this->update()) {
+        qCInfo(lc_update_check, "%s is available", qUtf8Printable(release->version.toString()));
+    }
     if (this->enabled()) {
         this->timer_.start(BETWEEN_CHECKS);
     }

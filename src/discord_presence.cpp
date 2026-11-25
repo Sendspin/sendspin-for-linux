@@ -120,6 +120,7 @@ void DiscordPresence::set_enabled(bool enabled) {
     }
     this->shown_ = {};
     this->shown_artwork_url_.clear();
+    qCInfo(lc_discord, "showing what plays here in Discord: %s", enabled ? "on" : "off");
     if (enabled) {
         this->ipc_ =
             std::make_unique<DiscordIpc>(this->client_id_, this->runtime_dir_, this->timing_);

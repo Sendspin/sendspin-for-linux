@@ -84,7 +84,8 @@ App::App(const std::filesystem::path& data_dir, QObject* parent)
                UpdateChecker::releases_url()),
       installer_(UpdateInstaller::this_system()),
       settings_(client_, cast_, outputs_, mpris_, discord_, paired_servers_, updates_, installer_) {
-    qCInfo(lc_app, "PipeWire %s", pw_get_library_version());
+    qCInfo(lc_app, "Sendspin %s, PipeWire %s",
+           qUtf8Printable(QCoreApplication::applicationVersion()), pw_get_library_version());
     this->mpris_.set_enabled(SettingsModel::stored_media_controls());
     this->discord_.set_enabled(SettingsModel::stored_discord_rich_presence());
 
@@ -185,7 +186,7 @@ std::vector<sendspin::AudioSupportedFormatObject> App::probe_formats_() {
             listed << QStringLiteral("%1/%2").arg(format.sample_rate).arg(format.bit_depth);
         }
     }
-    qCInfo(lc_app, "the player takes %s, as FLAC or PCM", qUtf8Printable(listed.join(u' ')));
+    qCDebug(lc_app, "the player takes %s, as FLAC or PCM", qUtf8Printable(listed.join(u' ')));
     return formats;
 }
 

@@ -3,6 +3,7 @@
 #include "audio/outputs.h"
 #include "audio/sendspin_output.h"
 #include "cast/cast_engine.h"
+#include "logging.h"
 #include "persistence.h"
 #include "single_instance.h"
 #include "update_checker.h"
@@ -157,8 +158,10 @@ std::optional<int> run_headless(int argc, char** argv, const char* version) {
         {"remove", "Take the speaker with this name out of the group.", "name"},
         {"play-along", "Play on this PC's own output too, in time with the speakers."},
         {"update", "Check for a newer release now, install it, and exit."},
+        {{"v", "verbose"}, "Log every dial, connection and timing line."},
     });
     parser.process(qt);
+    set_log_rules(parser.isSet("verbose"));
     if (parser.isSet("update")) {
         return run_update(qt, version);
     }

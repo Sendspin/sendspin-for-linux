@@ -138,7 +138,7 @@ void DiscordIpc::on_unconnected_() {
         return;
     }
     if (was_ready) {
-        qCInfo(lc_discord, "Discord went away");
+        qCDebug(lc_discord, "Discord went away");
         // It may be restarting: look again now, then with the usual patience
         this->connect_first_();
     } else {
@@ -171,7 +171,7 @@ void DiscordIpc::on_frame_(qint32 opcode, const QByteArray& payload) {
         case OP_FRAME: {
             const QString event = message.value(QStringLiteral("evt")).toString();
             if (event == QLatin1String("READY")) {
-                qCInfo(lc_discord, "connected to Discord");
+                qCDebug(lc_discord, "connected to Discord");
                 this->ready_ = true;
                 this->handshake_.stop();
                 this->next_retry_ = this->timing_.retry;
