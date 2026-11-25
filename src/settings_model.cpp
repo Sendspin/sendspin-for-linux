@@ -23,8 +23,9 @@ namespace {
 constexpr const char* KEY_NAME = "client/name";      ///< empty or unset for the hostname
 constexpr const char* KEY_OUTPUT = "player/output";  ///< a node.name; unset for the default
 constexpr const char* KEY_MPRIS = "mpris/enabled";   ///< on unless set false
-constexpr const char* KEY_DISCORD = "discord/rich_presence";    ///< off unless set true
-constexpr const char* KEY_UNPAIRED = "client/unpaired_access";  ///< on unless set false
+constexpr const char* KEY_TRACKS = "notifications/now_playing";  ///< off unless set true
+constexpr const char* KEY_DISCORD = "discord/rich_presence";     ///< off unless set true
+constexpr const char* KEY_UNPAIRED = "client/unpaired_access";   ///< on unless set false
 
 QSettings store() {
     return QSettings(QStringLiteral("sendspin"), QStringLiteral("sendspin"));
@@ -69,6 +70,10 @@ bool SettingsModel::stored_unpaired_access() {
 
 bool SettingsModel::stored_media_controls() {
     return store().value(KEY_MPRIS, true).toBool();
+}
+
+bool SettingsModel::stored_track_notifications() {
+    return store().value(KEY_TRACKS, false).toBool();
 }
 
 bool SettingsModel::stored_discord_rich_presence() {
@@ -447,6 +452,18 @@ void SettingsModel::setMediaControls(bool enabled) {
     store().setValue(KEY_MPRIS, enabled);
     this->mpris_.set_enabled(enabled);
     emit this->mediaControlsChanged();
+}
+
+bool SettingsModel::track_notifications() const {
+    return stored_track_notifications();
+}
+
+void SettingsModel::setTrackNotifications(bool enabled) {
+    if (enabled == this->track_notifications()) {
+        return;
+    }
+    store().setValue(KEY_TRACKS, enabled);
+    emit this->trackNotificationsChanged();
 }
 
 bool SettingsModel::discord_available() const {

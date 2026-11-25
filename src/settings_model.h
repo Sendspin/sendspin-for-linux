@@ -48,6 +48,8 @@ class SettingsModel : public QObject {
                    unpairedAccessChanged)
     Q_PROPERTY(
         bool mediaControls READ media_controls WRITE setMediaControls NOTIFY mediaControlsChanged)
+    Q_PROPERTY(bool trackNotifications READ track_notifications WRITE setTrackNotifications NOTIFY
+                   trackNotificationsChanged)
     Q_PROPERTY(bool discordAvailable READ discord_available CONSTANT)
     Q_PROPERTY(bool discordRichPresence READ discord_rich_presence WRITE setDiscordRichPresence
                    NOTIFY discordRichPresenceChanged)
@@ -78,6 +80,7 @@ public:
     static QByteArray stored_output();
     static bool stored_unpaired_access();
     static bool stored_media_controls();
+    static bool stored_track_notifications();
     static bool stored_discord_rich_presence();
 
     SettingsModel(Client& client, CastEngine& cast, Outputs& outputs, Mpris& mpris,
@@ -129,6 +132,7 @@ public:
     QVariantList paired_servers() const;
     bool unpaired_access() const;
     bool media_controls() const;
+    bool track_notifications() const;
     /// @brief This build has a Discord application to show itself as; the switch is hidden
     /// without one
     bool discord_available() const;
@@ -148,6 +152,7 @@ public slots:
     void installUpdate();
     void setUnpairedAccess(bool allowed);
     void setMediaControls(bool enabled);
+    void setTrackNotifications(bool enabled);
     void setDiscordRichPresence(bool enabled);
 
     // id is a row's SpeakerModel::IdRole
@@ -186,6 +191,7 @@ signals:
     void pairedServersChanged();
     void unpairedAccessChanged();
     void mediaControlsChanged();
+    void trackNotificationsChanged();
     void discordRichPresenceChanged();
 
 private:

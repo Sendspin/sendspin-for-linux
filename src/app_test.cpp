@@ -9,6 +9,7 @@
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QTimer>
 
 namespace {
 
@@ -220,6 +221,59 @@ private slots:
         app.showPicker();
         QVERIFY(app.picker_window()->window() != nullptr);
         QVERIFY(app.picker_window()->window()->isVisible());
+    }
+
+    // The switch is live: what the announcer is told of shows, or does not, from the next track
+    void theSwitchTurnsTrackNotificationsOnAndOff() {
+        const QTemporaryDir dir;
+        App app(dir.path().toStdString());
+        const auto forget = qScopeGuard([] {
+            QSettings(QStringLiteral("sendspin"), QStringLiteral("sendspin"))
+                .remove("notifications");
+        });
+        // Nothing onto the desktop of whoever runs the tests
+        QVERIFY(disconnect(app.announcer(), nullptr, app.track_notifier(), nullptr));
+        QSignalSpy announced(app.announcer(), &TrackAnnouncer::announced);
+        // Not the second a track takes to be due
+        app.announcer()->findChild<QTimer*>("settle")->setInterval(0);
+        const auto plays = [&app](const char* title) {
+            app.announcer()->update(true, {.title = title}, {});
+            QTest::qWait(20);
+        };
+
+        QVERIFY(!app.settings()->track_notifications());
+        plays("So What");
+        QCOMPARE(announced.count(), 0);
+
+        // As the switch in Settings does
+        app.showSettings();
+        QObject* toggle = app.settings_window()->findChild<QObject*>("trackNotifications");
+        QVERIFY(toggle != nullptr);
+        QCOMPARE(toggle->property("checked").toBool(), false);
+        app.settings()->setTrackNotifications(true);
+        QCOMPARE(toggle->property("checked").toBool(), true);
+        plays("Freddie Freeloader");
+        QCOMPARE(announced.count(), 1);
+        QCOMPARE(announced.last().first().toString(), "Freddie Freeloader");
+
+        app.settings()->setTrackNotifications(false);
+        plays("Blue in Green");
+        QCOMPARE(announced.count(), 1);
+        app.settings()->setTrackNotifications(true);
+        plays("All Blues");
+        QCOMPARE(announced.count(), 2);
+    }
+
+    void aClickOnTheTracksNotificationOpensThePicker() {
+        const QTemporaryDir dir;
+        App app(dir.path().toStdString());
+        QVERIFY(app.picker_window()->window() == nullptr);
+        // As the desktop reports the click
+        emit app.track_notifier()->clicked({});
+        QVERIFY(app.picker_window()->window() != nullptr);
+        QVERIFY(app.picker_window()->window()->isVisible());
+        // Not Settings, which the pairing notification opens
+        QVERIFY(app.settings_window() == nullptr);
     }
 
     void theGearAsksForSettings() {

@@ -72,7 +72,9 @@ than 1.4.2 API without a fallback.
   under Flatpak. Either starts the app with `--background`. The portal's entry has the same
   name as the user's own, and is left alone.
 - `src/client/` — the Sendspin client and its roles. `src/mpris.*` shows what a server plays here;
-  its bus test needs a session bus and skips without one.
+  its bus test needs a session bus and skips without one. `src/track_announcer.*` says when a
+  track is worth a notification, as plain logic; `src/notifier.*` shows it, and the pairing
+  notification, each under its own id.
 - `src/discord_ipc.*` is Discord's local socket and its frames, with no Discord library;
   `src/discord_presence.*` decides what it shows of what a server plays here, and which cover
   URL Discord may have. `discord_test_server.h` is the tests' Discord. docs/SPEC.md, "Discord".
