@@ -25,6 +25,24 @@ constexpr int START_TIMEOUT_MS = 3000;
 constexpr int64_t NS_PER_S = 1000000000;
 constexpr size_t FRAME_BYTES = SendspinOutput::CHANNELS * sizeof(float);
 
+// Before PipeWire 1.6 the converter reports volume and mute only once it has a channel mixer,
+// which it builds when a player links (audioconvert.c, set_volume()). Setting any converter
+// option builds it early (parse_prop_params()); this one is set to its default.
+void build_mixer(pw_stream* stream) {
+    uint8_t pod_storage[256];
+    spa_pod_builder builder = SPA_POD_BUILDER_INIT(pod_storage, sizeof(pod_storage));
+    spa_pod_frame object{};
+    spa_pod_frame options{};
+    spa_pod_builder_push_object(&builder, &object, SPA_TYPE_OBJECT_Props, SPA_PARAM_Props);
+    spa_pod_builder_prop(&builder, SPA_PROP_params, 0);
+    spa_pod_builder_push_struct(&builder, &options);
+    spa_pod_builder_string(&builder, "debug.wav-path");
+    spa_pod_builder_string(&builder, "");
+    spa_pod_builder_pop(&builder, &options);
+    const auto* props = static_cast<const spa_pod*>(spa_pod_builder_pop(&builder, &object));
+    pw_stream_set_param(stream, SPA_PARAM_Props, props);
+}
+
 }  // namespace
 
 bool is_silent(const float* samples, size_t count) {
@@ -135,8 +153,9 @@ bool SendspinOutput::start(QString* error) {
         return fail(QStringLiteral("PipeWire did not take the Sendspin output"));
     }
     this->connected_.store(true);
-    if (this->latency_ns_ != 0) {
-        const LoopLock lock(this->loop_);
+    const LoopLock lock(this->loop_);
+    build_mixer(this->stream_);
+    if (this->latency_ns_.load() != 0) {
         this->publish_latency_();
     }
     return true;
@@ -193,7 +212,7 @@ void SendspinOutput::set_muted(bool muted) {
 }
 
 void SendspinOutput::set_latency(int64_t latency_ns) {
-    this->latency_ns_ = std::max<int64_t>(latency_ns, 0);
+    this->latency_ns_.store(std::max<int64_t>(latency_ns, 0));
     if (this->stream_ != nullptr) {
         const LoopLock lock(this->loop_);
         this->publish_latency_();
@@ -205,8 +224,8 @@ void SendspinOutput::publish_latency_() {
     spa_pod_builder builder = SPA_POD_BUILDER_INIT(pod_storage, sizeof(pod_storage));
     spa_latency_info latency{};
     latency.direction = SPA_DIRECTION_INPUT;
-    latency.min_ns = this->latency_ns_;
-    latency.max_ns = this->latency_ns_;
+    latency.min_ns = this->latency_ns_.load();
+    latency.max_ns = latency.min_ns;
     const spa_pod* params[1];
     params[0] = spa_latency_build(&builder, SPA_PARAM_Latency, &latency);
     pw_stream_update_params(this->stream_, params, 1);
@@ -228,6 +247,17 @@ void SendspinOutput::on_state_changed(void* data, pw_stream_state /*old*/, pw_st
 
 void SendspinOutput::on_param_changed(void* data, uint32_t id, const spa_pod* param) {
     auto* self = static_cast<SendspinOutput*>(data);
+    if (id == SPA_PARAM_Latency) {
+        // Before PipeWire 1.6 the peer's latency arriving replaces ours (stream.c,
+        // clear_params()), so ours goes back after each one. An input latency is ours already.
+        spa_latency_info incoming{};
+        const bool ours = param != nullptr && spa_latency_parse(param, &incoming) >= 0 &&
+                          incoming.direction == SPA_DIRECTION_INPUT;
+        if (!ours && self->latency_ns_.load() != 0) {
+            self->publish_latency_();
+        }
+        return;
+    }
     if (id != SPA_PARAM_Format) {
         return;
     }
