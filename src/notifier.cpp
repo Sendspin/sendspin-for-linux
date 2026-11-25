@@ -2,6 +2,7 @@
 
 #include "autostart.h"
 
+#include <QDBusArgument>
 #include <QDBusConnection>
 #include <QDBusMessage>
 #include <QDBusMetaType>
@@ -16,6 +17,8 @@ namespace {
 constexpr QLatin1StringView PORTAL_ID{"pairing"};
 constexpr QLatin1StringView KEY_DEFAULT{"default"};
 constexpr QLatin1StringView KEY_BUTTON{"act"};
+/// About what notification servers give one that asks for their default
+constexpr int EXPIRY_MS = 10'000;
 
 QDBusMessage call(const QString& method) {
     return QDBusMessage::createMethodCall(QStringLiteral("org.freedesktop.Notifications"),
@@ -35,6 +38,24 @@ QDBusMessage portal_call(const QString& portal, const QString& method) {
                                           method);
 }
 
+/// The click's XDG activation token, which version 2 of the portal sends in a dict of
+/// platform data among the action's parameters
+QString activation_token(const QVariantList& parameter) {
+    for (const QVariant& value : parameter) {
+        if (!value.canConvert<QDBusArgument>()) {
+            continue;
+        }
+        const auto argument = value.value<QDBusArgument>();
+        if (argument.currentSignature() == QLatin1StringView("a{sv}")) {
+            const QVariantMap data = qdbus_cast<QVariantMap>(argument);
+            if (data.contains(QStringLiteral("activation-token"))) {
+                return data.value(QStringLiteral("activation-token")).toString();
+            }
+        }
+    }
+    return {};
+}
+
 }  // namespace
 
 Notifier::Notifier(QObject* parent)
@@ -44,6 +65,9 @@ Notifier::Notifier(QObject* parent)
 
 Notifier::Notifier(const QString& portal, QObject* parent) : QObject(parent), portal_(portal) {
     if (!portal.isEmpty()) {
+        this->expiry_.setSingleShot(true);
+        this->expiry_.setInterval(EXPIRY_MS);
+        connect(&this->expiry_, &QTimer::timeout, this, &Notifier::remove_from_portal);
         // The buttons, as aa{sv}
         qDBusRegisterMetaType<QList<QVariantMap>>();
         QDBusConnection::sessionBus().connect(
@@ -67,15 +91,15 @@ void Notifier::onActionInvoked(quint32 id, const QString& key) {
 }
 
 void Notifier::onPortalActionInvoked(const QString& id, const QString& action,
-                                     const QVariantList& /*parameter*/) {
+                                     const QVariantList& parameter) {
     if (id == PORTAL_ID) {
-        this->invoked(action);
+        this->invoked(action, activation_token(parameter));
     }
 }
 
-void Notifier::invoked(const QString& key) {
+void Notifier::invoked(const QString& key, const QString& activation_token) {
     if (key == KEY_DEFAULT) {
-        emit this->clicked();
+        emit this->clicked(activation_token);
     } else {
         emit this->actionInvoked();
     }
@@ -83,8 +107,8 @@ void Notifier::invoked(const QString& key) {
 
 void Notifier::show_on_portal(const QString& summary, const QString& body, bool persistent,
                               const QString& action) {
-    // No timeout to ask for: the desktop keeps a notification until it is removed. Priority
-    // is what tells the code to type in from the result
+    // No timeout to ask for: the desktop keeps a notification until it is removed, so a
+    // passing one is removed from here. Priority is only a hint of which is which
     QVariantMap notification{
         {QStringLiteral("title"), summary},
         {QStringLiteral("priority"),
@@ -103,6 +127,18 @@ void Notifier::show_on_portal(const QString& summary, const QString& body, bool 
     }
     QDBusMessage message = portal_call(this->portal_, QStringLiteral("AddNotification"));
     message << QString(PORTAL_ID) << notification;
+    QDBusConnection::sessionBus().send(message);
+    if (persistent) {
+        this->expiry_.stop();
+    } else {
+        this->expiry_.start();
+    }
+}
+
+void Notifier::remove_from_portal() {
+    this->expiry_.stop();
+    QDBusMessage message = portal_call(this->portal_, QStringLiteral("RemoveNotification"));
+    message << QString(PORTAL_ID);
     QDBusConnection::sessionBus().send(message);
 }
 
@@ -147,9 +183,7 @@ void Notifier::show(const QString& summary, const QString& body, bool persistent
 
 void Notifier::close() {
     if (!this->portal_.isEmpty()) {
-        QDBusMessage message = portal_call(this->portal_, QStringLiteral("RemoveNotification"));
-        message << QString(PORTAL_ID);
-        QDBusConnection::sessionBus().send(message);
+        this->remove_from_portal();
         return;
     }
     ++this->generation_;

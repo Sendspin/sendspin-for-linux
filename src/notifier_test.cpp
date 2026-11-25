@@ -24,11 +24,11 @@ public:
     int removed_ = 0;
 
     /// As the desktop does when the notification, or a button on it, is clicked
-    void invoke(const QString& id, const QString& action) {
+    void invoke(const QString& id, const QString& action, const QVariantList& parameter = {}) {
         QDBusMessage signal =
             QDBusMessage::createSignal(PATH, QStringLiteral("org.freedesktop.portal.Notification"),
                                        QStringLiteral("ActionInvoked"));
-        signal << id << action << QVariant(QVariantList());
+        signal << id << action << QVariant(parameter);
         QDBusConnection::sessionBus().send(signal);
     }
 
@@ -118,11 +118,46 @@ private slots:
 
         this->portal_->invoke(id, "default");
         QTRY_COMPARE(clicked.count(), 1);
+        QCOMPARE(clicked.first().first().toString(), QString());
         QCOMPARE(action.count(), 0);
 
         this->portal_->invoke(id, buttons.first().value("action").toString());
         QTRY_COMPARE(action.count(), 1);
         QCOMPARE(clicked.count(), 1);
+    }
+
+    // Version 2 of the portal: what lets the window that opens come to the front on Wayland
+    void aClickBringsItsActivationToken() {
+        Notifier notifier(SERVICE);
+        QSignalSpy clicked(&notifier, &Notifier::clicked);
+        notifier.show("Pairing code: 123-456", {}, true);
+        QTRY_COMPARE(this->portal_->added_, 1);
+        this->portal_->invoke(this->portal_->showing_.firstKey(), "default",
+                              {QVariantMap{{"activation-token", "token-1"}}});
+        QTRY_COMPARE(clicked.count(), 1);
+        QCOMPARE(clicked.first().first().toString(), "token-1");
+    }
+
+    // The portal has no timeout to ask for
+    void aPassingOneIsRemovedAfterAWhile() {
+        Notifier notifier(SERVICE);
+        auto* expiry = notifier.findChild<QTimer*>();
+        QVERIFY(expiry != nullptr);
+        notifier.show("Pairing code: 123-456", {}, true);
+        QVERIFY(!expiry->isActive());
+        notifier.show("Paired with Music Assistant");
+        QVERIFY(expiry->isActive());
+        QVERIFY(expiry->interval() >= 5000);
+        // Not the ten seconds
+        expiry->setInterval(1);
+        expiry->start();
+        QTRY_COMPARE(this->portal_->removed_, 1);
+        QVERIFY(this->portal_->showing_.isEmpty());
+
+        // A code that takes its place stays
+        notifier.show("Paired with Music Assistant");
+        notifier.show("Pairing code: 123-456", {}, true);
+        QVERIFY(!expiry->isActive());
     }
 
     void anotherNotificationsActionIsNotOurs() {
