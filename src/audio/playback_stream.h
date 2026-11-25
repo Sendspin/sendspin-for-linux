@@ -144,6 +144,9 @@ private:
     std::atomic<bool> muted_{false};
     std::atomic<bool> gain_applied_{false};
     std::atomic<bool> mute_applied_{false};
+    /// What the stream last reported
+    std::atomic<float> reported_gain_{1.0F};
+    std::atomic<bool> reported_muted_{false};
     Echoes gain_echoes_;
     Echoes mute_echoes_;
     /// Bumped by every set from here: a mixer's report queued before one is dropped after it

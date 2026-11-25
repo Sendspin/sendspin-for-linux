@@ -378,12 +378,20 @@ bool PlaybackStream::alive_() const {
 void PlaybackStream::apply_gain_() {
     float gains[SPA_AUDIO_MAX_CHANNELS];
     std::fill_n(gains, this->format_.channels, this->gain_.load());
+    // A set that changes nothing has no echo to wait for
+    if (this->gain_applied_.load() &&
+        std::abs(gains[0] - this->reported_gain_.load()) < GAIN_EPSILON) {
+        return;
+    }
     this->gain_echoes_.sent(gains[0]);
     pw_stream_set_control(this->stream_, SPA_PROP_channelVolumes, this->format_.channels, gains, 0);
 }
 
 void PlaybackStream::apply_mute_() {
     float value = this->muted_.load() ? 1.0F : 0.0F;
+    if (this->mute_applied_.load() && this->muted_.load() == this->reported_muted_.load()) {
+        return;
+    }
     this->mute_echoes_.sent(value);
     pw_stream_set_control(this->stream_, SPA_PROP_mute, 1, &value, 0);
 }
@@ -445,6 +453,9 @@ void PlaybackStream::on_control_info(void* data, uint32_t id, const pw_stream_co
         for (uint32_t i = 0; i < control->n_values; i++) {
             gain += control->values[i] / static_cast<float>(control->n_values);
         }
+        if (reported) {
+            self->reported_gain_.store(gain);
+        }
         // What is wanted is taken, echo or not: a set that changes nothing has no echo
         const bool echo = reported && self->gain_echoes_.take(gain);
         if (echo || (reported && std::abs(gain - self->gain_.load()) < GAIN_EPSILON)) {
@@ -467,6 +478,7 @@ void PlaybackStream::on_control_info(void* data, uint32_t id, const pw_stream_co
         }
     } else if (id == SPA_PROP_mute && control->n_values != 0) {
         const bool muted = control->values[0] >= 0.5F;
+        self->reported_muted_.store(muted);
         const bool echo = self->mute_echoes_.take(muted ? 1.0F : 0.0F);
         if (echo || muted == self->muted_.load()) {
             self->mute_applied_.store(true);
@@ -506,18 +518,18 @@ void PlaybackStream::on_process(void* data) {
     if (buffer->requested != 0) {
         frames = std::min<size_t>(frames, buffer->requested);
     }
-    // Silence until the stream has its volume: it is born at full volume and unmuted. Past the
-    // wait it plays only if that is the volume wanted; never louder than asked.
-    bool gated = !(self->gain_applied_.load(std::memory_order_relaxed) &&
-                   self->mute_applied_.load(std::memory_order_relaxed));
-    if (gated && clock_ns(CLOCK_MONOTONIC) >= self->gate_until_ns_.load()) {
-        gated = self->muted_.load() || self->gain_.load() < 1.0F - GAIN_EPSILON;
-    }
+    // A new stream is born at full volume and unmuted. Until it has taken its own it plays
+    // silence and the audio waits; one that never does goes on taking the audio, so the player
+    // keeps time, but plays it only if full volume is what is wanted. Never louder than asked.
+    const bool taken = self->gain_applied_.load(std::memory_order_relaxed) &&
+                       self->mute_applied_.load(std::memory_order_relaxed);
+    const bool waiting = !taken && clock_ns(CLOCK_MONOTONIC) < self->gate_until_ns_.load();
     uint32_t played = 0;
-    if (gated) {
-        std::fill_n(dest, frames * stride, uint8_t{0});
-    } else {
+    if (!waiting) {
         played = static_cast<uint32_t>(self->ring_.read(dest, frames * stride) / stride);
+    }
+    if (waiting || (!taken && (self->muted_.load() || self->gain_.load() < 1.0F - GAIN_EPSILON))) {
+        std::fill_n(dest, frames * stride, uint8_t{0});
     }
 
     // Read before queueing: `delay` is how long after `now`, the start of this graph cycle on
