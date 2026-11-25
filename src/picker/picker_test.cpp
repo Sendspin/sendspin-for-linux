@@ -495,9 +495,11 @@ private slots:
         {
             Rig rig;
             rig.list({{"Kitchen", added(Connection::CONNECTED, true)}});
-            // This PC's own output leaves the group
+            QVERIFY(rig.cast.local_in_group());
+            // This PC's own output leaves the group, and the engine stops playing along on it
             rig.picker.toggle(rig.picker.local_id());
             QCOMPARE(rig.picker.local_check(), Picker::Check::Empty);
+            QVERIFY(!rig.cast.local_in_group());
             const Picker again(rig.cast, rig.client, rig.outputs);
             QCOMPARE(again.local_check(), Picker::Check::Empty);
         }
