@@ -456,18 +456,15 @@ void CastEngine::on_connected_(const ClientInfo& info) {
     this->sync_clients_();
     if (Speaker* speaker = this->find_client_(info.client_id)) {
         speaker->left_as.reset();
-        // Only the group's: the rest are dialed again and again while another server has them
-        if (speaker->facts.ticked) {
-            qCInfo(lc_cast, "%s connected", qUtf8Printable(speaker->name));
-        }
     }
     this->refresh_();
 }
 
 void CastEngine::on_disconnected_(const ClientInfo& info, const ClientDisconnect& disconnect) {
     if (Speaker* speaker = this->find_client_(info.client_id)) {
-        if (speaker->facts.ticked) {
-            qCInfo(lc_cast, "%s disconnected", qUtf8Printable(speaker->name));
+        // Only the group's: the rest connect and are refused each minute another server has them
+        if (this->cast_group_ && speaker->group == this->cast_group_) {
+            qCInfo(lc_cast, "%s left the group: disconnected", qUtf8Printable(speaker->name));
         }
         speaker->left_as = speaker_menu::after_disconnect(disconnect);
         speaker->group.reset();
@@ -531,9 +528,12 @@ void CastEngine::on_group_changed_(const GroupInfo& group) {
         }
         // The speaker's own `switch` button took it into or out of the cast group: the person
         // at the speaker chose. A speaker that went away was taken out of its group before.
-        if (is_cast && !ours && speaker.facts.ticked != member) {
-            qCInfo(lc_cast, "%s %s the group by itself", qUtf8Printable(speaker.name),
-                   member ? "joined" : "left");
+        const bool by_itself = is_cast && !ours && speaker.facts.ticked != member;
+        if (is_cast) {
+            qCInfo(lc_cast, "%s %s the group%s", qUtf8Printable(speaker.name),
+                   member ? "joined" : "left", by_itself ? " by itself" : "");
+        }
+        if (by_itself) {
             this->set_ticked_(speaker, member);
         }
     }
@@ -928,8 +928,6 @@ CastEngine::Speaker* CastEngine::find_client_(const std::string& client_id) {
 void CastEngine::set_ticked_(Speaker& speaker, bool ticked) {
     if (speaker.facts.ticked != ticked) {
         speaker.facts.ticked = ticked;
-        qCInfo(lc_cast, "%s is %s the group", qUtf8Printable(speaker.name),
-               ticked ? "in" : "out of");
         this->save_ticked_();
     }
 }

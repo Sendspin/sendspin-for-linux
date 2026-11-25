@@ -654,8 +654,8 @@ Through Qt's logging categories, all under `sendspin.`, to standard error or the
 decides.
 
 - **Info** is what a bug report needs and no more: the start, with the version; what plays where;
-  a server, a speaker or a pairing coming and going; an update. Nothing that repeats on a timer
-  or with each dial.
+  a server or a pairing coming and going; a speaker joining or leaving the group; an update.
+  Nothing that repeats on a timer or with each dial.
 - **Debug** is the rest, and off by default. `--verbose` turns it on for every category,
   `QT_LOGGING_RULES` for any, and overrides both. `set_log_rules()` is the one place the
   default is set.

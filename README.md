@@ -156,8 +156,8 @@ flatpak run com.sendspin_audio.Sendspin --verbose 2> sendspin.log
 
 No key, PSK or pairing code is logged at any level. `QT_LOGGING_RULES` works as in any Qt app
 and wins over both: `QT_LOGGING_RULES="sendspin.*.debug=true"` is `--verbose`, and
-`sendspin.cast.debug=true` alone turns up one part. The parts are named in the log, among
-them `sendspin.server.lib` and `sendspin.client.lib` for the two Sendspin libraries.
+`sendspin.cast.debug=true` alone turns up one part. `sendspin.server.lib` and
+`sendspin.client.lib` are the two Sendspin libraries.
 
 # For developers
 
