@@ -226,6 +226,29 @@ private slots:
         QVERIFY(Rig::find(row, "check")->isEnabled());
     }
 
+    // A status is said inside the row: it takes none of the row's width
+    void aStatusLeavesTheRowItsWidth() {
+        Rig rig;
+        rig.list({{"Kitchen", found(Connection::WAITING)},
+                  {"Office", found(Connection::NEEDS_PAIRING)}});
+        QList<QQuickItem*> names;
+        QList<QQuickItem*> statuses;
+        for (QQuickItem* row : rig.item("rows")->childItems()) {
+            if (row->objectName() == "speakerRow") {
+                names.append(Rig::find(row, "name"));
+                statuses.append(Rig::find(row, "status"));
+            }
+        }
+        QCOMPARE(names.size(), 2);
+        QCOMPARE(statuses[0]->property("text").toString(), "");
+        QCOMPARE(statuses[1]->property("text").toString(), "Needs pairing");
+        QTRY_VERIFY(names[0]->width() > 0);
+        QCOMPARE(names[1]->width(), names[0]->width());
+        QCOMPARE(statuses[1]->parentItem(), names[1]);
+        // And the name stops short of it
+        QVERIFY(names[1]->property("rightPadding").toReal() > statuses[1]->width());
+    }
+
     void aRowFollowsItsSpeaker() {
         Rig rig;
         rig.list({{"Kitchen", added(Connection::CONNECTING)}});

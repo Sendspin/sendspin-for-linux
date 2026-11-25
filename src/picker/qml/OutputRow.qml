@@ -45,6 +45,7 @@ RowLayout {
     ItemDelegate {
         id: label
 
+        objectName: "name"
         Layout.fillWidth: true
         text: row.name
         icon.name: row.iconName
@@ -54,13 +55,21 @@ RowLayout {
 
         Accessible.name: row.accessibleName
         Accessible.description: qsTr("Play here only")
-    }
 
-    Label {
-        objectName: "status"
-        visible: text !== ""
-        text: row.warning ? qsTr("⚠ %1").arg(row.statusText) : row.statusText
-        color: palette.placeholderText
+        // Inside the row, which keeps its width whatever the status says
+        rightPadding: status.text !== "" ? status.implicitWidth + 2 * padding : padding
+
+        Label {
+            id: status
+
+            objectName: "status"
+            anchors.right: parent.right
+            anchors.rightMargin: label.padding
+            anchors.verticalCenter: parent.verticalCenter
+            visible: text !== ""
+            text: row.warning ? qsTr("⚠ %1").arg(row.statusText) : row.statusText
+            color: palette.placeholderText
+        }
     }
 
     AbstractButton {
