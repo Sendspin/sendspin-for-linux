@@ -78,12 +78,14 @@ than 1.4.2 API without a fallback.
   FetchContent would download, which the build then uses instead. `NOTICES.md` lists it; update
   it with every pin. `cmake --install` puts its license files with the binary.
 - `cmake/package.cmake` — the .deb and .rpm, by CPack. A QML import or Qt plugin the app starts
-  to use is a dependency to add there. `flatpak/` is the Flatpak's manifest;
-  `scripts/flathub-manifest.sh` makes Flathub's from it, and `flatpak/FLATHUB.md` is how to
-  submit and bump there. A permission added to the manifest goes in that file's table too.
-- `.github/workflows/packages.yml` — builds the tarball offline, the packages and the Flatpak
-  (Flathub's manifest, builder and linter),
-  and starts each package in a clean container (`ci/smoke-test.sh`, which runs the app with
+  to use is a dependency to add there, and in `arch/PKGBUILD`: Arch's package and the AUR's
+  files, whose `pkgver` follows `project(VERSION)` (`.SRCINFO` is `makepkg --printsrcinfo`).
+  `flatpak/` is the Flatpak's manifest; `scripts/flathub-manifest.sh` makes Flathub's from it,
+  and `flatpak/FLATHUB.md` is how to submit and bump there. A permission added to the manifest
+  goes in that file's table too.
+- `.github/workflows/packages.yml` — builds the tarball offline, the packages (Arch's by
+  `makepkg`) and the Flatpak (Flathub's manifest, by its builder and linter), and starts each
+  package in a clean container (`ci/smoke-test.sh`, which runs the app with
   `--check`: both windows and an SVG, or it exits); `ci.yml` and `release.yml` both call it. The version is `project(VERSION)` alone; a tag `v<version>` drafts a release.
 - `ci/` — `start-pipewire.sh` and the daemon config it loads: a null sink, no hardware.
 - `tests/interop/` — the app end to end, in Python on pytest, run by `uv`: `test_cast.py` casts to

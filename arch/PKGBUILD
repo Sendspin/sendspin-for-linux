@@ -1,0 +1,34 @@
+# Maintainer: Sendspin for Linux contributors
+#
+# Builds the release's source tarball, which carries everything the build would download.
+# After publishing a release: updpkgsums && makepkg --printsrcinfo >.SRCINFO
+
+pkgname=sendspin-for-linux
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Play this PC's sound on Sendspin speakers"
+arch=(x86_64)
+url=https://github.com/Sendspin/sendspin-for-linux
+license=(Apache-2.0)
+# qt6-svg and qt6-wayland are plugins: nothing links them
+depends=(qt6-base qt6-declarative qt6-svg qt6-wayland libpipewire avahi openssl gcc-libs glibc)
+makedepends=(cmake ninja)
+# The daemons are a desktop's own
+optdepends=('pipewire: the audio daemon the app plays and captures through'
+            'wireplumber: its session manager')
+# An upgrade keeps an admin's edit, a Hidden=true for one
+backup=(etc/xdg/autostart/com.sendspin_audio.Sendspin.desktop)
+source=("$url/releases/download/v$pkgver/$pkgname-$pkgver.tar.xz")
+# No release yet: the published tarball's sum goes here
+sha256sums=('SKIP')
+
+build() {
+    cmake -S "$pkgname-$pkgver" -B build -G Ninja -DBUILD_TESTING=OFF \
+        -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr \
+        -DCMAKE_INSTALL_DOCDIR="/usr/share/licenses/$pkgname"
+    cmake --build build
+}
+
+package() {
+    DESTDIR="$pkgdir" cmake --install build
+}
