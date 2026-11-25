@@ -72,6 +72,9 @@ than 1.4.2 API without a fallback.
   its bus test needs a session bus and skips without one. `src/track_announcer.*` says when a
   track is worth a notification, as plain logic; `src/notifier.*` shows it, and the pairing
   notification, each under its own id.
+- `src/pairing_clipboard.*` — the pairing code's digits on the clipboard, and off it again.
+  Which sessions take a copy from the background is in docs/SPEC.md, "Music Assistant (we are
+  the client)".
 - `src/settings_model.*` — what the Settings window shows and changes; `src/qml/` is the window,
   one file per section, with no logic of its own. `app_test` loads it and fails on anything the
   QML engine warns of.
