@@ -3,6 +3,7 @@
 #include "audio/outputs.h"
 #include "cast/cast_engine.h"
 #include "client/client.h"
+#include "discord_presence.h"
 #include "mpris.h"
 #include "paired_servers.h"
 #include "update_checker.h"
@@ -47,6 +48,9 @@ class SettingsModel : public QObject {
                    unpairedAccessChanged)
     Q_PROPERTY(
         bool mediaControls READ media_controls WRITE setMediaControls NOTIFY mediaControlsChanged)
+    Q_PROPERTY(bool discordAvailable READ discord_available CONSTANT)
+    Q_PROPERTY(bool discordRichPresence READ discord_rich_presence WRITE setDiscordRichPresence
+                   NOTIFY discordRichPresenceChanged)
 
 public:
     /// Where pairing a speaker from Settings stands
@@ -74,10 +78,11 @@ public:
     static QByteArray stored_output();
     static bool stored_unpaired_access();
     static bool stored_media_controls();
+    static bool stored_discord_rich_presence();
 
     SettingsModel(Client& client, CastEngine& cast, Outputs& outputs, Mpris& mpris,
-                  PairedServers& servers, UpdateChecker& updates, UpdateInstaller& installer,
-                  QObject* parent = nullptr);
+                  DiscordPresence& discord, PairedServers& servers, UpdateChecker& updates,
+                  UpdateInstaller& installer, QObject* parent = nullptr);
 
     QString device_name() const;
     QString default_device_name() const;
@@ -124,6 +129,10 @@ public:
     QVariantList paired_servers() const;
     bool unpaired_access() const;
     bool media_controls() const;
+    /// @brief This build has a Discord application to show itself as; the switch is hidden
+    /// without one
+    bool discord_available() const;
+    bool discord_rich_presence() const;
 
     /// @brief text as a QR code, one pixel a module, with its quiet zone
     static QImage qr_image(const QString& text);
@@ -139,6 +148,7 @@ public slots:
     void installUpdate();
     void setUnpairedAccess(bool allowed);
     void setMediaControls(bool enabled);
+    void setDiscordRichPresence(bool enabled);
 
     // id is a row's SpeakerModel::IdRole
 
@@ -176,6 +186,7 @@ signals:
     void pairedServersChanged();
     void unpairedAccessChanged();
     void mediaControlsChanged();
+    void discordRichPresenceChanged();
 
 private:
     void set_step_(PairingStep step, const QString& message = {});
@@ -187,6 +198,7 @@ private:
     CastEngine& cast_;
     Outputs& outputs_;
     Mpris& mpris_;
+    DiscordPresence& discord_;
     PairedServers& servers_;
     UpdateChecker& updates_;
     UpdateInstaller& installer_;

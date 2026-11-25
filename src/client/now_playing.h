@@ -54,6 +54,11 @@ public:
     const QByteArray& artwork() const {
         return this->artwork_;
     }
+    /// @brief Where the server says the cover is, for what cannot be handed the image; empty
+    /// for none
+    const QString& artwork_url() const {
+        return this->artwork_url_;
+    }
     /// @brief Where the track is, moving on by itself while it plays
     qint64 position_ms() const;
     /// @brief The group's volume, 0–100
@@ -91,6 +96,7 @@ private:
     bool playing_{false};
     Track track_;
     QByteArray artwork_;
+    QString artwork_url_;
     sendspin::ServerStateControllerObject controls_;
     bool dirty_{false};
     bool seeked_{false};

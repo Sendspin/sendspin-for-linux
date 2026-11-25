@@ -79,6 +79,7 @@ App::App(const std::filesystem::path& data_dir, QObject* parent)
                .player_muted = conf().value(SETTING_MUTED, false).toBool()},
               &this->client_persistence_),
       mpris_(this->client_, art_dir()),
+      discord_(this->client_, DiscordPresence::build_client_id()),
       cast_(data_dir, output_),
       picker_(cast_, client_, outputs_),
       picker_window_(picker_, cast_),
@@ -87,10 +88,11 @@ App::App(const std::filesystem::path& data_dir, QObject* parent)
       updates_(QVersionNumber::fromString(QCoreApplication::applicationVersion()),
                UpdateChecker::releases_url()),
       installer_(UpdateInstaller::this_system()),
-      settings_(client_, cast_, outputs_, mpris_, paired_servers_, updates_, installer_) {
+      settings_(client_, cast_, outputs_, mpris_, discord_, paired_servers_, updates_, installer_) {
     qCInfo(lc_app, "Sendspin %s, PipeWire %s",
            qUtf8Printable(QCoreApplication::applicationVersion()), pw_get_library_version());
     this->mpris_.set_enabled(SettingsModel::stored_media_controls());
+    this->discord_.set_enabled(SettingsModel::stored_discord_rich_presence());
 
     this->status_ = this->menu_.addAction(QString());
     this->status_->setEnabled(false);
