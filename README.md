@@ -37,8 +37,7 @@ their `SHA256SUMS`.
    ```
 
    The repositories are signed, and `dnf` asks once to trust their key. Or, and on Arch for now,
-   download a release's
-   package and install it with its dependencies, with no updates:
+   download a release's package and install it with its dependencies, with no updates:
 
    ```sh
    sudo apt install ./sendspin-for-linux-*-debian13-amd64.deb     # Debian 13
