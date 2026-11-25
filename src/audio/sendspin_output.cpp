@@ -249,8 +249,11 @@ void SendspinOutput::on_param_changed(void* data, uint32_t id, const spa_pod* pa
     auto* self = static_cast<SendspinOutput*>(data);
     if (id == SPA_PARAM_Latency) {
         // Before PipeWire 1.6 the peer's latency arriving replaces ours (stream.c,
-        // clear_params()), so ours goes back after each one.
-        if (self->latency_ns_.load() != 0) {
+        // clear_params()), so ours goes back after each one. An input latency is ours already.
+        spa_latency_info incoming{};
+        const bool ours = param != nullptr && spa_latency_parse(param, &incoming) >= 0 &&
+                          incoming.direction == SPA_DIRECTION_INPUT;
+        if (!ours && self->latency_ns_.load() != 0) {
             self->publish_latency_();
         }
         return;
