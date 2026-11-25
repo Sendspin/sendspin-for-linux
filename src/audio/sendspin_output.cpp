@@ -4,6 +4,8 @@
 
 #include "audio/sendspin_output.h"
 
+#include "audio/pipewire_util.h"
+
 #include <spa/param/audio/format-utils.h>
 #include <spa/param/latency-utils.h>
 #include <spa/param/props.h>
@@ -13,7 +15,6 @@
 #include <algorithm>
 #include <cerrno>
 #include <cmath>
-#include <ctime>
 #include <utility>
 
 namespace {
@@ -23,28 +24,6 @@ constexpr const char* NODE_DESCRIPTION = "Sendspin";
 constexpr int START_TIMEOUT_MS = 3000;
 constexpr int64_t NS_PER_S = 1000000000;
 constexpr size_t FRAME_BYTES = SendspinOutput::CHANNELS * sizeof(float);
-
-int64_t clock_ns(clockid_t clock) {
-    timespec ts{};
-    clock_gettime(clock, &ts);
-    return (static_cast<int64_t>(ts.tv_sec) * NS_PER_S) + ts.tv_nsec;
-}
-
-/// Holds the thread-loop lock for a scope; it does not hold off the realtime thread.
-class LoopLock {
-public:
-    explicit LoopLock(pw_thread_loop* loop) : loop_(loop) {
-        pw_thread_loop_lock(this->loop_);
-    }
-    ~LoopLock() {
-        pw_thread_loop_unlock(this->loop_);
-    }
-    LoopLock(const LoopLock&) = delete;
-    LoopLock& operator=(const LoopLock&) = delete;
-
-private:
-    pw_thread_loop* loop_;
-};
 
 }  // namespace
 

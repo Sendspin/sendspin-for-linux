@@ -45,6 +45,8 @@ is the floor: do not use Qt newer than 6.8 or PipeWire newer than 1.4.2 API with
 - `src/` — the app. Everything except `main.cpp` is the `sendspin_app` library the tests link.
 - `src/audio/` — PipeWire. Its tests need a running daemon (and `pw-play`, `pw-dump`, `wpctl`) and
   skip without one.
+- `src/client/` — the Sendspin client and its roles. `src/mpris.*` shows what a server plays here;
+  its bus test needs a session bus and skips without one.
 - `ci/` — `start-pipewire.sh` and the daemon config it loads: a null sink, no hardware.
 - `cmake/sendspin_libs.cmake` — the pinned Sendspin libraries. Both fetch the same third-party
   dependencies; the order of declarations there is what keeps them to one copy. Fix collisions
