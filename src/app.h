@@ -26,7 +26,7 @@
 
 /// @brief The running app: the tray icon, the picker, the Sendspin output, the cast engine that
 /// plays it on speakers, the Sendspin client that offers it to a server, and MPRIS for what a
-/// server plays here.
+/// server plays here. And the updater: what checks for a newer release, and what installs it.
 class App : public QObject {
     Q_OBJECT
 
@@ -73,12 +73,19 @@ private:
     void on_pairing_code_(const QString& code);
     void show_result_(const QString& summary);
     void on_pairing_approval_needed_(bool needed);
+    void show_update_();
+    /// Starts the version just installed in this one's place
+    void restart_();
     /// Starts watching the outputs. What the player advertises: read once, here, as a role's
     /// formats cannot change while the client runs.
     std::vector<sendspin::AudioSupportedFormatObject> probe_formats_();
 
+    /// Read before an update replaces the file
+    const QString program_;
     QMenu menu_;
     QAction* status_{nullptr};
+    /// The newer release, or how installing it goes; hidden without one
+    QAction* update_{nullptr};
     QSystemTrayIcon tray_;
     /// The icon the tray has, so it is only set when it changes
     QString tray_icon_;
@@ -100,6 +107,8 @@ private:
     PickerWindow picker_window_;
 
     PairedServers paired_servers_;
+    UpdateChecker updates_;
+    UpdateInstaller installer_;
     SettingsModel settings_;
     /// The Settings window, made when it is first shown
     std::unique_ptr<QQmlApplicationEngine> window_;

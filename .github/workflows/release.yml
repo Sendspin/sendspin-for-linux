@@ -1,5 +1,6 @@
-# A version tag builds the artifacts and attaches them to a draft release. Publishing the draft
-# is a person's step.
+# A version tag builds the artifacts and attaches them to a draft release, then signs their
+# checksums once the package-signing environment's reviewer lets it. Publishing the draft is a
+# person's step, after that.
 name: Release
 
 on:
@@ -91,3 +92,47 @@ jobs:
             gh release create "$GITHUB_REF_NAME" --verify-tag --draft --generate-notes \
               --title "Sendspin for Linux $VERSION" -- *
           fi
+      # To the job that signs it by the run, not by the draft, which anyone who may write to
+      # the repository can change
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sums
+          path: dist/SHA256SUMS
+          if-no-files-found: error
+
+  # What the app verifies an update with (docs/SPEC.md, "Updates"): the package repositories'
+  # key over SHA256SUMS, and so over every file of the release
+  sign:
+    name: Sign the checksums
+    needs: release
+    runs-on: ubuntu-latest
+    # Holds the key, behind a reviewer
+    environment: package-signing
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: sums
+      - name: Sign SHA256SUMS and add the signature to the draft
+        env:
+          REPO_GPG_PRIVATE_KEY: ${{ secrets.REPO_GPG_PRIVATE_KEY }}
+          REPO_GPG_PASSPHRASE: ${{ secrets.REPO_GPG_PASSPHRASE }}
+        run: |
+          # The key lives only here, and goes with it
+          GNUPGHOME=$(mktemp -d)
+          export GNUPGHOME
+          trap 'gpgconf --kill gpg-agent 2>/dev/null || true; rm -rf "$GNUPGHOME"' EXIT
+          printf '%s' "$REPO_GPG_PASSPHRASE" >"$GNUPGHOME/passphrase"
+          printf '%s\n' "$REPO_GPG_PRIVATE_KEY" | gpg --batch --quiet --import
+          gpg --batch --pinentry-mode loopback --passphrase-file "$GNUPGHOME/passphrase" \
+            --armor --detach-sign --output SHA256SUMS.asc SHA256SUMS
+          # Since the job before, somebody may have published it
+          if [ "$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft)" != true ]; then
+            echo "::error::$GITHUB_REF_NAME is already published. A release's files don't change: tag a new version."
+            exit 1
+          fi
+          gh release upload "$GITHUB_REF_NAME" --clobber SHA256SUMS.asc

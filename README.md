@@ -46,7 +46,8 @@ their `SHA256SUMS`.
    ```
 
    Or, and on Arch for now,
-   download a release's package and install it with its dependencies, with no updates:
+   download a release's package and install it with its dependencies. Nothing but Sendspin
+   itself updates it then (see [Updates](#updates)):
 
    ```sh
    sudo apt install ./sendspin-for-linux-*-debian13-amd64.deb     # Debian 13
@@ -77,8 +78,24 @@ their `SHA256SUMS`.
    sudo cmake --install build
    ```
 
-There is no updater yet, and the Arch package is not in the AUR or a repository yet: there, a new
-release is a new download.
+The Arch package is not in the AUR or a repository yet: there, a new release is a new download.
+
+## Updates
+
+Once a day Sendspin asks GitHub whether there is a newer release, and says so in Settings and in
+the tray menu. **Check for updates** in Settings turns that off. It sends nothing but the
+request.
+
+- Installed from the package repository, or as the Flatpak: the system's updates bring the new
+  version, and Sendspin only tells you of it.
+- Installed from a downloaded `.deb` or `.rpm`: **Install update** in Settings downloads the new
+  package, verifies it, asks for an administrator's password and installs it, then restarts
+  Sendspin. `sendspin-for-linux --update` does the same from a terminal.
+
+  It verifies the download against the signing key on your machine, and never fetches one. So
+  the button is there once the key is: the first line of the repository setup above, for your
+  distro, with the fingerprint checked as it says. Without the key, Sendspin opens the release's
+  page instead.
 
 ## Settings and files
 
@@ -103,6 +120,10 @@ output=alsa_output.usb-Example_DAC-00.analog-stereo
 [mpris]
 ; false keeps what a server plays here out of the desktop's media controls
 enabled=true
+
+[updates]
+; false never asks GitHub for a newer release
+check=true
 ```
 
 Open at login starts the app with `--background`: the tray alone, no picker. A package installs
@@ -210,7 +231,11 @@ cmake --build build && (cd build && cpack -G DEB)   # or RPM
 CI builds all of them on every change, builds the tarball with no network, and installs and
 starts each package in a clean container. To release, set `project(VERSION)` in
 `CMakeLists.txt` and push the tag `v<version>`: the Release workflow attaches the tarball, the
-packages, the Flatpak bundle and `SHA256SUMS` to a draft release, which a person publishes.
+packages, the Flatpak bundle and `SHA256SUMS` to a draft release. Its last job signs
+`SHA256SUMS` with the repositories' key, once the `package-signing` environment's reviewer
+approves it: that signature is what an installed app verifies an update with, so publish the
+draft after it is there. CI has each package update itself to a later build in a clean container
+(`ci/update-test.sh`).
 
 Publishing the release runs the Package repositories workflow: `scripts/package-repos.sh` builds
 apt and dnf repositories from the packages of every published release, signs them, and the
@@ -242,8 +267,8 @@ Once, by a maintainer:
 2. Create the environment `package-signing`, with a required reviewer and its deployment
    branches and tags limited to `main` and `v*`. Add the export there as the secret
    `REPO_GPG_PRIVATE_KEY` and the passphrase as `REPO_GPG_PASSPHRASE`: environment secrets, not
-   repository secrets, so no other workflow can read them. Each publish then waits for the
-   reviewer.
+   repository secrets, so only the jobs that name the environment can read them: this one, and
+   the Release workflow's, which signs a draft's `SHA256SUMS`. Each then waits for the reviewer.
 3. Set the Pages source to **GitHub Actions**. Publishing a release runs on its tag, and the
    `github-pages` environment allows only the default branch at first: add `v*` to its
    deployment branches and tags.

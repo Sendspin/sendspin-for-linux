@@ -5,10 +5,13 @@
 #include "client/client.h"
 #include "mpris.h"
 #include "paired_servers.h"
+#include "update_checker.h"
+#include "update_installer.h"
 
 #include <QImage>
 #include <QObject>
 #include <QString>
+#include <QUrl>
 #include <QVariantList>
 
 /// @brief What the Settings window shows and changes. Every change applies at once and is kept
@@ -21,6 +24,11 @@ class SettingsModel : public QObject {
     Q_PROPERTY(QVariantList outputs READ outputs NOTIFY outputsChanged)
     Q_PROPERTY(QString output READ output WRITE setOutput NOTIFY outputChanged)
     Q_PROPERTY(bool openAtLogin READ open_at_login WRITE setOpenAtLogin NOTIFY openAtLoginChanged)
+    Q_PROPERTY(
+        bool checkForUpdates READ check_for_updates WRITE setCheckForUpdates NOTIFY updateChanged)
+    Q_PROPERTY(QString updateStatus READ update_status NOTIFY updateChanged)
+    Q_PROPERTY(UpdateAction updateAction READ update_action NOTIFY updateChanged)
+    Q_PROPERTY(QUrl updatePage READ update_page NOTIFY updateChanged)
 
     Q_PROPERTY(SpeakerModel* speakers READ speakers CONSTANT)
     Q_PROPERTY(int pairedSpeakerCount READ paired_speaker_count NOTIFY speakerCountsChanged)
@@ -53,6 +61,14 @@ public:
     };
     Q_ENUM(PairingStep)
 
+    /// What there is to do about a newer release
+    enum class UpdateAction {
+        None,     ///< nothing newer, or it is on its way in
+        Install,  ///< installUpdate() takes it from here
+        Open,     ///< nothing here installs it: updatePage has it
+    };
+    Q_ENUM(UpdateAction)
+
     // What was stored, for what starts before there is a model
     static QString stored_device_name();
     static QByteArray stored_output();
@@ -60,7 +76,8 @@ public:
     static bool stored_media_controls();
 
     SettingsModel(Client& client, CastEngine& cast, Outputs& outputs, Mpris& mpris,
-                  PairedServers& servers, QObject* parent = nullptr);
+                  PairedServers& servers, UpdateChecker& updates, UpdateInstaller& installer,
+                  QObject* parent = nullptr);
 
     QString device_name() const;
     QString default_device_name() const;
@@ -72,6 +89,13 @@ public:
     QVariantList outputs() const;
     QString output() const;
     bool open_at_login() const;
+
+    bool check_for_updates() const;
+    /// @brief The newer release and who installs it, or how installing it goes; empty when
+    /// there is nothing newer
+    QString update_status() const;
+    UpdateAction update_action() const;
+    QUrl update_page() const;
 
     SpeakerModel* speakers() const;
     int paired_speaker_count() const;
@@ -111,6 +135,8 @@ public slots:
     void setDeviceName(const QString& name);
     void setOutput(const QString& node_name);
     void setOpenAtLogin(bool open);
+    void setCheckForUpdates(bool check);
+    void installUpdate();
     void setUnpairedAccess(bool allowed);
     void setMediaControls(bool enabled);
 
@@ -137,6 +163,7 @@ signals:
     void outputsChanged();
     void outputChanged();
     void openAtLoginChanged();
+    void updateChanged();
     void speakerCountsChanged();
     void pairingChanged();
     void serverChanged();
@@ -155,6 +182,8 @@ private:
     Outputs& outputs_;
     Mpris& mpris_;
     PairedServers& servers_;
+    UpdateChecker& updates_;
+    UpdateInstaller& installer_;
     /// The name the client started with
     const QString running_name_;
 

@@ -19,23 +19,25 @@ set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA ${CMAKE_BINARY_DIR}/conffiles)
 set(CPACK_RPM_USER_FILELIST "%config(noreplace) ${SENDSPIN_AUTOSTART_ENTRY}")
 
 # What no linked library names: the QML modules the windows import, the SVG plugin that draws the
-# icons, and the platform plugins. The daemons are a desktop's own, so only recommended.
+# icons, the platform plugins, and gpgv, which verifies an update. The daemons are a desktop's
+# own, so only recommended, and so is pkexec: without it an update is only announced.
 set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
 set(CPACK_DEBIAN_PACKAGE_SECTION sound)
 set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
 set(CPACK_DEBIAN_PACKAGE_DEPENDS
-    "qml6-module-qtquick, qml6-module-qtquick-controls, qml6-module-qtquick-layouts, qml6-module-qtquick-templates, qml6-module-qtquick-window, qml6-module-qtqml-workerscript, qt6-svg-plugins, qt6-qpa-plugins, qt6-wayland")
-set(CPACK_DEBIAN_PACKAGE_RECOMMENDS "pipewire, wireplumber, avahi-daemon")
+    "qml6-module-qtquick, qml6-module-qtquick-controls, qml6-module-qtquick-layouts, qml6-module-qtquick-templates, qml6-module-qtquick-window, qml6-module-qtqml-workerscript, qt6-svg-plugins, qt6-qpa-plugins, qt6-wayland, gpgv")
+set(CPACK_DEBIAN_PACKAGE_RECOMMENDS "pipewire, wireplumber, avahi-daemon, pkexec")
 
 set(CPACK_RPM_FILE_NAME RPM-DEFAULT)
 set(CPACK_RPM_PACKAGE_LICENSE "Apache-2.0")
-set(CPACK_RPM_PACKAGE_REQUIRES "qt6-qtdeclarative, qt6-qtsvg, qt6-qtwayland")
-set(CPACK_RPM_PACKAGE_RECOMMENDS "pipewire, wireplumber, avahi")
+set(CPACK_RPM_PACKAGE_REQUIRES "qt6-qtdeclarative, qt6-qtsvg, qt6-qtwayland, /usr/bin/gpgv")
+set(CPACK_RPM_PACKAGE_RECOMMENDS "pipewire, wireplumber, avahi, polkit")
 # Directories other packages own
 set(CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST_ADDITION
     /etc/xdg /etc/xdg/autostart /usr/share/applications /usr/share/metainfo /usr/share/icons
     /usr/share/icons/hicolor /usr/share/icons/hicolor/scalable /usr/share/icons/hicolor/scalable/apps
-    /usr/share/icons/hicolor/symbolic /usr/share/icons/hicolor/symbolic/apps)
+    /usr/share/icons/hicolor/symbolic /usr/share/icons/hicolor/symbolic/apps
+    /usr/share/polkit-1 /usr/share/polkit-1/actions)
 foreach(_size 16 24 32 48 64 128 256 512)
     list(APPEND CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST_ADDITION
         /usr/share/icons/hicolor/${_size}x${_size} /usr/share/icons/hicolor/${_size}x${_size}/apps)

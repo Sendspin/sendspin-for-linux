@@ -5,6 +5,8 @@
 #include "cast/cast_engine.h"
 #include "persistence.h"
 #include "single_instance.h"
+#include "update_checker.h"
+#include "update_installer.h"
 
 #include <QCommandLineParser>
 #include <QCoreApplication>
@@ -57,13 +59,89 @@ void print(QTextStream& out, const CastEngine& engine, const SpeakerModel& model
     out.flush();
 }
 
+/// `--update`: 0 once the newer release is installed, or when there is none
+int run_update(QCoreApplication& qt, const char* version) {
+    using State = UpdateInstaller::State;
+    QTextStream out(stdout);
+    QTextStream err(stderr);
+    UpdateChecker updates(QVersionNumber::fromString(QLatin1String(version)),
+                          UpdateChecker::releases_url());
+    UpdateInstaller installer(UpdateInstaller::this_system());
+    bool started = false;
+    State shown = State::IDLE;
+    const auto step = [&] {
+        const std::optional<Release> release = updates.update();
+        if (!release || !installer.probed()) {
+            return;
+        }
+        const QString name = release->version.toString();
+        if (!started) {
+            if (!installer.can_install(*release)) {
+                err << "Sendspin " << name << " is available, and not this command's to install: "
+                    << release->page.toString() << '\n';
+                QCoreApplication::exit(1);
+                return;
+            }
+            started = true;
+            // Comes back here with each state
+            installer.install(*release);
+            return;
+        }
+        if (installer.state() == shown) {
+            return;
+        }
+        shown = installer.state();
+        switch (shown) {
+            case State::DOWNLOADING:
+                out << "Downloading Sendspin " << name << '\n';
+                break;
+            case State::VERIFYING:
+                out << "Checking the download\n";
+                break;
+            case State::INSTALLING:
+                out << "Installing\n";
+                break;
+            case State::INSTALLED:
+                out << "Sendspin " << name << " is installed.\n";
+                QCoreApplication::exit(0);
+                break;
+            case State::IDLE:
+                err << "Not installed: nobody authorized it.\n";
+                QCoreApplication::exit(1);
+                break;
+            case State::FAILED:
+                err << (installer.failure() == UpdateInstaller::Failure::SIGNATURE
+                            ? "The download isn't signed by Sendspin's key, so it was not "
+                              "installed.\n"
+                            : "The update failed.\n");
+                QCoreApplication::exit(1);
+                break;
+        }
+        out.flush();
+    };
+    QObject::connect(&installer, &UpdateInstaller::changed, &qt, step);
+    QObject::connect(&updates, &UpdateChecker::checked, &qt, [&](bool answered) {
+        if (!answered) {
+            err << "No answer about the latest release.\n";
+            QCoreApplication::exit(1);
+        } else if (!updates.update()) {
+            out << "Sendspin " << version << " is the newest.\n";
+            QCoreApplication::exit(0);
+        } else {
+            installer.probe();
+        }
+    });
+    updates.check();
+    return QCoreApplication::exec();
+}
+
 }  // namespace
 
-std::optional<int> run_headless(int argc, char** argv) {
+std::optional<int> run_headless(int argc, char** argv, const char* version) {
     const bool asked = std::any_of(argv + 1, argv + argc, [](const char* arg) {
         const std::string_view text(arg);
         return text == "--list" || text.starts_with("--add") || text.starts_with("--remove") ||
-               text == "--play-along";
+               text == "--play-along" || text == "--update";
     });
     if (!asked) {
         return std::nullopt;
@@ -78,8 +156,12 @@ std::optional<int> run_headless(int argc, char** argv) {
         {"add", "Add the speaker with this name to the group.", "name"},
         {"remove", "Take the speaker with this name out of the group.", "name"},
         {"play-along", "Play on this PC's own output too, in time with the speakers."},
+        {"update", "Check for a newer release now, install it, and exit."},
     });
     parser.process(qt);
+    if (parser.isSet("update")) {
+        return run_update(qt, version);
+    }
 
     QTextStream out(stdout);
     QTextStream err(stderr);

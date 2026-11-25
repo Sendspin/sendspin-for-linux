@@ -3,24 +3,30 @@
 #include "autostart.h"
 #include "cast/test_peer.h"
 #include "device_name.h"
+#include "skip_unless_required.h"
+#include "update_test_server.h"
 
 #include <QClipboard>
 #include <QFile>
 #include <QGuiApplication>
 #include <QSettings>
 #include <QSignalSpy>
+#include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QTest>
 
 namespace server = sendspin::server;
 using Step = SettingsModel::PairingStep;
+using Action = SettingsModel::UpdateAction;
 
 namespace {
 
 /// What the model stands on, as App builds it, with nothing on the network or in the graph
 struct Parts {
     /// @param speaker_port a speaker the cast engine dials; 0 for none
-    explicit Parts(const QString& dir, uint16_t speaker_port = 0)
+    /// @param release where the update checker asks, as version 1.0.0; empty for no checks
+    explicit Parts(const QString& dir, uint16_t speaker_port = 0, const QUrl& release = {},
+                   const UpdateInstaller::System& system = {})
         : client_persistence(dir.toStdString()),
           client({.name = SettingsModel::stored_device_name(),
                   .port = Client::free_port(0),
@@ -28,7 +34,9 @@ struct Parts {
                   .unpaired_access = SettingsModel::stored_unpaired_access()},
                  &client_persistence),
           mpris(client, dir + "/art", ".settings_test"),
-          servers(dir.toStdString()) {
+          servers(dir.toStdString()),
+          updates(release.isEmpty() ? QVersionNumber() : QVersionNumber(1, 0, 0), release),
+          installer(system) {
         if (speaker_port != 0) {
             QSettings cast_settings(dir + "/cast.ini", QSettings::IniFormat);
             cast_settings.setValue(
@@ -36,8 +44,9 @@ struct Parts {
                 QStringList{QStringLiteral("ws://127.0.0.1:%1/sendspin").arg(speaker_port)});
         }
         this->cast = std::make_unique<CastEngine>(dir.toStdString(), this->output);
-        this->model = std::make_unique<SettingsModel>(this->client, *this->cast, this->outputs,
-                                                      this->mpris, this->servers);
+        this->model =
+            std::make_unique<SettingsModel>(this->client, *this->cast, this->outputs, this->mpris,
+                                            this->servers, this->updates, this->installer);
     }
 
     const SpeakerRow* row(const QString& id) const {
@@ -55,6 +64,8 @@ struct Parts {
     Mpris mpris;
     SendspinOutput output;
     PairedServers servers;
+    UpdateChecker updates;
+    UpdateInstaller installer;
     std::unique_ptr<CastEngine> cast;
     std::unique_ptr<SettingsModel> model;
 };
@@ -183,6 +194,112 @@ private slots:
         QVERIFY(!model.open_at_login());
         QVERIFY(!QFile::exists(autostart::path()));
         QCOMPARE(changed.size(), 2);
+    }
+
+    // ==========================================================================
+    // Updates: a stand-in for GitHub's release, and for the machine's package manager
+    // ==========================================================================
+
+    void checkingForUpdatesIsOnUntilSwitchedOff() {
+        const QTemporaryDir dir;
+        Parts parts(dir.path());
+        SettingsModel& model = *parts.model;
+        QVERIFY(model.check_for_updates());
+        QCOMPARE(model.update_status(), QString());
+        QCOMPARE(model.update_action(), Action::None);
+
+        QSignalSpy changed(&model, &SettingsModel::updateChanged);
+        model.setCheckForUpdates(false);
+        QCOMPARE(changed.count(), 1);
+        QVERIFY(!model.check_for_updates());
+        QCOMPARE(conf().value("updates/check").toBool(), false);
+    }
+
+    void aNewerReleaseShowsWithWhoInstallsIt_data() {
+        QTest::addColumn<QString>("installed");
+        QTest::addColumn<QString>("status");
+        QTest::addColumn<Action>("action");
+        QTest::newRow("from a downloaded package")
+            << "file" << "Sendspin 9.0.0 is available." << Action::Install;
+        QTest::newRow("from the repository")
+            << "repository" << "Sendspin 9.0.0 is available. Your system's updates install it."
+            << Action::None;
+        QTest::newRow("as the Flatpak")
+            << "flatpak" << "Sendspin 9.0.0 is available. Flatpak installs it." << Action::Open;
+        QTest::newRow("from a package, with no signing key here")
+            << "no key" << "Sendspin 9.0.0 is available." << Action::Open;
+    }
+    void aNewerReleaseShowsWithWhoInstallsIt() {
+        QFETCH(QString, installed);
+        const ReleaseServer server;
+        UpdateMachine machine("exit 0",
+                              installed == "repository" ? REPOSITORY_POLICY : LOCAL_POLICY);
+        machine.system.sandboxed = installed == "flatpak";
+        if (installed == "no key") {
+            machine.system.key.clear();
+        }
+        const QTemporaryDir dir;
+        Parts parts(dir.path(), 0, server.url(), machine.system);
+        SettingsModel& model = *parts.model;
+        parts.updates.start();
+        parts.installer.probe();
+        QTRY_VERIFY(parts.installer.probed() && parts.updates.update());
+        QTEST(model.update_status(), "status");
+        QTEST(model.update_action(), "action");
+        QCOMPARE(model.update_page(), server.url("page"));
+    }
+
+    void installingAnUpdateShowsHowItGoes() {
+        if (QStandardPaths::findExecutable("gpgv").isEmpty()) {
+            SKIP_UNLESS_REQUIRED("no gpgv to verify a signature with");
+        }
+        const ReleaseServer server;
+        const UpdateMachine machine;
+        const QTemporaryDir dir;
+        Parts parts(dir.path(), 0, server.url(), machine.system);
+        SettingsModel& model = *parts.model;
+        parts.updates.start();
+        parts.installer.probe();
+        QTRY_COMPARE(model.update_action(), Action::Install);
+
+        QStringList shown;
+        connect(&model, &SettingsModel::updateChanged, this, [&] {
+            if (shown.isEmpty() || shown.last() != model.update_status()) {
+                shown << model.update_status();
+            }
+            // Nothing to click while it runs, or once it is in
+            QCOMPARE(model.update_action(), Action::None);
+        });
+        model.installUpdate();
+        QTRY_COMPARE_WITH_TIMEOUT(parts.installer.state(), UpdateInstaller::State::INSTALLED,
+                                  10000);
+        QVERIFY(shown.first().startsWith("Downloading Sendspin 9.0.0… "));
+        QCOMPARE(shown.mid(shown.indexOf("Checking the download…")),
+                 (QStringList{"Checking the download…", "Installing Sendspin 9.0.0…",
+                              "Sendspin 9.0.0 is installed. Restarting…"}));
+        QVERIFY(!machine.ran().isEmpty());
+    }
+
+    void anUpdateThatIsRefusedSaysWhy() {
+        if (QStandardPaths::findExecutable("gpgv").isEmpty()) {
+            SKIP_UNLESS_REQUIRED("no gpgv to verify a signature with");
+        }
+        ReleaseServer server;
+        server.files[ReleaseServer::PACKAGE] = "Something else entirely.\n";
+        const UpdateMachine machine;
+        const QTemporaryDir dir;
+        Parts parts(dir.path(), 0, server.url(), machine.system);
+        SettingsModel& model = *parts.model;
+        parts.updates.start();
+        parts.installer.probe();
+        QTRY_COMPARE(model.update_action(), Action::Install);
+        model.installUpdate();
+        QTRY_COMPARE_WITH_TIMEOUT(parts.installer.state(), UpdateInstaller::State::FAILED, 10000);
+        QCOMPARE(model.update_status(), "The download of Sendspin 9.0.0 isn't signed by Sendspin's "
+                                        "key, so it was not installed.");
+        QVERIFY(machine.ran().isEmpty());
+        // To try again
+        QCOMPARE(model.update_action(), Action::Install);
     }
 
     // ==========================================================================

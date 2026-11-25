@@ -117,6 +117,27 @@ jobs:
           name: package-${{ matrix.tag }}
           path: dist/*
           if-no-files-found: error
+      # The same tree as a later version, for the updater to update to. Only main.cpp carries
+      # the version, so little is built again. Not package-*: the release takes those
+      - name: Package a later version
+        env:
+          GENERATOR: ${{ matrix.generator }}
+          TAG: ${{ matrix.tag }}
+        run: |
+          sed -i 's/^\(project(.* VERSION \)[0-9.]*/\1999.0.0/' CMakeLists.txt
+          cmake --build build
+          cd build && cpack -G "$GENERATOR"
+          mkdir ../later
+          case "$GENERATOR" in
+            DEB) mv sendspin-for-linux_*.deb "../later/sendspin-for-linux-999.0.0-$TAG-$(dpkg --print-architecture).deb" ;;
+            RPM) mv sendspin-for-linux-*.rpm "../later/sendspin-for-linux-999.0.0-$TAG-$(uname -m).rpm" ;;
+          esac
+      - uses: actions/upload-artifact@v4
+        with:
+          name: later-${{ matrix.tag }}
+          path: later/*
+          if-no-files-found: error
+          retention-days: 1
 
   # makepkg, as the AUR's users run it, on arch/PKGBUILD
   arch:
@@ -279,6 +300,49 @@ jobs:
         run: >-
           ci/repo-test.sh repositories/site repositories/site-other-key
           "${{ needs.source.outputs.version }}"
+
+  # The package installed from its file, as a release's download is, updates itself
+  self-update:
+    name: Update from within, ${{ matrix.name }}
+    needs: [source, package]
+    runs-on: ubuntu-latest
+    container: ${{ matrix.image }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Debian 13
+            tag: debian13
+            image: debian:13
+            install: >-
+              apt-get update && apt-get install -y --no-install-recommends
+              ca-certificates python3 gnupg
+          - name: Ubuntu 26.04
+            tag: ubuntu26.04
+            image: ubuntu:26.04
+            install: >-
+              apt-get update && apt-get install -y --no-install-recommends
+              ca-certificates python3 gnupg
+          - name: Fedora 44
+            tag: fedora44
+            image: registry.fedoraproject.org/fedora:44
+            install: dnf -y install python3 gnupg2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: package-${{ matrix.tag }}
+          path: package
+      - uses: actions/download-artifact@v4
+        with:
+          name: later-${{ matrix.tag }}
+          path: later
+      - name: Install what the test needs
+        run: ${{ matrix.install }}
+      - name: Install the package, and update it from within
+        run: >-
+          ci/update-test.sh ./package/* ./later/*
+          "${{ needs.source.outputs.version }}" 999.0.0
 
   flatpak:
     name: Flatpak

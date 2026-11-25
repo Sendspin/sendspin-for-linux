@@ -30,6 +30,8 @@ add_library(sendspin_app STATIC
     picker/picker_window.cpp
     settings_model.cpp
     single_instance.cpp
+    update_checker.cpp
+    update_installer.cpp
 )
 # Plain resources rather than a QML module: a module in a static library needs its plugin
 # imported by everything that links it
@@ -68,6 +70,10 @@ target_link_libraries(sendspin_app PUBLIC
     PkgConfig::AVAHI
 )
 target_link_libraries(sendspin_app PRIVATE qrcodegen)
+include(GNUInstallDirs)
+# What pkexec runs to install an update, and the app before it to verify one
+set(SENDSPIN_UPDATE_HELPER ${CMAKE_INSTALL_FULL_LIBEXECDIR}/sendspin-for-linux/install-update)
+target_compile_definitions(sendspin_app PRIVATE SENDSPIN_UPDATE_HELPER="${SENDSPIN_UPDATE_HELPER}")
 # PUBLIC reaches the app and the tests, and nothing third-party
 if(SENDSPIN_SANITIZE)
     target_compile_options(sendspin_app PUBLIC
@@ -80,8 +86,14 @@ target_compile_options(sendspin-for-linux PRIVATE -Wall -Wextra -Wpedantic)
 target_compile_definitions(sendspin-for-linux PRIVATE SENDSPIN_VERSION="${PROJECT_VERSION}")
 target_link_libraries(sendspin-for-linux PRIVATE sendspin_app)
 
-include(GNUInstallDirs)
 install(TARGETS sendspin-for-linux)
+install(PROGRAMS ${CMAKE_SOURCE_DIR}/data/install-update
+    DESTINATION ${CMAKE_INSTALL_LIBEXECDIR}/sendspin-for-linux)
+# The words of pkexec's prompt for it
+configure_file(${CMAKE_SOURCE_DIR}/data/com.sendspin_audio.Sendspin.policy.in
+    com.sendspin_audio.Sendspin.policy @ONLY)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/com.sendspin_audio.Sendspin.policy
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/polkit-1/actions)
 install(FILES ${CMAKE_SOURCE_DIR}/data/com.sendspin_audio.Sendspin.desktop
     DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
 # For every user, until one switches it off in Settings: an entry of their own by the same name
@@ -130,6 +142,7 @@ if(BUILD_TESTING)
         add_executable(${NAME} ${SOURCE}.cpp)
         target_compile_options(${NAME} PRIVATE -Wall -Wextra -Wpedantic)
         target_link_libraries(${NAME} PRIVATE sendspin_app Qt6::Test)
+        target_compile_definitions(${NAME} PRIVATE SENDSPIN_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
         add_test(NAME ${NAME} COMMAND ${NAME})
         # No display or GPU in CI, and never the settings of whoever runs the tests, nor an
         # installed package's autostart entry
@@ -162,4 +175,6 @@ if(BUILD_TESTING)
     sendspin_add_test(picker/picker_test)
     sendspin_add_test(settings_model_test)
     sendspin_add_test(single_instance_test)
+    sendspin_add_test(update_checker_test)
+    sendspin_add_test(update_installer_test)
 endif()

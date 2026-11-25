@@ -91,7 +91,8 @@ Four surfaces, and no others:
 1. **The picker** — a small Qt Quick window: the Sendspin row, this PC's output, the speakers,
    the server. See [The picker](#the-picker).
 2. **The tray icon and its menu** (StatusNotifierItem). Activating the icon opens the picker. The
-   menu holds a status line, Settings… and Quit. No sliders, no speakers.
+   menu holds a status line, Settings… and Quit, and while there is a newer release, a line that
+   says so and opens Settings. No sliders, no speakers.
 3. **One Settings window.**
 4. **The desktop's media controls** (MPRIS) — only for what MA plays to this PC.
 
@@ -108,7 +109,8 @@ tray, that is the only way in; its gear button opens Settings.
 **Settings window**, every setting live, no Save button:
 
 - *This PC:* device name (MA's own custom player name still wins in MA); output device (default:
-  follow the system default); open at login.
+  follow the system default); open at login; check for updates, and under it the newer release
+  with Install update, or who installs it instead. See [Updates](#updates).
 - *Speakers:* the paired speakers, each with Forget; the speakers on the network that aren't
   paired, each with Pair…; a field to paste a pairing token.
 - *Music Assistant:* which server is connected, or none; the pairing code while pairing, as
@@ -714,6 +716,58 @@ As of 2026-09-10:
 
 - **Floor: Qt 6.8 and PipeWire 1.4.2**, both set by Debian 13.
 - Ubuntu 24.04 and Debian 12 are left out on purpose: both ship Qt 6.4.
+
+## Updates
+
+The app asks GitHub for the project's latest published release, at most once a day, and shows a
+newer one in Settings and in the tray menu. It is the app's only request that nobody clicked
+for. **Check for updates** in Settings turns it off (`updates/check`); the answer and its time
+are kept in the settings file, so a restart asks nothing new.
+
+Who installs the newer release depends on how this one was installed:
+
+| Installed | The app |
+|---|---|
+| From the apt or dnf repository | Says so. The system's updates bring it. |
+| Flatpak | Says so. Flatpak updates it. |
+| From a release's `.deb` or `.rpm` | Offers **Install update**. |
+| Anything else: Arch, a build from source, a distro no package is built for | Says so, and opens the release's page. |
+
+The package manager says which: `apt-cache policy` lists a repository under the installed
+version, `dnf repoquery --installed` has the repository in `from_repo` (`@commandline` for a
+file).
+
+**Install update:**
+
+1. Downloads the release's package for this system (`sendspin-for-linux-<version>-<ID><VERSION_ID>-<arch>`,
+   from `/etc/os-release`), `SHA256SUMS` and `SHA256SUMS.asc`.
+2. Verifies them: `SHA256SUMS` is signed with the package repositories' key, and lists the
+   package under its name with its sum. The key is the copy this machine already has
+   (`/etc/apt/keyrings/sendspin.asc` or `/etc/pki/rpm-gpg/RPM-GPG-KEY-sendspin`, as the README's
+   repository setup puts it). No key is ever downloaded for this: without one on the machine,
+   the update is only announced.
+3. Installs through `pkexec`, which asks for an administrator's password: `apt-get install` or
+   `dnf upgrade` on the file, so new dependencies come with it.
+4. Starts the new version in this one's place.
+
+The app never runs as root. What does is one script, `install-update`, installed with the
+package, and it trusts nothing it is handed: it copies the three files to a directory of its
+own, verifies the copies exactly as step 2 does (the app's own check is the same script,
+unprivileged, so a bad download is refused before anyone is asked for a password), and installs
+the copy. So a download that is changed between the check and the install is refused, and
+whoever calls the script directly gets nothing installed that the key did not sign. It also
+refuses a package that is not this app or is not newer than the installed one: an old signed
+release is not an update.
+
+The release workflow signs `SHA256SUMS` in the `package-signing` environment, behind its
+reviewer, before the draft is published. A release without the signature is only announced.
+
+`sendspin-for-linux --update` does the same from a terminal: checks now, installs, exits.
+
+Tests: the checker and the installer run against a stand-in release server on the loopback
+interface, with a signature from a throwaway key (`src/update_test_data/`). CI installs each
+`.deb` and `.rpm` from its file in a clean container and has it update itself to a later build
+(`ci/update-test.sh`), with a stand-in for `pkexec`, which a container has no polkit for.
 
 ## Depends on
 
