@@ -45,6 +45,9 @@ DiscordIpc::DiscordIpc(QString client_id, QString runtime_dir, Timing timing, QO
       next_retry_(timing.retry) {
     this->retry_.setSingleShot(true);
     this->pace_.setSingleShot(true);
+    this->handshake_.setSingleShot(true);
+    this->handshake_.setInterval(timing.retry);
+    connect(&this->handshake_, &QTimer::timeout, &this->socket_, &QLocalSocket::abort);
     this->unconnected_.setSingleShot(true);
     this->unconnected_.setInterval(0);
     connect(&this->retry_, &QTimer::timeout, this, &DiscordIpc::connect_first_);
@@ -54,6 +57,7 @@ DiscordIpc::DiscordIpc(QString client_id, QString runtime_dir, Timing timing, QO
         const QJsonObject hello{{QStringLiteral("v"), 1},
                                 {QStringLiteral("client_id"), this->client_id_}};
         this->send_(OP_HANDSHAKE, QJsonDocument(hello).toJson(QJsonDocument::Compact));
+        this->handshake_.start();
     });
     connect(&this->socket_, &QLocalSocket::readyRead, this, &DiscordIpc::on_ready_read_);
     connect(&this->socket_, &QLocalSocket::stateChanged, this,
@@ -106,6 +110,7 @@ void DiscordIpc::on_unconnected_() {
         return;
     }
     const bool was_ready = std::exchange(this->ready_, false);
+    this->handshake_.stop();
     this->sent_ = {};
     this->pace_.stop();
     if (this->wanted_.isEmpty()) {
@@ -147,6 +152,7 @@ void DiscordIpc::on_frame_(qint32 opcode, const QByteArray& payload) {
             if (event == QLatin1String("READY")) {
                 qCInfo(lc_discord, "connected to Discord");
                 this->ready_ = true;
+                this->handshake_.stop();
                 this->next_retry_ = this->timing_.retry;
                 this->flush_();
             } else if (event == QLatin1String("ERROR")) {

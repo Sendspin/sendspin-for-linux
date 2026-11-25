@@ -64,6 +64,8 @@ public:
     int connections{0};
     /// What a handshake is answered with: Discord's READY, or the CLOSE of an unknown application
     bool accepts{true};
+    /// A handshake gets no answer at all
+    bool mute{false};
 
 private:
     void read_() {
@@ -78,7 +80,7 @@ private:
             const Frame frame{qFromLittleEndian<qint32>(header),
                               QJsonDocument::fromJson(this->client_->read(length)).object()};
             this->frames << frame;
-            if (frame.opcode != 0) {
+            if (frame.opcode != 0 || this->mute) {
                 continue;
             }
             if (this->accepts) {

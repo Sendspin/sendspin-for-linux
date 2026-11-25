@@ -617,7 +617,8 @@ which has no track.
   At most one update every 4 s, the latest winning: Discord takes five in twenty seconds.
 - **No Discord is normal.** The app looks for the socket only while the setting is on and
   something plays; without one it looks again after 15 s, then twice as long each time up to
-  5 min, and says nothing. A Discord that restarts is found the same way. All of it is
+  5 min, and says nothing. A Discord that restarts is found the same way, and a socket that
+  takes the handshake and does not answer within 15 s is given up on. All of it is
   asynchronous on the main loop.
 
 ## Timing
@@ -722,7 +723,9 @@ Listed in this order in the README and on the website:
    - `--filesystem=xdg-run/discord-ipc-0` and
      `--filesystem=xdg-run/app/com.discordapp.Discord:create`: Discord's socket, a native
      Discord's and Flatpak Discord's, for the Rich Presence. `:create` so the directory is
-     there for a Discord started after the app. Only reached with the setting on.
+     there for a Discord started after the app. Only reached with the setting on. A native
+     Discord's socket is in the sandbox only if it was there when the app started: one started
+     later is found the next time the app starts.
    - Notification portal for the pairing notification, which needs no permission. The other
      builds talk to `org.freedesktop.Notifications` themselves.
    - Background portal for autostart. Only this build gets GNOME's Background Apps entry. The

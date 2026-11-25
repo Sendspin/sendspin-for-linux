@@ -21,7 +21,7 @@ const Track TRACK{.title = "Blue in Green",
                   .album = "Kind of Blue",
                   .duration_ms = 337'000};
 constexpr qint64 NOW_MS = 1'800'000'000'000;
-constexpr DiscordIpc::Timing QUICK{.retry = 20ms, .pace = 10ms};
+constexpr DiscordIpc::Timing QUICK{.retry = 50ms, .pace = 10ms};
 /// Long enough that nothing more would come
 constexpr int QUIET_MS = 150;
 

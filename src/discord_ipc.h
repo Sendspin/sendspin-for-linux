@@ -21,7 +21,8 @@ class DiscordIpc : public QObject {
 
 public:
     struct Timing {
-        /// Before the first new attempt; doubles up to MAX_RETRY
+        /// Before the first new attempt; doubles up to MAX_RETRY. And how long a socket has to
+        /// answer the handshake.
         std::chrono::milliseconds retry{std::chrono::seconds(15)};
         /// Between two updates: Discord takes five in twenty seconds
         std::chrono::milliseconds pace{std::chrono::seconds(4)};
@@ -60,6 +61,8 @@ private:
     QJsonObject sent_;
     std::chrono::milliseconds next_retry_;
     QTimer retry_{this};
+    /// Gives up on a socket that takes the handshake and says nothing
+    QTimer handshake_{this};
     QTimer pace_{this};
     /// Acts on a lost or failed connection from the event loop, not from inside its signal
     QTimer unconnected_{this};

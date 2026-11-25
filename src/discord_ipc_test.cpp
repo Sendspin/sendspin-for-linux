@@ -38,7 +38,7 @@ private slots:
         const QTemporaryDir dir;
         DiscordTestServer discord;
         QVERIFY(discord.listen(dir.filePath("discord-ipc-0")));
-        DiscordIpc ipc("1234", dir.path(), {.retry = 20ms, .pace = 10ms});
+        DiscordIpc ipc("1234", dir.path(), {.retry = 50ms, .pace = 10ms});
         ipc.set_activity({});
         QTest::qWait(QUIET_MS);
         QCOMPARE(discord.connections, 0);
@@ -48,7 +48,7 @@ private slots:
         const QTemporaryDir dir;
         DiscordTestServer discord;
         QVERIFY(discord.listen(dir.filePath("discord-ipc-0")));
-        DiscordIpc ipc("1234", dir.path(), {.retry = 20ms, .pace = 10ms});
+        DiscordIpc ipc("1234", dir.path(), {.retry = 50ms, .pace = 10ms});
         ipc.set_activity(FIRST);
         QTRY_COMPARE(discord.frames.size(), 2);
 
@@ -72,7 +72,7 @@ private slots:
         const QTemporaryDir dir;
         DiscordTestServer discord;
         QVERIFY(discord.listen(dir.filePath("discord-ipc-0")));
-        DiscordIpc ipc("1234", dir.path(), {.retry = 20ms, .pace = 10ms});
+        DiscordIpc ipc("1234", dir.path(), {.retry = 50ms, .pace = 10ms});
         ipc.set_activity(FIRST);
         QTRY_COMPARE(discord.activities().size(), 1);
         ipc.set_activity({});
@@ -91,7 +91,7 @@ private slots:
         const QTemporaryDir dir;
         DiscordTestServer discord;
         QVERIFY(discord.listen(dir.filePath("discord-ipc-0")));
-        DiscordIpc ipc("1234", dir.path(), {.retry = 20ms, .pace = 300ms});
+        DiscordIpc ipc("1234", dir.path(), {.retry = 50ms, .pace = 300ms});
         ipc.set_activity(FIRST);
         QTRY_COMPARE(discord.activities().size(), 1);
         ipc.set_activity(SECOND);
@@ -109,7 +109,7 @@ private slots:
         DiscordTestServer discord;
         QVERIFY(discord.listen(dir.filePath("discord-ipc-0")));
         {
-            DiscordIpc ipc("1234", dir.path(), {.retry = 20ms, .pace = 10ms});
+            DiscordIpc ipc("1234", dir.path(), {.retry = 50ms, .pace = 10ms});
             ipc.set_activity(FIRST);
             QTRY_COMPARE(discord.activities().size(), 1);
             QVERIFY(discord.connected());
@@ -119,7 +119,7 @@ private slots:
 
     void waitsForADiscordThatStartsLater() {
         const QTemporaryDir dir;
-        DiscordIpc ipc("1234", dir.path(), {.retry = 20ms, .pace = 10ms});
+        DiscordIpc ipc("1234", dir.path(), {.retry = 50ms, .pace = 10ms});
         ipc.set_activity(FIRST);
         QTest::qWait(QUIET_MS);
         DiscordTestServer discord;
@@ -130,7 +130,7 @@ private slots:
 
     void stopsLookingOnceThereIsNothingToShow() {
         const QTemporaryDir dir;
-        DiscordIpc ipc("1234", dir.path(), {.retry = 20ms, .pace = 10ms});
+        DiscordIpc ipc("1234", dir.path(), {.retry = 50ms, .pace = 10ms});
         ipc.set_activity(FIRST);
         ipc.set_activity({});
         DiscordTestServer discord;
@@ -144,7 +144,7 @@ private slots:
         const QString path = dir.filePath("discord-ipc-0");
         DiscordTestServer discord;
         QVERIFY(discord.listen(path));
-        DiscordIpc ipc("1234", dir.path(), {.retry = 20ms, .pace = 10ms});
+        DiscordIpc ipc("1234", dir.path(), {.retry = 50ms, .pace = 10ms});
         ipc.set_activity(FIRST);
         QTRY_COMPARE(discord.activities().size(), 1);
 
@@ -166,7 +166,7 @@ private slots:
         const QString path = dir.filePath("discord-ipc-0");
         DiscordTestServer discord;
         QVERIFY(discord.listen(path));
-        DiscordIpc ipc("1234", dir.path(), {.retry = 20ms, .pace = 10ms});
+        DiscordIpc ipc("1234", dir.path(), {.retry = 50ms, .pace = 10ms});
         ipc.set_activity(FIRST);
         QTRY_COMPARE(discord.activities().size(), 1);
         ipc.set_activity({});
@@ -189,7 +189,7 @@ private slots:
         stale.close();
         DiscordTestServer flatpak;
         QVERIFY(flatpak.listen(dir.filePath("app/com.discordapp.Discord/discord-ipc-0")));
-        DiscordIpc ipc("1234", dir.path(), {.retry = 20ms, .pace = 10ms});
+        DiscordIpc ipc("1234", dir.path(), {.retry = 50ms, .pace = 10ms});
         ipc.set_activity(FIRST);
         QTRY_COMPARE(flatpak.activities().size(), 1);
     }
@@ -202,7 +202,7 @@ private slots:
         QVERIFY(snap.listen(dir.filePath("snap.discord/discord-ipc-0")));
         QVERIFY(flatpak.listen(dir.filePath("app/com.discordapp.Discord/discord-ipc-0")));
         QVERIFY(second.listen(dir.filePath("discord-ipc-1")));
-        DiscordIpc ipc("1234", dir.path(), {.retry = 20ms, .pace = 10ms});
+        DiscordIpc ipc("1234", dir.path(), {.retry = 50ms, .pace = 10ms});
         ipc.set_activity(FIRST);
         QTRY_COMPARE(second.activities().size(), 1);
         QCOMPARE(flatpak.connections, 0);
@@ -218,7 +218,7 @@ private slots:
         const QTemporaryDir dir;
         DiscordTestServer discord;
         QVERIFY(discord.listen(dir.filePath("discord-ipc-0")));
-        DiscordIpc ipc("1234", dir.path(), {.retry = 20ms, .pace = 10ms});
+        DiscordIpc ipc("1234", dir.path(), {.retry = 50ms, .pace = 10ms});
         ipc.set_activity(FIRST);
         QTRY_COMPARE(discord.frames.size(), 2);
         discord.send(3, {{"seq", 7}});
@@ -227,12 +227,26 @@ private slots:
         QCOMPARE(discord.frames.at(2).payload, (QJsonObject{{"seq", 7}}));
     }
 
+    void aSocketThatNeverAnswersIsGivenUpOn() {
+        const QTemporaryDir dir;
+        DiscordTestServer silent;
+        silent.mute = true;
+        DiscordTestServer flatpak;
+        QVERIFY(silent.listen(dir.filePath("discord-ipc-0")));
+        QVERIFY(flatpak.listen(dir.filePath("app/com.discordapp.Discord/discord-ipc-0")));
+        DiscordIpc ipc("1234", dir.path(), {.retry = 50ms, .pace = 10ms});
+        ipc.set_activity(FIRST);
+        QTRY_COMPARE(flatpak.activities().size(), 1);
+        QCOMPARE(silent.connections, 1);
+        QVERIFY(silent.activities().isEmpty());
+    }
+
     void anApplicationDiscordRefusesIsTriedAgainLater() {
         const QTemporaryDir dir;
         DiscordTestServer discord;
         discord.accepts = false;
         QVERIFY(discord.listen(dir.filePath("discord-ipc-0")));
-        DiscordIpc ipc("1234", dir.path(), {.retry = 20ms, .pace = 10ms});
+        DiscordIpc ipc("1234", dir.path(), {.retry = 50ms, .pace = 10ms});
         ipc.set_activity(FIRST);
         QTRY_VERIFY(discord.connections >= 2);
         QVERIFY(discord.activities().isEmpty());
