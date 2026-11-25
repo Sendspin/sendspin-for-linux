@@ -15,13 +15,14 @@ namespace autostart {
 QString path();
 
 /// @brief Under Flatpak, where the host's entries are out of reach: set_enabled() asks the
-/// portal there, and enabled() is what it last answered
+/// portal there, and enabled() is what it last answered. refresh() asks it again.
 bool sandboxed();
 
 bool enabled();
 
 /// @brief Switches it on or off. The user's entry is written only where it differs from the
-/// package's: on with none installed, off against one that is.
+/// package's: on with none installed, off against one that is. The portal writes the Flatpak's
+/// entry under the same name: on takes its place, off leaves it.
 /// @param program what it starts; the running executable by default
 /// @param context cancels done when it is gone
 /// @param done runs once enabled() is up to date: before this returns, or under Flatpak when
@@ -30,8 +31,11 @@ void set_enabled(bool enabled, const QString& program = {}, QObject* context = n
                  const std::function<void()>& done = {});
 
 /// @brief Writes the user's entry again while it is enabled and starts something else than
-/// program: the app moved, or starts differently than when the entry was written
-void refresh(const QString& program = {});
+/// program: the app moved, or starts differently than when the entry was written. Under
+/// Flatpak, asks the portal again for what was granted.
+/// @param done runs if enabled() changed, which only the portal's answer does
+void refresh(const QString& program = {}, QObject* context = nullptr,
+             const std::function<void()>& done = {});
 
 /// @brief program as a desktop entry's Exec value
 QString exec_value(const QString& program);

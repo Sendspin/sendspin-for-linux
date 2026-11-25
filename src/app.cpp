@@ -145,7 +145,7 @@ void App::start() {
         qCWarning(lc_app, "no Sendspin output: %s", qUtf8Printable(error));
     }
     // What the entry starts may have changed since it was written
-    autostart::refresh();
+    autostart::refresh({}, &this->settings_, [this] { emit this->settings_.openAtLoginChanged(); });
     // First: its client_id comes with its start
     this->client_.start();
     // Our server never connects to our own client

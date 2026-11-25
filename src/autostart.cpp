@@ -32,6 +32,25 @@ bool starts(const QString& entry_path) {
            entry.value("Desktop Entry/X-GNOME-Autostart-enabled", true).toBool();
 }
 
+/// The Background portal's entry for this app's Flatpak, which has this build's name for it
+bool from_flatpak(const QString& entry_path) {
+    QFile file(entry_path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        return false;
+    }
+    for (const QByteArray& line : file.readAll().split('\n')) {
+        if (line.startsWith("X-Flatpak=") ||
+            (line.startsWith("Exec=") && line.contains("flatpak run "))) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void store_granted(bool granted) {
+    QSettings(QStringLiteral("sendspin"), QStringLiteral("sendspin")).setValue(KEY_PORTAL, granted);
+}
+
 /// A package's entry is installed, and starts the app
 bool packaged() {
     const QStringList found =
@@ -48,7 +67,7 @@ QByteArray entry_for(const QString& program) {
     const QString exec =
         exec_value(program.isEmpty() ? QCoreApplication::applicationFilePath() : program);
     return "[Desktop Entry]\nType=Application\nName=Sendspin\nExec=" + exec.toUtf8() +
-           " --background\nTerminal=false\nX-GNOME-Autostart-enabled=true\n";
+           " --background\nIcon=" + APP_ID + "\nTerminal=false\nX-GNOME-Autostart-enabled=true\n";
 }
 
 bool write(const QByteArray& entry) {
@@ -95,8 +114,9 @@ bool enabled() {
             .value(KEY_PORTAL, false)
             .toBool();
     }
-    // The user's own entry decides, off included: desktops switch one off by marking it
-    return QFileInfo::exists(path()) ? starts(path()) : packaged();
+    // The user's own entry decides, off included: desktops switch one off by marking it. The
+    // Flatpak's there starts the Flatpak, and not this build
+    return QFileInfo::exists(path()) ? !from_flatpak(path()) && starts(path()) : packaged();
 }
 
 QString exec_value(const QString& program) {
@@ -122,15 +142,16 @@ void set_enabled(bool enabled, const QString& program, QObject* context,
     if (sandboxed()) {
         ask_portal(enabled, QStringLiteral("org.freedesktop.portal.Desktop"), context,
                    [done](bool granted) {
-                       QSettings(QStringLiteral("sendspin"), QStringLiteral("sendspin"))
-                           .setValue(KEY_PORTAL, granted);
+                       store_granted(granted);
                        if (done) {
                            done();
                        }
                    });
         return;
     }
-    if (enabled == packaged()) {
+    if (!enabled && from_flatpak(path())) {
+        // The Flatpak's entry is its own switch's to end; under it this build is off already
+    } else if (enabled == packaged()) {
         // The package's entry, or none, already says it
         QFile::remove(path());
     } else if (enabled) {
@@ -143,8 +164,21 @@ void set_enabled(bool enabled, const QString& program, QObject* context,
     }
 }
 
-void refresh(const QString& program) {
-    if (sandboxed() || !QFileInfo::exists(path()) || !starts(path())) {
+void refresh(const QString& program, QObject* context, const std::function<void()>& done) {
+    if (sandboxed()) {
+        // Asking again is the one way to learn that the desktop's settings took it back
+        if (enabled()) {
+            ask_portal(true, QStringLiteral("org.freedesktop.portal.Desktop"), context,
+                       [done](bool granted) {
+                           store_granted(granted);
+                           if (done && !granted) {
+                               done();
+                           }
+                       });
+        }
+        return;
+    }
+    if (!QFileInfo::exists(path()) || !starts(path()) || from_flatpak(path())) {
         return;
     }
     QFile file(path());

@@ -78,6 +78,7 @@ private slots:
         QVERIFY(lines.contains("Type=Application"));
         QVERIFY(lines.contains("Name=Sendspin"));
         QVERIFY(lines.contains("Exec=\"/usr/bin/sendspin-for-linux\" --background"));
+        QVERIFY(lines.contains("Icon=com.sendspin_audio.Sendspin"));
     }
 
     void switchingOffRemovesIt() {
@@ -99,6 +100,45 @@ private slots:
         QVERIFY(file.open(QIODevice::ReadOnly));
         QVERIFY(file.readAll().contains("\nHidden=true\n"));
 
+        autostart::set_enabled(true);
+        QVERIFY(autostart::enabled());
+        QVERIFY(!QFile::exists(autostart::path()));
+    }
+
+    // The portal writes the Flatpak's entry where this build writes its own
+    void theFlatpaksEntryIsLeftUntilSwitchedOn() {
+        const QByteArray theirs =
+            "[Desktop Entry]\nType=Application\nName=com.sendspin_audio.Sendspin\n"
+            "Exec=flatpak run --command=sendspin-for-linux com.sendspin_audio.Sendspin "
+            "--background\nX-Flatpak=com.sendspin_audio.Sendspin\n";
+        const auto entry = [] {
+            QFile file(autostart::path());
+            return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray();
+        };
+        const auto write_theirs = [&theirs] {
+            QVERIFY(QDir().mkpath(QFileInfo(autostart::path()).path()));
+            QFile file(autostart::path());
+            QVERIFY(file.open(QIODevice::WriteOnly));
+            file.write(theirs);
+        };
+        write_theirs();
+        // It starts the Flatpak, not this build
+        QVERIFY(!autostart::enabled());
+        autostart::refresh("/usr/bin/sendspin-for-linux");
+        QCOMPARE(entry(), theirs);
+        autostart::set_enabled(false);
+        QCOMPARE(entry(), theirs);
+
+        autostart::set_enabled(true, "/usr/bin/sendspin-for-linux");
+        QVERIFY(autostart::enabled());
+        QVERIFY(entry().contains("Exec=\"/usr/bin/sendspin-for-linux\" --background\n"));
+
+        // Over a package's entry too, which it keeps from starting
+        this->install_packaged_entry();
+        write_theirs();
+        QVERIFY(!autostart::enabled());
+        autostart::set_enabled(false);
+        QCOMPARE(entry(), theirs);
         autostart::set_enabled(true);
         QVERIFY(autostart::enabled());
         QVERIFY(!QFile::exists(autostart::path()));
