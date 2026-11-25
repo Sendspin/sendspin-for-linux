@@ -33,3 +33,4 @@ option(SENDSPIN_SANITIZE "Build the app and its tests with ASan and UBSan" OFF)
 
 include(CTest)
 add_subdirectory(src)
+include(cmake/package.cmake)

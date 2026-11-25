@@ -1,0 +1,55 @@
+# A version tag builds the artifacts and attaches them to a draft release. Publishing the draft
+# is a person's step.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  # The version has one home, project(VERSION) in CMakeLists.txt: the tag has to name it
+  version:
+    name: Tag matches the version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          version=$(sed -n 's/^project(.* VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)
+          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME doesn't match project(VERSION) $version"
+            exit 1
+          fi
+
+  packages:
+    needs: version
+    uses: ./.github/workflows/packages.yml
+
+  release:
+    name: Draft release
+    needs: packages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Create the draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ needs.packages.outputs.version }}
+        run: |
+          cd dist
+          sha256sum -- * >SHA256SUMS
+          cat SHA256SUMS
+          gh release create "$GITHUB_REF_NAME" --verify-tag --draft --generate-notes \
+            --title "Sendspin for Linux $VERSION" -- *
