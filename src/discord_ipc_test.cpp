@@ -4,6 +4,7 @@
 
 #include <QCoreApplication>
 #include <QFile>
+#include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
 
@@ -25,13 +26,14 @@ class DiscordIpcTest : public QObject {
 private slots:
     void socketsAreTriedInOrder() {
         const QStringList paths = discord_socket_paths("/run/user/1000");
-        QCOMPARE(paths.size(), 30);
+        QCOMPARE(paths.size(), 40);
         QCOMPARE(paths.at(0), "/run/user/1000/discord-ipc-0");
         QCOMPARE(paths.at(9), "/run/user/1000/discord-ipc-9");
         QCOMPARE(paths.at(10), "/run/user/1000/app/com.discordapp.Discord/discord-ipc-0");
         QCOMPARE(paths.at(19), "/run/user/1000/app/com.discordapp.Discord/discord-ipc-9");
-        QCOMPARE(paths.at(20), "/run/user/1000/snap.discord/discord-ipc-0");
-        QCOMPARE(paths.at(29), "/run/user/1000/snap.discord/discord-ipc-9");
+        QCOMPARE(paths.at(20), "/run/user/1000/app/com.discordapp.DiscordCanary/discord-ipc-0");
+        QCOMPARE(paths.at(30), "/run/user/1000/snap.discord/discord-ipc-0");
+        QCOMPARE(paths.at(39), "/run/user/1000/snap.discord/discord-ipc-9");
     }
 
     void nothingConnectsWithoutAnActivity() {
@@ -239,6 +241,140 @@ private slots:
         QTRY_COMPARE(flatpak.activities().size(), 1);
         QCOMPARE(silent.connections, 1);
         QVERIFY(silent.activities().isEmpty());
+    }
+
+    void hangsUpOnceNothingShowedForAWhile() {
+        const QTemporaryDir dir;
+        DiscordTestServer discord;
+        QVERIFY(discord.listen(dir.filePath("discord-ipc-0")));
+        DiscordIpc ipc("1234", dir.path(), {.retry = 50ms, .pace = 10ms, .idle = 200ms});
+        ipc.set_activity(FIRST);
+        QTRY_COMPARE(discord.activities().size(), 1);
+        ipc.set_activity({});
+        QTRY_COMPARE(discord.activities().size(), 2);
+        QVERIFY(discord.connected());
+        QTRY_VERIFY(!discord.connected());
+        // And stays away until something plays
+        QTest::qWait(QUIET_MS);
+        QCOMPARE(discord.connections, 1);
+        ipc.set_activity(SECOND);
+        QTRY_COMPARE(discord.activities().size(), 3);
+        QCOMPARE(discord.connections, 2);
+    }
+
+    void playingAgainInTimeKeepsTheConnection() {
+        const QTemporaryDir dir;
+        DiscordTestServer discord;
+        QVERIFY(discord.listen(dir.filePath("discord-ipc-0")));
+        DiscordIpc ipc("1234", dir.path(), {.retry = 50ms, .pace = 10ms, .idle = 200ms});
+        ipc.set_activity(FIRST);
+        ipc.set_activity({});
+        ipc.set_activity(SECOND);
+        QTRY_COMPARE(discord.activities().size(), 1);
+        QTest::qWait(400);
+        QVERIFY(discord.connected());
+        QCOMPARE(discord.connections, 1);
+    }
+
+    void aFrameTooLargeToBeDiscordsEndsTheConnection() {
+        const QTemporaryDir dir;
+        DiscordTestServer discord;
+        discord.mute = true;
+        QVERIFY(discord.listen(dir.filePath("discord-ipc-0")));
+        DiscordIpc ipc("1234", dir.path(), {.retry = 500ms, .pace = 10ms});
+        ipc.set_activity(FIRST);
+        QTRY_COMPARE(discord.frames.size(), 1);
+        QByteArray header(8, '\0');
+        qToLittleEndian<qint32>(1, header.data());
+        qToLittleEndian<qint32>(1 << 20, header.data() + 4);
+        discord.write_raw(header + "{");
+        QTRY_VERIFY(!discord.connected());
+        // Tried again like any other
+        discord.mute = false;
+        QTRY_COMPARE(discord.activities().size(), 1);
+        QCOMPARE(discord.connections, 2);
+    }
+
+    void whatIsNoJsonIsPassedOver() {
+        const QTemporaryDir dir;
+        DiscordTestServer discord;
+        QVERIFY(discord.listen(dir.filePath("discord-ipc-0")));
+        DiscordIpc ipc("1234", dir.path(), {.retry = 50ms, .pace = 10ms});
+        ipc.set_activity(FIRST);
+        QTRY_COMPARE(discord.activities().size(), 1);
+        discord.write_raw(DiscordTestServer::frame(1, "\xff\xfe not JSON"));
+        discord.write_raw(DiscordTestServer::frame(1, ""));
+        discord.write_raw(DiscordTestServer::frame(77, "{}"));
+        ipc.set_activity(SECOND);
+        QTRY_COMPARE(discord.activities().size(), 2);
+        QCOMPARE(discord.connections, 1);
+    }
+
+    void aFrameThatComesInPiecesIsPutTogether() {
+        const QTemporaryDir dir;
+        DiscordTestServer discord;
+        discord.mute = true;
+        QVERIFY(discord.listen(dir.filePath("discord-ipc-0")));
+        DiscordIpc ipc("1234", dir.path(), {.retry = 2s, .pace = 10ms});
+        ipc.set_activity(FIRST);
+        QTRY_COMPARE(discord.frames.size(), 1);
+        const QByteArray ready =
+            DiscordTestServer::frame(1, R"({"cmd":"DISPATCH","evt":"READY","data":{}})");
+        // Inside the header, then inside the JSON
+        discord.write_raw(ready.left(5));
+        QTest::qWait(30);
+        discord.write_raw(ready.mid(5, 12));
+        QTest::qWait(30);
+        QVERIFY(discord.activities().isEmpty());
+        // The rest, with the start of a ping behind it
+        const QByteArray ping = DiscordTestServer::frame(3, R"({"seq":7})");
+        discord.write_raw(ready.mid(17) + ping.left(10));
+        QTRY_COMPARE(discord.activities().size(), 1);
+        discord.write_raw(ping.mid(10));
+        QTRY_COMPARE(discord.frames.size(), 3);
+        QCOMPARE(discord.frames.at(2).opcode, 4);
+        QCOMPARE(discord.connections, 1);
+    }
+
+    void aCloseFromDiscordIsADiscordThatWentAway() {
+        const QTemporaryDir dir;
+        DiscordTestServer discord;
+        QVERIFY(discord.listen(dir.filePath("discord-ipc-0")));
+        DiscordIpc ipc("1234", dir.path(), {.retry = 50ms, .pace = 10ms});
+        ipc.set_activity(FIRST);
+        QTRY_COMPARE(discord.activities().size(), 1);
+        discord.send(2, {{"code", 1000}, {"message", "bye"}});
+        // Back, with what plays
+        QTRY_COMPARE(discord.activities().size(), 2);
+        QCOMPARE(discord.connections, 2);
+        QCOMPARE(discord.activities().at(1).toObject(), FIRST);
+    }
+
+    void anActivityDiscordRefusesIsSaidAndNotSentAgainAsItIs() {
+        const QTemporaryDir dir;
+        DiscordTestServer discord;
+        QVERIFY(discord.listen(dir.filePath("discord-ipc-0")));
+        DiscordIpc ipc("1234", dir.path(), {.retry = 50ms, .pace = 10ms});
+        QSignalSpy refused(&ipc, &DiscordIpc::refused);
+        ipc.set_activity(FIRST);
+        QTRY_COMPARE(discord.activities().size(), 1);
+        discord.send(1, {{"cmd", "SET_ACTIVITY"},
+                         {"evt", "ERROR"},
+                         {"data", QJsonObject{{"code", 4000}, {"message", "details too short"}}},
+                         {"nonce", discord.frames.last().payload.value("nonce")}});
+        QTRY_COMPARE(refused.size(), 1);
+        QCOMPARE(refused.at(0).at(0).toString(), "details too short");
+        ipc.set_activity(FIRST);
+        QTest::qWait(QUIET_MS);
+        QCOMPARE(discord.activities().size(), 1);
+        QCOMPARE(discord.connections, 1);
+
+        // Discord still shows what it showed before: the next one goes out, a clear too
+        ipc.set_activity({});
+        QTRY_COMPARE(discord.activities().size(), 2);
+        QVERIFY(discord.activities().at(1).isNull());
+        ipc.set_activity(SECOND);
+        QTRY_COMPARE(discord.activities().size(), 3);
     }
 
     void anApplicationDiscordRefusesIsTriedAgainLater() {

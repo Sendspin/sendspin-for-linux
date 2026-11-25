@@ -21,8 +21,17 @@ constexpr qsizetype TEXT_MAX = 128;
 constexpr qsizetype URL_MAX = 256;
 
 QString fitted(const QString& text) {
-    return text.left(TEXT_MAX).leftJustified(TEXT_MIN, QLatin1Char(' '));
+    QString cut = text.left(TEXT_MAX);
+    // Half a character makes the whole activity one Discord refuses
+    if (!cut.isEmpty() && cut.back().isHighSurrogate()) {
+        cut.chop(1);
+    }
+    return cut.leftJustified(TEXT_MIN, QLatin1Char(' '));
 }
+
+// Names no server on the internet answers to, and those that only spell out an address
+constexpr const char* PRIVATE_DOMAINS[] = {"local", "lan",  "localhost", "localdomain", "internal",
+                                           "home",  "corp", "home.arpa", "nip.io",      "sslip.io"};
 
 }  // namespace
 
@@ -32,17 +41,24 @@ QString discord_artwork_url(const QString& url) {
         !parsed.userInfo().isEmpty()) {
         return {};
     }
+    // Discord's friends see the URL: a query may carry a token, and Music Assistant's image
+    // proxy behind a public name says where the user's home answers
+    if (parsed.hasQuery() || parsed.hasFragment() ||
+        parsed.path().contains(QLatin1String("imageproxy"), Qt::CaseInsensitive)) {
+        return {};
+    }
     QString host = parsed.host().toLower();
     if (host.endsWith(QLatin1Char('.'))) {
         host.chop(1);
     }
-    // Discord fetches it from the internet: an address or a name only this network knows, as
-    // Music Assistant's own image proxy has, is out of its reach
+    // Discord fetches it from the internet: an address or a name only this network knows is
+    // out of its reach
     if (!host.contains(QLatin1Char('.')) || !QHostAddress(host).isNull()) {
         return {};
     }
-    for (const char* suffix : {".local", ".lan", ".localhost", ".internal", ".home.arpa"}) {
-        if (host.endsWith(QLatin1String(suffix))) {
+    for (const char* domain : PRIVATE_DOMAINS) {
+        if (host == QLatin1String(domain) ||
+            host.endsWith(QLatin1Char('.') + QLatin1String(domain))) {
             return {};
         }
     }
@@ -107,6 +123,14 @@ void DiscordPresence::set_enabled(bool enabled) {
     if (enabled) {
         this->ipc_ =
             std::make_unique<DiscordIpc>(this->client_id_, this->runtime_dir_, this->timing_);
+        connect(this->ipc_.get(), &DiscordIpc::refused, this, [this](const QString& message) {
+            // Once a track: a seek has it refused again
+            if (this->shown_ != this->warned_) {
+                this->warned_ = this->shown_;
+                qCWarning(lc_discord, "Discord refused to show what plays: %s",
+                          qUtf8Printable(message));
+            }
+        });
         this->update_(false);
     } else {
         // Discord drops the activity with the connection

@@ -594,7 +594,7 @@ which has no track.
   account, no token, no cover image, no lookup of a cover anywhere.
 - **Transport.** Discord's local IPC: the first of `discord-ipc-0`…`9` that answers in
   `$XDG_RUNTIME_DIR`, then in `$XDG_RUNTIME_DIR/app/com.discordapp.Discord/` (Flatpak Discord),
-  then in `$XDG_RUNTIME_DIR/snap.discord/`. A frame is a little-endian opcode and length, then
+  in `…/app/com.discordapp.DiscordCanary/` and in `$XDG_RUNTIME_DIR/snap.discord/`. A frame is a little-endian opcode and length, then
   JSON: HANDSHAKE `{v: 1, client_id}`, answered with READY, then `SET_ACTIVITY` frames, each
   with a nonce. Written here on `QLocalSocket`; no Discord library.
 - **Application.** Discord shows an activity under a registered application: "Sendspin",
@@ -604,17 +604,27 @@ which has no track.
 - **Activity.** `type` 2 (Listening), `details` the title, `state` the artist, `large_text` the
   album, and `timestamps` `start` and `end` from the track's position and length, which draw
   the bar; a track of no known length has only `start`. Discord takes texts of 2 to 128
-  characters: longer ones are cut, a one-character one gets a space.
+  characters: longer ones are cut, never through a character, and a one-character one gets a
+  space. An activity Discord answers with an error is logged as a warning, once a track, and
+  not sent again as it is.
 - **Artwork.** `large_image` is the metadata's `artwork_url`, with the `sendspin` logo as
-  `small_image`, only when Discord's servers, which fetch it, can: `https`, at most 256
-  characters, no user or password, and a host with a public name — not an IP address, a name
-  without a dot, or one under `.local`, `.lan`, `.localhost`, `.internal` or `.home.arpa`.
-  Music Assistant's own image proxy is an address on the LAN, so its covers do not show.
-  Anything else is the `sendspin` logo as `large_image`.
+  `small_image`, only when Discord's servers, which fetch it, can, and when it gives nothing
+  away to the friends who can read it back out of Discord's own URL for the picture:
+  - `https`, at most 256 characters, no user or password;
+  - no query string and no fragment, which is where a token goes, and no `imageproxy` in the
+    path: Music Assistant's own image proxy, which behind Nabu Casa or a reverse proxy has a
+    public name, and that name is where the user's home answers;
+  - a host with a public name: not an IP address, a name without a dot, `home.arpa`, or a name
+    under `.local`, `.lan`, `.localhost`, `.localdomain`, `.internal`, `.home`, `.corp`,
+    `.home.arpa`, `.nip.io` or `.sslip.io`.
+
+  Anything else is the `sendspin` logo as `large_image`. So Music Assistant's covers show only
+  where a provider gives it a plain public URL.
 - **When.** Set when the group plays a track with a title, and again on a new track, a new
   cover URL or a seek. Cleared when it pauses or stops and when the server disconnects. Switching
   the setting off, or quitting, closes the connection, and Discord drops the activity with it.
   At most one update every 4 s, the latest winning: Discord takes five in twenty seconds.
+  After a minute with nothing playing the connection is closed too.
 - **No Discord is normal.** The app looks for the socket only while the setting is on and
   something plays; without one it looks again after 15 s, then twice as long each time up to
   5 min, and says nothing. A Discord that restarts is found the same way, and a socket that
@@ -725,7 +735,8 @@ Listed in this order in the README and on the website:
      Discord's and Flatpak Discord's, for the Rich Presence. `:create` so the directory is
      there for a Discord started after the app. Only reached with the setting on. A native
      Discord's socket is in the sandbox only if it was there when the app started: one started
-     later is found the next time the app starts.
+     later is found the next time the app starts. Flatpak Discord Canary's directory is not
+     granted: the Flatpak build reaches the stable Discord only.
    - Notification portal for the pairing notification, which needs no permission. The other
      builds talk to `org.freedesktop.Notifications` themselves.
    - Background portal for autostart. Only this build gets GNOME's Background Apps entry. The

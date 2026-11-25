@@ -48,6 +48,18 @@ public:
         this->client_->write(header, 8);
         this->client_->write(json);
     }
+    /// @brief Bytes as they are, for what is no frame, or part of one
+    void write_raw(const QByteArray& bytes) {
+        this->client_->write(bytes);
+        this->client_->flush();
+    }
+    /// @brief A frame's bytes
+    static QByteArray frame(qint32 opcode, const QByteArray& payload) {
+        QByteArray bytes(8, '\0');
+        qToLittleEndian<qint32>(opcode, bytes.data());
+        qToLittleEndian<qint32>(static_cast<qint32>(payload.size()), bytes.data() + 4);
+        return bytes + payload;
+    }
     /// @brief The activity of each SET_ACTIVITY so far; null for one that cleared it
     QList<QJsonValue> activities() const {
         QList<QJsonValue> activities;

@@ -8,9 +8,10 @@
 #include <QTimer>
 
 #include <chrono>
+#include <optional>
 
 /// @brief Where a Discord client may listen, in the order they are tried: `discord-ipc-0`…`9`
-/// in the runtime directory, then in Flatpak Discord's and in the snap's
+/// in the runtime directory, then in Flatpak Discord's, Flatpak Discord Canary's and the snap's
 QStringList discord_socket_paths(const QString& runtime_dir);
 
 /// @brief One Rich Presence activity on the Discord client running here, over its local socket.
@@ -26,6 +27,8 @@ public:
         std::chrono::milliseconds retry{std::chrono::seconds(15)};
         /// Between two updates: Discord takes five in twenty seconds
         std::chrono::milliseconds pace{std::chrono::seconds(4)};
+        /// With nothing to show for this long, the connection is closed
+        std::chrono::milliseconds idle{std::chrono::minutes(1)};
     };
     static constexpr std::chrono::milliseconds MAX_RETRY{std::chrono::minutes(5)};
 
@@ -35,9 +38,14 @@ public:
     /// Discord drops the activity with the connection
     ~DiscordIpc() override;
 
-    /// @brief Shows the activity in place of the one showing; an empty one shows none, and ends
-    /// the attempts to reach Discord
+    /// @brief Shows the activity in place of the one showing; an empty one shows none, ends
+    /// the attempts to reach Discord, and in time the connection
     void set_activity(const QJsonObject& activity);
+
+signals:
+    /// Discord took the last activity for an error, and shows what it showed before
+    /// @param message Discord's own words for why
+    void refused(const QString& message);
 
 private:
     void connect_first_();
@@ -57,13 +65,16 @@ private:
     /// Discord answered the handshake
     bool ready_{false};
     QJsonObject wanted_;
-    /// What Discord was last told; empty on a new connection
-    QJsonObject sent_;
+    /// What Discord shows: empty on a new connection, unknown once it refused one
+    std::optional<QJsonObject> sent_{QJsonObject()};
+    /// The activity Discord refused: not one to send again as it is
+    QJsonObject refused_;
     std::chrono::milliseconds next_retry_;
     QTimer retry_{this};
     /// Gives up on a socket that takes the handshake and says nothing
     QTimer handshake_{this};
     QTimer pace_{this};
+    QTimer idle_{this};
     /// Acts on a lost or failed connection from the event loop, not from inside its signal
     QTimer unconnected_{this};
     QLocalSocket socket_{this};

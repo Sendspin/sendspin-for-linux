@@ -10,9 +10,10 @@
 
 #include <memory>
 
-/// @brief The cover's URL when Discord's servers, which fetch it, can: https, no longer than
-/// Discord takes, and on a host with a public name. Not an address, a LAN's name or a URL with
-/// a password in it.
+/// @brief The cover's URL when Discord's servers, which fetch it, can, and Discord's friends,
+/// who see it, may: https, no longer than Discord takes, on a host with a public name, and with
+/// nothing in it but a path. Not an address, a LAN's name, a URL with a password, a query or a
+/// fragment, or Music Assistant's image proxy.
 /// @return url, or empty when Discord gets the logo instead
 QString discord_artwork_url(const QString& url);
 
@@ -62,4 +63,6 @@ private:
     /// The track Discord shows; none while nothing plays
     Track shown_;
     QString shown_artwork_url_;
+    /// The track Discord last refused, which the log has said
+    Track warned_;
 };

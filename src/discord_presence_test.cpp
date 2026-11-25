@@ -71,6 +71,17 @@ private slots:
         QCOMPARE(activity.value("details"), "7 ");
         QCOMPARE(activity.value("state").toString().size(), 128);
         QCOMPARE(activity.value("assets").toObject().value("large_text"), "X ");
+
+        // Never half a character: Discord refuses the lot for it
+        const QString notes = QString::fromUtf8("\xf0\x9f\x8e\xb5");
+        const QString cut = discord_activity({.title = QString(127, 'a') + notes}, {}, 0, NOW_MS)
+                                .value("details")
+                                .toString();
+        QCOMPARE(cut, QString(127, 'a'));
+        QCOMPARE(discord_activity({.title = QString(126, 'a') + notes}, {}, 0, NOW_MS)
+                     .value("details")
+                     .toString(),
+                 QString(126, 'a') + notes);
     }
 
     void theCoverTakesTheLogosPlaceAndTheLogoGoesSmall() {
@@ -87,7 +98,7 @@ private slots:
         QTest::addColumn<QString>("url");
         QTest::addColumn<bool>("shown");
 
-        QTest::newRow("public https") << "https://covers.example.com/a/b.jpg?size=512" << true;
+        QTest::newRow("public https") << "https://covers.example.com/a/b.jpg" << true;
         QTest::newRow("public https, port") << "https://covers.example.com:8443/b.jpg" << true;
         QTest::newRow("public http") << "http://covers.example.com/b.jpg" << false;
         QTest::newRow("LAN http") << "http://192.168.1.20:8097/imageproxy?path=abc&size=512"
@@ -103,6 +114,22 @@ private slots:
         QTest::newRow("upper case, trailing dot") << "https://Music.LAN./b.jpg" << false;
         QTest::newRow("one label") << "https://homeassistant/b.jpg" << false;
         QTest::newRow("localhost") << "https://localhost/b.jpg" << false;
+        QTest::newRow(".localdomain") << "https://nas.localdomain/b.jpg" << false;
+        QTest::newRow(".home") << "https://nas.home/b.jpg" << false;
+        QTest::newRow(".corp") << "https://music.corp/b.jpg" << false;
+        QTest::newRow("home.arpa") << "https://home.arpa/b.jpg" << false;
+        QTest::newRow(".home.arpa") << "https://nas.home.arpa/b.jpg" << false;
+        QTest::newRow("nip.io") << "https://192.168.1.20.nip.io/b.jpg" << false;
+        QTest::newRow("sslip.io") << "https://192-168-1-20.sslip.io/b.jpg" << false;
+        QTest::newRow("a name that only ends alike") << "https://myhome.example/b.jpg" << true;
+        // What friends would read out of Discord's own URL for the picture
+        QTest::newRow("a query") << "https://covers.example.com/b.jpg?size=512" << false;
+        QTest::newRow("an empty query") << "https://covers.example.com/b.jpg?" << false;
+        QTest::newRow("a fragment") << "https://covers.example.com/b.jpg#x" << false;
+        QTest::newRow("Music Assistant behind a public name")
+            << "https://x.ui.nabu.casa/imageproxy?path=abc&token=s3cret" << false;
+        QTest::newRow("its image proxy, no query")
+            << "https://music.example.com/ImageProxy/abc.jpg" << false;
         QTest::newRow("a password") << "https://user:secret@covers.example.com/b.jpg" << false;
         QTest::newRow("256 long") << "https://covers.example.com/" + QString(229, 'a') << true;
         QTest::newRow("too long") << "https://covers.example.com/" + QString(230, 'a') << false;

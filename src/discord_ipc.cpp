@@ -29,7 +29,8 @@ constexpr int SOCKETS_PER_DIR = 10;
 
 QStringList discord_socket_paths(const QString& runtime_dir) {
     QStringList paths;
-    for (const char* dir : {"", "/app/com.discordapp.Discord", "/snap.discord"}) {
+    for (const char* dir : {"", "/app/com.discordapp.Discord", "/app/com.discordapp.DiscordCanary",
+                            "/snap.discord"}) {
         for (int i = 0; i < SOCKETS_PER_DIR; i++) {
             paths << runtime_dir + QLatin1String(dir) + QStringLiteral("/discord-ipc-%1").arg(i);
         }
@@ -48,6 +49,16 @@ DiscordIpc::DiscordIpc(QString client_id, QString runtime_dir, Timing timing, QO
     this->handshake_.setSingleShot(true);
     this->handshake_.setInterval(timing.retry);
     connect(&this->handshake_, &QTimer::timeout, &this->socket_, &QLocalSocket::abort);
+    this->idle_.setSingleShot(true);
+    this->idle_.setInterval(timing.idle);
+    connect(&this->idle_, &QTimer::timeout, this, [this] {
+        // The clear went out long ago; this only hangs up
+        if (this->ready_) {
+            this->socket_.disconnectFromServer();
+        } else {
+            this->socket_.abort();
+        }
+    });
     this->unconnected_.setSingleShot(true);
     this->unconnected_.setInterval(0);
     connect(&this->retry_, &QTimer::timeout, this, &DiscordIpc::connect_first_);
@@ -75,6 +86,14 @@ DiscordIpc::~DiscordIpc() {
 
 void DiscordIpc::set_activity(const QJsonObject& activity) {
     this->wanted_ = activity;
+    if (activity.isEmpty() && this->socket_.state() != QLocalSocket::UnconnectedState) {
+        // From when it stopped, not from each time it is said again
+        if (!this->idle_.isActive()) {
+            this->idle_.start();
+        }
+    } else {
+        this->idle_.stop();
+    }
     if (this->ready_) {
         this->flush_();
     } else if (activity.isEmpty()) {
@@ -111,7 +130,9 @@ void DiscordIpc::on_unconnected_() {
     }
     const bool was_ready = std::exchange(this->ready_, false);
     this->handshake_.stop();
-    this->sent_ = {};
+    this->idle_.stop();
+    this->sent_ = QJsonObject();
+    this->refused_ = {};
     this->pace_.stop();
     if (this->wanted_.isEmpty()) {
         return;
@@ -155,13 +176,17 @@ void DiscordIpc::on_frame_(qint32 opcode, const QByteArray& payload) {
                 this->handshake_.stop();
                 this->next_retry_ = this->timing_.retry;
                 this->flush_();
-            } else if (event == QLatin1String("ERROR")) {
-                qCDebug(lc_discord, "Discord refused %s: %s",
-                        qUtf8Printable(message.value(QStringLiteral("cmd")).toString()),
-                        qUtf8Printable(message.value(QStringLiteral("data"))
-                                           .toObject()
-                                           .value(QStringLiteral("message"))
-                                           .toString()));
+            } else if (event == QLatin1String("ERROR") &&
+                       message.value(QStringLiteral("cmd")).toString() ==
+                           QLatin1String("SET_ACTIVITY")) {
+                // One update at a time is on its way, so it is the last one's
+                if (this->sent_) {
+                    this->refused_ = std::exchange(this->sent_, std::nullopt).value();
+                }
+                emit this->refused(message.value(QStringLiteral("data"))
+                                       .toObject()
+                                       .value(QStringLiteral("message"))
+                                       .toString());
             }
             break;
         }
@@ -188,7 +213,8 @@ void DiscordIpc::send_(qint32 opcode, const QByteArray& payload) {
 }
 
 void DiscordIpc::flush_() {
-    if (!this->ready_ || this->pace_.isActive() || this->wanted_ == this->sent_) {
+    if (!this->ready_ || this->pace_.isActive() || this->wanted_ == this->sent_ ||
+        (!this->refused_.isEmpty() && this->wanted_ == this->refused_)) {
         return;
     }
     const QJsonObject args{
@@ -201,5 +227,6 @@ void DiscordIpc::flush_() {
         {QStringLiteral("nonce"), QUuid::createUuid().toString(QUuid::WithoutBraces)}};
     this->send_(OP_FRAME, QJsonDocument(command).toJson(QJsonDocument::Compact));
     this->sent_ = this->wanted_;
+    this->refused_ = {};
     this->pace_.start(this->timing_.pace);
 }
