@@ -10,7 +10,8 @@ cmake -B build -G Ninja && cmake --build build && ctest --test-dir build
 ```
 
 `ctest` skips the audio tests unless a PipeWire daemon is running. `ci/start-pipewire.sh` runs a
-command against a private headless one, as CI does; it is safe on a desktop:
+command against a private headless one, as CI does; it is safe on a desktop, and under it a
+missing daemon or tool fails those tests instead of skipping them:
 
 ```sh
 ci/start-pipewire.sh ctest --test-dir build

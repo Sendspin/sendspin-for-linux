@@ -170,31 +170,39 @@ bool have(const char* tool) {
 
 }  // namespace
 
-// Everything past silenceIsDetected() needs a PipeWire daemon and skips without one.
-#define START_OR_SKIP(output)                                                        \
-    do {                                                                             \
-        QString start_error;                                                         \
-        if (!(output).start(&start_error)) {                                         \
-            QVERIFY2(!daemon_socket_exists(), qPrintable(start_error));              \
-            QSKIP(qPrintable(QStringLiteral("no PipeWire daemon: ") + start_error)); \
-        }                                                                            \
+// Everything past silenceIsDetected() needs a PipeWire daemon and skips without one. Under
+// ci/start-pipewire.sh there is always one, so there a skip would be a silent pass and fails.
+#define SKIP_UNLESS_REQUIRED(why)                                                       \
+    do {                                                                                \
+        QVERIFY2(!qEnvironmentVariableIsSet("SENDSPIN_REQUIRE_PIPEWIRE_TESTS"), (why)); \
+        QSKIP(why);                                                                     \
     } while (false)
 
-// PipeWire 1.4.2 drops controls on an idle node and never publishes the latency. Task
-// tsk_01M87ZDBG6131BMAEKWA0AT0K4 ("Sendspin output on PipeWire 1.4.2") fixes that and removes this.
-#define EXPECT_FAIL_BEFORE_1_6(mode)                                                  \
-    do {                                                                              \
-        if (QVersionNumber::fromString(QLatin1String(pw_get_library_version())) <     \
-            QVersionNumber(1, 6)) {                                                   \
-            QEXPECT_FAIL("", "PipeWire < 1.6: tsk_01M87ZDBG6131BMAEKWA0AT0K4", mode); \
-        }                                                                             \
+#define START_OR_SKIP(output)                                                      \
+    do {                                                                           \
+        QString start_error;                                                       \
+        if (!(output).start(&start_error)) {                                       \
+            QVERIFY2(!daemon_socket_exists(), qPrintable(start_error));            \
+            SKIP_UNLESS_REQUIRED(                                                  \
+                qPrintable(QStringLiteral("no PipeWire daemon: ") + start_error)); \
+        }                                                                          \
     } while (false)
 
-#define NEED_TOOL(tool)                      \
-    do {                                     \
-        if (!have(tool)) {                   \
-            QSKIP(tool " is not installed"); \
-        }                                    \
+// PipeWire 1.4.2 drops volume and mute on an idle node and never publishes the latency; fix
+// pending. Remove with it.
+#define EXPECT_FAIL_BEFORE_1_6(mode)                                              \
+    do {                                                                          \
+        if (QVersionNumber::fromString(QLatin1String(pw_get_library_version())) < \
+            QVersionNumber(1, 6)) {                                               \
+            QEXPECT_FAIL("", "PipeWire < 1.6, fix pending", mode);                \
+        }                                                                         \
+    } while (false)
+
+#define NEED_TOOL(tool)                                     \
+    do {                                                    \
+        if (!have(tool)) {                                  \
+            SKIP_UNLESS_REQUIRED(tool " is not installed"); \
+        }                                                   \
     } while (false)
 
 class SendspinOutputTest : public QObject {

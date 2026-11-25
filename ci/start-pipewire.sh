@@ -33,7 +33,11 @@ fail() {
 
 export XDG_RUNTIME_DIR="$work/runtime"
 export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
-unset PIPEWIRE_REMOTE PIPEWIRE_RUNTIME_DIR
+# Nothing from the caller's environment steers the private daemon
+unset PIPEWIRE_REMOTE PIPEWIRE_RUNTIME_DIR PIPEWIRE_CONFIG_DIR PIPEWIRE_CONFIG_NAME \
+    WIREPLUMBER_CONFIG_DIR
+# A daemon is guaranteed here, so the audio tests fail rather than skip
+export SENDSPIN_REQUIRE_PIPEWIRE_TESTS=1
 mkdir -m 700 "$XDG_RUNTIME_DIR"
 
 # Config and state for the daemons only; the command keeps its own.
