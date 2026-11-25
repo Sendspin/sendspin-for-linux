@@ -255,6 +255,8 @@ sink. Named and drawn as the desktop does.
 - Playing along, it follows the group's volume and mute like the speakers. Alone, the desktop's
   own volume control is all there is.
 - Our own Sendspin output and the monitor of any sink are never offered here.
+- Its row says "Unavailable" while there is no such output, and "Can't play" while its delay is
+  longer than the speaker buffer; see [Playing along on this PC](#playing-along-on-this-pc).
 
 ### The server row
 
@@ -301,7 +303,8 @@ Beyond the rows above (no driver or Local Network notice, no AirPlay, no QR scan
 - **One volume slider, the group's.** The Mac has one per speaker. See [Volume](#volume).
 - **The Sendspin output's own volume scales the audio**, like any output's. On the Mac it drives
   the speakers instead.
-- **The speaker buffer doesn't grow for this PC's output** — open question 2.
+- **The speaker buffer doesn't grow for this PC's output.** One that needs more says "Can't
+  play" — open question 2.
 - **The pairing token** is offered in Settings (Copy pairing token). The Mac shows it nowhere.
 - **A speaker can tick itself** with its `switch` button; see above.
 - **No format on hover.** The library doesn't report it yet.
@@ -483,15 +486,34 @@ Two controls, independent of each other:
 
 ## Playing along on this PC
 
-- A PipeWire playback stream to the hardware output, fed the same captured audio.
-- Each frame is scheduled for when the group plays it: `GroupInput::time_of(sample_pos)`, minus
-  the delay PipeWire reports for the stream. There is no clock to sync: the server's clock is
-  this machine's.
-- The device's clock drifts from that timeline. Follow it by dropping or repeating single frames
-  inside a small dead band, with a resync at the start, after an underrun and past 1 ms (mac:
-  `README.md`, "The Mac's own output").
-- When its own latency is longer than the group's, it cannot be on time. See
-  [Open questions](#open-questions).
+- A PipeWire playback stream to the hardware output, fed the same captured audio
+  (`src/audio/play_along.*`). It has an explicit target and may not be moved, like the player's
+  stream; see [Loop guards](#loop-guards).
+- Each frame is scheduled for when the group plays it, minus the delay PipeWire reports for the
+  stream. There is no clock to sync: the server's clock is this machine's.
+- Each captured block is stamped as it is written to the group: the play time of the input's
+  head (`GroupInput::latency_us()` and the time now, which is `time_of()` the next position)
+  less what the write staged. So the app counts no positions of its own, and a block the input
+  refuses is not played here either. A timeline that moves under audio already stamped (a joiner
+  raising the buffer) is followed from the next block on.
+- The device's clock drifts from that timeline. Single frames are dropped or repeated while the
+  error, smoothed over about 200 ms, is outside a 100 µs dead band, at most one frame in 200;
+  one shot puts it right at the start, after an underrun, at a jump in the timeline and past
+  1 ms (`src/audio/drift_corrector.*`; mac: `README.md`, "The Mac's own output").
+- It takes the group's volume and mute as a gain on its samples, ramped over 10 ms.
+- The stream is open while there is sound and for 3 s after, like the speakers' streams, so the
+  device can idle. It opens within a quarter of a second of the first sound; what was due before
+  that is not played here.
+- **With no group to keep time with it plays directly**: alone, and while every added speaker is
+  away (rule 10; [Loop guards](#loop-guards), 4). Each block is due at its capture time plus the output's delay and one block. Never
+  beside a group that plays, which would be an echo.
+- **When its delay is longer than the speaker buffer it cannot be on time**, and plays nothing
+  rather than late: its row says "Can't play" until the buffer has 20 ms to spare. Its stream
+  stays open and silent meanwhile, which keeps its delay measured. The buffer is the library's
+  and the app cannot raise it. See [Open questions](#open-questions).
+- The headless mode leaves it out of the group unless given `--play-along`. The app logs its
+  timing every 5 s under `sendspin.cast`: how far off the timeline it plays, the output's delay,
+  the buffer, and the frames dropped and repeated.
 
 ## Sending to Music Assistant
 
@@ -600,8 +622,10 @@ Two controls, independent of each other:
    find the client's own advertisement. The app wraps the discovery provider
    (`ServerConfig::discovery`) and drops its own instance, and never approves, pairs or lists
    its own `client_id`. Our server taking the one client connection would also take it from MA.
-4. **Captured audio is never played directly while a speaker is ticked or a server is chosen.**
-   This PC hears it only as a group member: through play-along, or through MA.
+4. **Captured audio is never played directly beside a speaker that plays it, or while a server
+   is chosen.** This PC hears it only as a group member: through play-along, or through MA. The
+   one exception is rule 10's: while no ticked speaker is there to play, this PC's ticked output
+   plays directly, and goes back to the group's time when one is.
 5. **Speakers never get source approval.** `ApprovalScope::PLAYBACK` only.
 6. MA's auto-play default can still send a desktop's audio back to itself, delayed — open
    question 1.
@@ -721,8 +745,8 @@ Still open:
    speakers, delayed, until the user changes it. Ask MA to default it to Off or to ask during
    pairing; or point the user at the setting after pairing. Not re-checked since 2026-08-26.
 2. **This PC's output slower than the group.** A Bluetooth output can need more than the speaker
-   buffer. Raise the lead (needs the library change above), or show the row as unable to play
-   along?
+   buffer. For now its row says "Can't play". Raising the lead instead needs the server library
+   to take a floor for it from the host.
 3. **Who honours the sink's latency.** Check mpv, Firefox, Chromium and GStreamer players through
    pipewire-pulse and natively, and what PipeWire does when the latency changes mid-stream.
 4. **Switching the default output.** Ticking a speaker changes the system default, as the Mac

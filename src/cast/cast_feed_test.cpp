@@ -6,6 +6,8 @@
 #include <QTest>
 
 #include <array>
+#include <ctime>
+#include <vector>
 
 using namespace sendspin::server;
 
@@ -23,6 +25,16 @@ CapturedBlock block(int64_t time_ns, bool sound) {
         return samples;
     }();
     return {sound ? tone.data() : silence.data(), FRAMES, SendspinOutput::RATE, time_ns, !sound};
+}
+
+int64_t raw_now_ns() {
+    timespec ts{};
+    clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
+    return (static_cast<int64_t>(ts.tv_sec) * SECOND_NS) + ts.tv_nsec;
+}
+
+uint32_t queued(const PlayAlong& play_along) {
+    return play_along.queued_frames();
 }
 
 }  // namespace
@@ -118,6 +130,88 @@ private slots:
         QVERIFY(!this->feed_->input());
         QVERIFY(!this->feed_->streaming());
         QCOMPARE(this->feed_->written_frames(), 0U);
+    }
+
+    // --- This PC's own output ---
+
+    // Beside the speakers each block is due when the group plays it
+    void thisPcGetsEachBlockForWhenTheGroupPlaysIt() {
+        PlayAlong play_along;
+        this->feed_->set_play_along(&play_along);
+        this->feed_->set_local(CastFeed::Local::GROUP);
+        this->feed_->take(block(SECOND_NS, true));
+        this->feed_->take(block(SECOND_NS, true));
+        const int64_t plays_ns = this->feed_->input()->time_of(0) * 1000;
+        // Well after it was written: the speaker buffer
+        QVERIFY(plays_ns - raw_now_ns() > 20'000'000);
+
+        // An output heard 100 frames before the first frame plays waits those 100 frames
+        std::vector<float> out(2 * FRAMES * SendspinOutput::CHANNELS, -1.0F);
+        play_along.render(out.data(), 2 * FRAMES, plays_ns - (100 * SECOND_NS / 48000));
+        // To a frame or two: the stamp and time_of() read the clock a moment apart
+        QCOMPARE(out[2 * 97], 0.0F);
+        QCOMPARE(out[2 * 103], 0.25F);
+        // The second block follows the first without a seam
+        QCOMPARE(out[2 * (103 + FRAMES)], 0.25F);
+        QCOMPARE(play_along.stats().resyncs, 1U);
+    }
+
+    // Silence outside a run reaches no speaker, and not this PC either
+    void thisPcGetsWhatTheGroupGets() {
+        PlayAlong play_along;
+        this->feed_->set_play_along(&play_along);
+        this->feed_->set_local(CastFeed::Local::GROUP);
+        this->feed_->take(block(SECOND_NS, false));
+        QCOMPARE(queued(play_along), 0U);
+        this->feed_->take(block(SECOND_NS, true));
+        QCOMPARE(queued(play_along), FRAMES);
+    }
+
+    // Alone there is no group to wait for: a block is due as soon as the output can play it
+    void aloneThisPcGetsEachBlockDirectly() {
+        PlayAlong play_along;
+        this->feed_->set_play_along(&play_along);
+        this->feed_->detach();
+        this->feed_->set_local(CastFeed::Local::DIRECT);
+        this->feed_->take(block(SECOND_NS, true));
+        // One block of 10 ms after its capture, for an output whose delay is not known yet
+        std::vector<float> out(FRAMES * SendspinOutput::CHANNELS, -1.0F);
+        play_along.render(out.data(), FRAMES, SECOND_NS + 5'000'000);
+        QCOMPARE(out[2 * 239], 0.0F);
+        QCOMPARE(out[2 * 240], 0.25F);
+    }
+
+    // Captured audio is never played directly beside a group that plays it
+    void withAnInputNothingIsPlayedDirectly() {
+        PlayAlong play_along;
+        this->feed_->set_play_along(&play_along);
+        this->feed_->set_local(CastFeed::Local::DIRECT);
+        this->feed_->take(block(SECOND_NS, true));
+        QCOMPARE(queued(play_along), 0U);
+    }
+
+    void outOfTheGroupThisPcGetsNothing() {
+        PlayAlong play_along;
+        this->feed_->set_play_along(&play_along);
+        this->feed_->take(block(SECOND_NS, true));
+        this->feed_->detach();
+        this->feed_->take(block(SECOND_NS, true));
+        QCOMPARE(queued(play_along), 0U);
+    }
+
+    // Alone, silence after the sound is played for as long as a stream would stay open
+    void aloneSilenceIsPlayedOnlyWhileThereWasSound() {
+        PlayAlong play_along;
+        this->feed_->set_play_along(&play_along);
+        this->feed_->detach();
+        this->feed_->set_local(CastFeed::Local::DIRECT);
+        this->feed_->take(block(SECOND_NS, false));
+        QCOMPARE(queued(play_along), 0U);
+        this->feed_->take(block(SECOND_NS, true));
+        this->feed_->take(block(2 * SECOND_NS, false));
+        QCOMPARE(queued(play_along), 2 * FRAMES);
+        this->feed_->take(block(5 * SECOND_NS, false));
+        QCOMPARE(queued(play_along), 2 * FRAMES);
     }
 
     // The server stopping takes the input with it; the engine releases it

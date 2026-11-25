@@ -1,5 +1,6 @@
 #pragma once
 
+#include "audio/play_along.h"
 #include "audio/sendspin_output.h"
 
 #include <sendspin/server/server.h>
@@ -9,7 +10,8 @@
 #include <memory>
 
 /// @brief Writes what the Sendspin output captures into the cast group's live input, and ends
-/// the stream while there is nothing to hear.
+/// the stream while there is nothing to hear. This PC's own output gets the same blocks, each
+/// with the time it is due.
 ///
 /// take() runs on PipeWire's realtime thread and only writes; everything else is the main
 /// thread's, which ends a run from poll() because GroupInput::stop() is not real-time safe.
@@ -23,6 +25,23 @@ public:
         /// The server closed the input: release it with detach()
         CLOSED,
     };
+
+    /// @brief What this PC's own output plays
+    enum class Local : uint8_t {
+        NOTHING,
+        /// What the group's input took, when the group plays it
+        GROUP,
+        /// Every block as it comes, while there is no input: no speaker to wait for
+        DIRECT,
+    };
+
+    /// @brief This PC's own output. Before the first block; it outlives the feed's use of it.
+    void set_play_along(PlayAlong* play_along) {
+        this->play_along_ = play_along;
+    }
+    void set_local(Local local) {
+        this->local_.store(local);
+    }
 
     ~CastFeed();
 
@@ -44,7 +63,7 @@ public:
     /// @param now_ns on the clock of CapturedBlock::capture_time_ns
     State poll(int64_t now_ns);
 
-    /// @brief There was sound in the last IDLE_NS
+    /// @brief There was sound in the last IDLE_NS, with an input to take it or without
     bool has_sound(int64_t now_ns) const;
 
     /// @brief A run is open: blocks are written, silent ones included
@@ -74,4 +93,9 @@ private:
     std::atomic<bool> closed_{false};
     std::atomic<uint64_t> written_frames_{0};
     std::atomic<uint64_t> dropped_frames_{0};
+
+    PlayAlong* play_along_{nullptr};
+    std::atomic<Local> local_{Local::NOTHING};
+    /// take() only: how long after its capture a block played directly is due
+    int64_t direct_lead_ns_{0};
 };

@@ -431,6 +431,159 @@ private slots:
         QCOMPARE(code_needed.last().at(0).toString(), id);
     }
 
+    // --- This PC's own output ---
+
+    void thisPcsOutputIsInTheGroupOnceThereIsOneToPlayOn() {
+        Rig rig(this->app_dir_->path(), this->port_);
+        QVERIFY(rig.engine->start(0, false));
+        QSignalSpy changed(rig.engine.get(), &CastEngine::localChanged);
+        // In the group, and nowhere to play
+        speaker_menu::Output local = rig.engine->local_output();
+        QVERIFY(local.is_local);
+        QVERIFY(local.in_group);
+        QVERIFY(!local.plays);
+        QCOMPARE(speaker_menu::row(local, {.group_count = 1}).status, Status::UNAVAILABLE);
+
+        rig.engine->set_local_target(QByteArray("sendspin-test-nowhere"));
+        QVERIFY(rig.engine->local_output().plays);
+        QCOMPARE(speaker_menu::row(rig.engine->local_output(), {.group_count = 1}).check,
+                 Check::FILLED);
+        QVERIFY(changed.count() >= 1);
+
+        rig.engine->setLocalInGroup(false);
+        QVERIFY(!rig.engine->local_output().in_group);
+        QVERIFY(!rig.engine->local_output().plays);
+
+        // Loop guard: the Sendspin output is nowhere to play
+        rig.engine->setLocalInGroup(true);
+        rig.engine->set_local_target(rig.output.node_name());
+        QVERIFY(!rig.engine->local_output().plays);
+        QVERIFY(!rig.engine->play_along().target().has_value());
+    }
+
+    // Alone it plays what is captured as it comes; beside a speaker, when the group plays it
+    void thisPcPlaysDirectlyAloneAndAtTheGroupsTimeBesideASpeaker() {
+        constexpr int64_t MS = 1'000'000;
+        constexpr uint32_t BLOCK = 480;
+        const std::vector<float> tone(BLOCK * SendspinOutput::CHANNELS, 0.25F);
+        std::vector<float> out(BLOCK * SendspinOutput::CHANNELS);
+        Peer peer(this->speaker_dir_->path(), this->port_, true);
+        QVERIFY(peer.started);
+        Rig rig(this->app_dir_->path(), this->port_);
+        QVERIFY(rig.engine->start(0, false));
+        // Nothing in the graph has this name, so no stream runs and the test is the output
+        rig.engine->set_local_target(QByteArray("sendspin-test-nowhere"));
+        PlayAlong& play_along = rig.engine->play_along();
+
+        // Alone: due one 10 ms block after its capture
+        int64_t captured_ns = raw_now_ns();
+        rig.engine->feed().take({tone.data(), BLOCK, SendspinOutput::RATE, captured_ns, false});
+        QCOMPARE(play_along.queued_frames(), BLOCK);
+        play_along.render(out.data(), BLOCK, captured_ns + (5 * MS));
+        QCOMPARE(out[2 * 239], 0.0F);
+        QCOMPARE(out[2 * 240], 0.25F);
+        play_along.render(out.data(), BLOCK, captured_ns + (15 * MS));
+        QCOMPARE(play_along.queued_frames(), 0U);
+
+        // Beside a speaker: with the group, after the speaker buffer
+        QTRY_VERIFY(rig.row(peer.id()) != nullptr);
+        rig.engine->add(peer.id());
+        QTRY_VERIFY(rig.engine->feed().input() != nullptr);
+        QTRY_COMPARE(rig.engine->feed().input()->state(), sendspin::server::InputState::OPEN);
+        captured_ns = raw_now_ns();
+        rig.engine->feed().take({tone.data(), BLOCK, SendspinOutput::RATE, captured_ns, false});
+        QCOMPARE(play_along.queued_frames(), BLOCK);
+        const int64_t plays_ns = rig.engine->feed().input()->time_of(0) * 1000;
+        QVERIFY(plays_ns - captured_ns > CastEngine::WRITE_JITTER_US * 1000);
+        // Not when it was captured
+        play_along.render(out.data(), BLOCK, captured_ns + (5 * MS));
+        QCOMPARE(std::ranges::count(out, 0.0F), 2 * BLOCK);
+        QCOMPARE(play_along.queued_frames(), BLOCK);
+        // When the group plays it
+        play_along.render(out.data(), BLOCK, plays_ns - (100 * 1'000'000'000LL / 48000));
+        QCOMPARE(out[2 * 97], 0.0F);
+        QCOMPARE(out[2 * 103], 0.25F);
+
+        // Out of the group it gets nothing
+        const uint32_t left = play_along.queued_frames();
+        rig.engine->setLocalInGroup(false);
+        rig.engine->feed().take({tone.data(), BLOCK, SendspinOutput::RATE, raw_now_ns(), false});
+        QCOMPARE(play_along.queued_frames(), left);
+    }
+
+    // Beside a speaker it takes the group's volume and mute; alone the desktop's is all there is
+    void thisPcFollowsTheGroupsVolumeOnlyBesideASpeaker() {
+        Peer peer(this->speaker_dir_->path(), this->port_, true);
+        QVERIFY(peer.started);
+        Rig rig(this->app_dir_->path(), this->port_);
+        QVERIFY(rig.engine->start(0, false));
+        rig.engine->set_local_target(QByteArray("sendspin-test-nowhere"));
+        rig.engine->setGroupVolume(25);
+        QTest::qWait(300);
+        QCOMPARE(rig.engine->play_along().gain(), 1.0F);
+
+        QTRY_VERIFY(rig.row(peer.id()) != nullptr);
+        rig.engine->add(peer.id());
+        QTRY_COMPARE(rig.engine->play_along().gain(), 0.125F);
+        rig.engine->setGroupMuted(true);
+        QTRY_COMPARE(rig.engine->play_along().gain(), 0.0F);
+        rig.engine->setGroupMuted(false);
+        rig.engine->remove(peer.id());
+        QTRY_COMPARE(rig.engine->play_along().gain(), 1.0F);
+    }
+
+    // An output slower than the speaker buffer stays out, steadily, and comes back once it fits
+    void anOutputSlowerThanTheSpeakerBufferCantPlayAndDoesNotComeAndGo() {
+        constexpr int64_t MS = 1'000'000;
+        constexpr uint32_t BLOCK = 480;
+        const std::vector<float> tone(BLOCK * SendspinOutput::CHANNELS, 0.25F);
+        Peer peer(this->speaker_dir_->path(), this->port_, true);
+        QVERIFY(peer.started);
+        Rig rig(this->app_dir_->path(), this->port_);
+        QVERIFY(rig.engine->start(0, false));
+        rig.engine->set_local_target(QByteArray("sendspin-test-nowhere"));
+        PlayAlong& play_along = rig.engine->play_along();
+        QTRY_VERIFY(rig.row(peer.id()) != nullptr);
+        rig.engine->add(peer.id());
+        QTRY_VERIFY(rig.engine->feed().input() != nullptr);
+        QTRY_COMPARE(rig.engine->feed().input()->state(), sendspin::server::InputState::OPEN);
+        const auto take = [&] {
+            rig.engine->feed().take(
+                {tone.data(), BLOCK, SendspinOutput::RATE, raw_now_ns(), false});
+        };
+        take();
+        const int64_t buffer_ns = rig.engine->feed().input()->latency_us() * 1000;
+        QVERIFY(buffer_ns > 60 * MS);
+        QVERIFY(rig.engine->local_output().plays);
+        QSignalSpy changed(rig.engine.get(), &CastEngine::localChanged);
+
+        // As a Bluetooth output can be: it needs its audio longer ahead than the speakers do
+        play_along.set_delay(buffer_ns + (100 * MS));
+        QTRY_VERIFY(!rig.engine->local_output().plays);
+        QCOMPARE(speaker_menu::row(rig.engine->local_output(), {.group_count = 2}).status,
+                 Status::CANT_PLAY);
+        QCOMPARE(changed.count(), 1);
+        // It gets nothing to play late
+        const uint32_t queued = play_along.queued_frames();
+        take();
+        QCOMPARE(play_along.queued_frames(), queued);
+
+        // Steadily: a delay that is unknown for a while, or fits only just, changes nothing
+        play_along.set_delay(0);
+        QTest::qWait(600);
+        play_along.set_delay(buffer_ns - (15 * MS));
+        QTest::qWait(600);
+        QVERIFY(!rig.engine->local_output().plays);
+        QCOMPARE(changed.count(), 1);
+
+        // With room to spare it plays along again
+        play_along.set_delay(20 * MS);
+        QTRY_VERIFY(rig.engine->local_output().plays);
+        QCOMPARE(changed.count(), 2);
+        take();
+        QCOMPARE(play_along.queued_frames(), queued + BLOCK);
+    }
+
     // Loop guard 3, whatever way it got to the server
     void thisAppsOwnClientIsNeverListed() {
         Peer own(this->speaker_dir_->path(), this->port_, true);
