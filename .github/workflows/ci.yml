@@ -38,6 +38,12 @@ jobs:
               dnf -y install cmake ninja-build gcc-c++ git patch pkgconf-pkg-config xz
               qt6-qtbase-devel qt6-qtdeclarative-devel pipewire-devel avahi-devel openssl-devel
               dbus-daemon pipewire pipewire-utils wireplumber gnupg2
+          - name: Fedora 45
+            image: registry.fedoraproject.org/fedora:45
+            install: >-
+              dnf -y install cmake ninja-build gcc-c++ git patch pkgconf-pkg-config xz
+              qt6-qtbase-devel qt6-qtdeclarative-devel pipewire-devel avahi-devel openssl-devel
+              dbus-daemon pipewire pipewire-utils wireplumber gnupg2
           - name: Fedora 44 (ASan + UBSan)
             image: registry.fedoraproject.org/fedora:44
             install: >-

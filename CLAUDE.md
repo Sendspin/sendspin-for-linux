@@ -25,9 +25,9 @@ ci/start-pipewire.sh ctest --test-dir build
 `tests/interop/run.sh` runs the built app against other implementations, under the same private
 PipeWire: see `tests/interop/` below.
 
-CI builds in Fedora 44, Debian 13 and Ubuntu 26.04 containers, runs the tests there against a
-headless PipeWire, repeats them under the sanitizers on Fedora, runs the interop tests on Fedora,
-and checks formatting. Debian 13 is the floor: do not use Qt newer than 6.8 or PipeWire newer
+CI builds in Fedora 44 and 45, Debian 13 and Ubuntu 26.04 containers, runs the tests there
+against a headless PipeWire, repeats them under the sanitizers and runs the interop tests on
+Fedora 44, and checks formatting. Debian 13 is the floor: do not use Qt newer than 6.8 or PipeWire newer
 than 1.4.2 API without a fallback.
 
 ## Conventions

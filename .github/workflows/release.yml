@@ -56,6 +56,7 @@ jobs:
           sendspin-for-linux-$VERSION-archlinux-x86_64.pkg.tar.zst
           sendspin-for-linux-$VERSION-debian13-amd64.deb
           sendspin-for-linux-$VERSION-fedora44-x86_64.rpm
+          sendspin-for-linux-$VERSION-fedora45-x86_64.rpm
           sendspin-for-linux-$VERSION-ubuntu26.04-amd64.deb
           sendspin-for-linux-$VERSION-x86_64.flatpak
           sendspin-for-linux-$VERSION.tar.xz"
