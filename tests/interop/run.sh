@@ -14,14 +14,14 @@ CLI_SHA256=b4b8b06789979295fbc24e858f5c546959e24bb619dab167db372138d0d1e8bd
 
 root=$(cd "$(dirname "$0")/../.." && pwd)
 cd "$root"
+cache=${XDG_CACHE_HOME:-$HOME/.cache}/sendspin-interop
+mkdir -p "$cache"
 
 if [ -z "${SENDSPIN_CLI:-}" ]; then
     [ "$(uname -m)" = x86_64 ] || { echo "run.sh: set SENDSPIN_CLI; the pinned player is x86_64" >&2; exit 2; }
     name=sendspin-cli-$CLI_VERSION-linux-x86_64
-    cache=${XDG_CACHE_HOME:-$HOME/.cache}/sendspin-interop
     SENDSPIN_CLI=$cache/$name/usr/local/bin/sendspin-cli
     if [ ! -x "$SENDSPIN_CLI" ]; then
-        mkdir -p "$cache"
         curl -fsSL -o "$cache/$name.tar.gz" \
             "https://github.com/Sendspin/sendspin-cpp-cli/releases/download/v$CLI_VERSION/$name.tar.gz"
         echo "$CLI_SHA256  $cache/$name.tar.gz" | sha256sum -c - >/dev/null
@@ -30,6 +30,9 @@ if [ -z "${SENDSPIN_CLI:-}" ]; then
     export SENDSPIN_CLI
 fi
 
-exec ci/start-pipewire.sh \
-    uv run --no-project --with-requirements tests/interop/requirements.txt \
-    pytest tests/interop -v -p no:cacheprovider "$@"
+# requirements.txt is requirements.in locked, hashes and all:
+#     uv pip compile --generate-hashes tests/interop/requirements.in -o tests/interop/requirements.txt
+uv venv --quiet --allow-existing "$cache/venv"
+uv pip install --quiet --python "$cache/venv" --require-hashes -r tests/interop/requirements.txt
+
+exec ci/start-pipewire.sh "$cache/venv/bin/pytest" tests/interop -v -p no:cacheprovider "$@"

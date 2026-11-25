@@ -59,7 +59,8 @@ than 1.4.2 API without a fallback.
 - `tests/interop/` — the app end to end, in Python on pytest, run by `uv`: `test_cast.py` casts to
   a real sendspin-cpp-cli player, `test_music_assistant.py` is a server on aiosendspin that pairs
   with the app's client, takes its source and plays to it. Both versions are pinned there
-  (`run.sh`, `requirements.txt`). No mDNS: each side is given the other's loopback URL. A test
+  (`run.sh`; `requirements.in`, locked with hashes in `requirements.txt`). No mDNS and no system
+  bus: each side is given the other's loopback URL. A test
   that fails for a known upstream bug is a strict `xfail` naming the issue.
 - `cmake/sendspin_libs.cmake` — the pinned Sendspin libraries. Both fetch the same third-party
   dependencies; the order of declarations there is what keeps them to one copy. Fix collisions

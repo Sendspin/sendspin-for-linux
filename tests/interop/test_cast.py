@@ -10,18 +10,26 @@ import time
 from pathlib import Path
 
 import pytest
-from harness import APP, Process, free_port, play_to_sendspin, private_env, wait_until, write_tone
+from harness import APP, Process, free_port, kill_children, play_to_sendspin, private_env, wait_until, write_tone
 
 CLI = os.environ.get("SENDSPIN_CLI", "sendspin-cli")
 NAME = "Interop Speaker"
 TICKED = r"\[x\] " + NAME
 UNTICKED = r"\[ \] " + NAME
 
-# Remove both marks when a server pin with the fix lands: they fail the run once the player plays
+
+
+class NotStreaming(AssertionError):
+    """The player answers, and says no stream has started."""
+
+
+# Only the player staying silent is expected; anything else that goes wrong fails the test.
+# Remove both marks when a server pin with the fix lands: they fail the run once the player plays.
 SILENT_PLAYER = pytest.mark.xfail(
     strict=True,
+    raises=NotStreaming,
     reason="sendspin-server-cpp sends stream/start before it declares playback, which a player on "
-    "sendspin-cpp >= v0.10.0 ignores: Sendspin/sendspin-server-cpp#107",
+    "sendspin-cpp >= v0.10.0 ignores; fixed by Sendspin/sendspin-server-cpp#108",
 )
 
 
@@ -77,21 +85,34 @@ class Cast:
             ) from None
 
 
+    def expect_streaming(self, timeout: float = 3.0):
+        deadline = time.monotonic() + timeout
+        while self.status()["streaming"] != "1":
+            if time.monotonic() > deadline:
+                raise NotStreaming(f"the player started no stream; it ended with:\n{self.player.tail()}")
+            time.sleep(0.1)
+
+
 @pytest.fixture(scope="module")
 def cast(tmp_path_factory):
-    cast = Cast(tmp_path_factory.mktemp("cast"))
-    cast.start_app("--add", NAME)
-    yield cast
-    cast.app.stop()
-    assert cast.player.stop(signal.SIGTERM) == 0, cast.player.tail()
+    try:
+        cast = Cast(tmp_path_factory.mktemp("cast"))
+        cast.start_app("--add", NAME)
+        yield cast
+        cast.stop_app()
+        assert cast.player.stop(signal.SIGTERM) == 0, cast.player.tail()
+    finally:
+        kill_children()
 
 
 @pytest.fixture
 def tone(cast):
     playing = play_to_sendspin(cast.tone)
-    yield playing
-    playing.kill()
-    playing.wait()
+    try:
+        yield playing
+    finally:
+        playing.kill()
+        playing.wait()
 
 
 def test_an_added_player_joins_the_group(cast):
@@ -115,7 +136,7 @@ def test_the_app_casts_what_plays_to_the_sendspin_output(cast, tone):
 
 @SILENT_PLAYER
 def test_the_player_gets_the_sound(cast, tone):
-    cast.expect_status(3, streaming="1")
+    cast.expect_streaming()
 
 
 @SILENT_PLAYER
@@ -126,7 +147,7 @@ def test_the_sound_comes_back_after_an_idle_stop(cast):
     cast.expect_status(streaming="0")
     playing = play_to_sendspin(cast.tone)
     try:
-        cast.expect_status(3, streaming="1")
+        cast.expect_streaming()
     finally:
         playing.kill()
         playing.wait()

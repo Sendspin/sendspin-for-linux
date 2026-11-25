@@ -18,6 +18,17 @@ RATE = 48000
 # A player prints its pairing token and codes; they stay out of what a failure quotes
 SECRET = re.compile(r"SP:|PSK|[Pp]airing code")
 
+# Every process a test started, so that none outlives a test that failed half way
+_children: list[subprocess.Popen] = []
+
+
+def kill_children():
+    for child in _children:
+        if child.poll() is None:
+            child.kill()
+            child.wait()
+    _children.clear()
+
 
 def free_port() -> int:
     with socket.socket() as probe:
@@ -34,6 +45,9 @@ def private_env(home: Path) -> dict[str, str]:
         "QT_QPA_PLATFORM": "offscreen",
         # Fedora's Qt logs to the journal when stderr is no terminal
         "QT_FORCE_STDERR_LOGGING": "1",
+        # No system bus, so no avahi: on a desktop the app would advertise itself and dial the
+        # speakers of the house
+        "DBUS_SYSTEM_BUS_ADDRESS": "unix:path=/nonexistent",
     }
 
 
@@ -61,7 +75,9 @@ def write_tone(path: Path, hz: int, seconds: float) -> Path:
 
 def play_to_sendspin(tone: Path) -> subprocess.Popen:
     """Plays a file into the app's Sendspin output, as a desktop app would."""
-    return subprocess.Popen(["pw-play", "--target", "sendspin", str(tone)])
+    playing = subprocess.Popen(["pw-play", "--target", "sendspin", str(tone)])
+    _children.append(playing)
+    return playing
 
 
 class Process:
@@ -73,6 +89,7 @@ class Process:
         self._process = subprocess.Popen(
             argv, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace"
         )
+        _children.append(self._process)
         threading.Thread(target=self._read, daemon=True).start()
 
     def _read(self):

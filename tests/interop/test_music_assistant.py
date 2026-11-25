@@ -21,10 +21,10 @@ from aiosendspin.noise.pairing import PairingAttempt
 from aiosendspin.noise.trust_store import InMemoryServerPairingStore
 from aiosendspin.server import AudioFormat, ClientAddedEvent, SendspinServer, SourceStreamStartedEvent
 from aiosendspin.server.roles.metadata import Metadata
-from dbus_fast import Message, MessageType
+from dbus_fast import Message, MessageType, RequestNameReply
 from dbus_fast.aio import MessageBus
 from dbus_fast.service import ServiceInterface, method
-from harness import APP, RATE, Process, play_to_sendspin, private_env, write_tone
+from harness import APP, RATE, Process, kill_children, play_to_sendspin, private_env, write_tone
 
 MPRIS = "org.mpris.MediaPlayer2.com.sendspin_audio.Sendspin"
 SOURCE_HZ = 440
@@ -87,7 +87,9 @@ class MusicAssistant:
         self.bus = await MessageBus().connect()
         self.notifications = Notifications()
         self.bus.export("/org/freedesktop/Notifications", self.notifications)
-        await self.bus.request_name("org.freedesktop.Notifications")
+        # Ours alone, or the code would go to a real notification daemon
+        owned = await self.bus.request_name("org.freedesktop.Notifications")
+        assert owned == RequestNameReply.PRIMARY_OWNER, "another notification service is on this bus"
 
         self.app = Process("the app", [APP], private_env(self.home))
         port = int(self.app.wait_for(r"sendspin\.client: listening on port (\d+)").group(1))
@@ -168,9 +170,9 @@ def ma(tmp_path_factory):
         ma.run(ma.start())
         yield ma
         ma.run(ma.stop())
+        ma.app.stop()
     finally:
-        if ma.app:
-            ma.app.stop()
+        kill_children()
         ma.loop.close()
 
 
