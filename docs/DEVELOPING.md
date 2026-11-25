@@ -69,8 +69,6 @@ tests/interop/run.sh
 ```
 
 The player is downloaded once, an x86_64 release pinned in `run.sh`; `SENDSPIN_CLI` names another.
-Two of the cast tests are expected to fail until the silent-speaker problem below is fixed
-upstream, and fail the run when they start passing.
 
 ## Casting without the UI
 
@@ -92,10 +90,6 @@ With this PC's output ticked in the picker beside a speaker, the app plays along
 system's default output, or the one that was the default before the Sendspin output. With
 `--verbose` it logs every 5 s how far off the group's time it plays. An output whose delay is longer than the speakers' buffer, as Bluetooth's can be, cannot
 play along and stays silent.
-
-A speaker built on sendspin-cpp v0.10.0 or later stays silent for now: sendspin-server-cpp
-starts its stream before it declares playback, which those clients ignore. See "Depends on" in
-[SPEC.md](SPEC.md#depends-on).
 
 ## Logging
 

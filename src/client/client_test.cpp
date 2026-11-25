@@ -330,7 +330,15 @@ private slots:
         QVERIFY(client.pairing_code().isEmpty());
         QCOMPARE(codes.size(), 2);
 
+        // The server takes the PC as an input on the connection it paired over
+        const auto group = this->server_.default_group();
+        QVERIFY(group.has_value());
+        const server::RoutedSource route = this->server_.route_source(id, *group);
+        QCOMPARE(route.result, server::RouteSourceResult::OK);
+        QTRY_VERIFY(client.source().streaming());
+
         client.stop();
+        QVERIFY(!client.source().streaming());
         QCOMPARE(client.state(), Client::State::Stopped);
         QTRY_VERIFY(!this->events_.get(&ServerEvents::connected));
     }
@@ -358,9 +366,6 @@ private slots:
         // A player that was never set starts at full volume, not the library's 0
         QTRY_COMPARE(client.now_playing().volume(), 100);
 
-        // Streaming is checked on this session and not right after pairing: there the server
-        // starts the source without declaring `playback`, which roles/source/v1.md forbids and
-        // the client rightly ignores (Sendspin/sendspin-server-cpp#107)
         const std::string id = this->client_id_.toStdString();
         // The server takes the PC as an input
         const auto group = this->server_.default_group();
@@ -419,12 +424,6 @@ private slots:
         QTRY_COMPARE(client.state(), Client::State::Connected);
         QVERIFY(this->server_.approve(client.client_id().toStdString(),
                                       server::ApprovalScope::PLAYBACK));
-        // On a new session: the server activates this one without `playback`
-        // (Sendspin/sendspin-server-cpp#107)
-        client.stop();
-        QTRY_VERIFY(!this->events_.get(&ServerEvents::connected));
-        QVERIFY(client.start());
-        this->dial();
 
         const auto group = this->server_.default_group();
         QVERIFY(group.has_value());

@@ -101,14 +101,6 @@ struct Rig {
 
 }  // namespace
 
-// The pinned sendspin-server-cpp (f217a96) sends a run's stream/start ahead of the
-// server/activate that declares `playback`, and the pinned sendspin-cpp (v0.10.0) ignores a
-// stream/start that comes without it, as the spec now asks. Until a server that orders them the
-// other way is pinned, the speaker in these tests gets no stream. This marks the one check after
-// it; the test goes on. An unexpected pass fails the test: take the mark out then.
-#define EXPECT_STREAM_IGNORED() \
-    QEXPECT_FAIL("", "sendspin-server-cpp sends stream/start before it declares playback", Continue)
-
 // The engine against a real sendspin-cpp player on the loopback interface.
 class CastEngineTest : public QObject {
     Q_OBJECT
@@ -195,13 +187,10 @@ private slots:
         QTRY_VERIFY(rig.engine->feed().input() != nullptr);
 
         rig.play(1500);
-        EXPECT_STREAM_IGNORED();
         QTRY_VERIFY_WITH_TIMEOUT(peer.loud_samples.load() > 0, 2000);
-        EXPECT_STREAM_IGNORED();
         QCOMPARE(peer.streams_started, 1);
 
         rig.engine->remove(peer.id());
-        EXPECT_STREAM_IGNORED();
         QTRY_COMPARE_WITH_TIMEOUT(peer.streams_ended, 1, 2000);
         // Whatever it heard before, it hears nothing more and no stream opens
         QTRY_COMPARE(rig.check(peer.id()), Check::EMPTY);
@@ -299,11 +288,8 @@ private slots:
         QVERIFY(rig.engine->playing());
 
         // What the speaker saw of it: two streams, with an end between them
-        EXPECT_STREAM_IGNORED();
         QCOMPARE(peer.streams_started, 2);
-        EXPECT_STREAM_IGNORED();
         QVERIFY(peer.streams_ended >= 1);
-        EXPECT_STREAM_IGNORED();
         QVERIFY(peer.loud_samples.load() > 0);
     }
 
