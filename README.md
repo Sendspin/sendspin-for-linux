@@ -4,8 +4,11 @@ A [Sendspin](https://github.com/Sendspin/spec) desktop app for Linux: a tray app
 Music Assistant on this machine, offers its audio as a source, and casts what the desktop plays
 to Sendspin speakers. It is built on [sendspin-cpp](https://github.com/Sendspin/sendspin-cpp)
 and [sendspin-server-cpp](https://github.com/Sendspin/sendspin-server-cpp) with Qt 6 and
-PipeWire. The design is in [docs/SPEC.md](docs/SPEC.md). So far this is the skeleton: a tray
-icon, one instance per session, and key storage.
+PipeWire. The design is in [docs/SPEC.md](docs/SPEC.md).
+
+So far: the "Sendspin" output device, and the PC as an input source for Music Assistant. MA
+finds the PC on the network; pair it there with the code that pops up here, then pick the PC as
+an input. Casting to speakers, playing MA on this PC and the picker are still to come.
 
 ## Build
 
