@@ -140,5 +140,10 @@ ScrollView {
             checked: page.settings.mediaControls
             onToggled: page.settings.mediaControls = checked
         }
+        Switch {
+            text: qsTr("Show a notification when a track starts playing here")
+            checked: page.settings.trackNotifications
+            onToggled: page.settings.trackNotifications = checked
+        }
     }
 }

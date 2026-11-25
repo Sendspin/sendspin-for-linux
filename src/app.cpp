@@ -119,7 +119,7 @@ App::App(const std::filesystem::path& data_dir, QObject* parent)
     connect(&this->client_, &Client::pairingCodeChanged, this, &App::on_pairing_code_);
     connect(&this->client_, &Client::pairingApprovalNeededChanged, this,
             &App::on_pairing_approval_needed_);
-    // Every notification is about a server pairing
+    // Every notification of this one is about a server pairing
     connect(&this->notifier_, &Notifier::clicked, this, [this](const QString& activationToken) {
         this->show_settings_(Section::MusicAssistant, activationToken);
     });
@@ -134,6 +134,23 @@ App::App(const std::filesystem::path& data_dir, QObject* parent)
     });
     connect(&this->client_, &Client::pairingEnded, this,
             [this] { this->show_result_(tr("Pairing ended")); });
+
+    const auto announce = [this] {
+        const NowPlaying& now_playing = this->client_.now_playing();
+        this->announcer_.update(now_playing.playing(), now_playing.track(), now_playing.artwork());
+    };
+    connect(&this->client_.now_playing(), &NowPlaying::changed, this, announce);
+    connect(&this->announcer_, &TrackAnnouncer::announced, &this->track_notifier_,
+            &Notifier::show_track);
+    connect(&this->track_notifier_, &Notifier::clicked, this, &App::showPicker);
+    connect(&this->settings_, &SettingsModel::trackNotificationsChanged, this, [this] {
+        const bool enabled = this->settings_.track_notifications();
+        this->announcer_.set_enabled(enabled);
+        if (!enabled) {
+            this->track_notifier_.close();
+        }
+    });
+    this->announcer_.set_enabled(SettingsModel::stored_track_notifications());
 
     connect(&this->settings_, &SettingsModel::updateChanged, this, &App::show_update_);
     connect(&this->installer_, &UpdateInstaller::installed, this, &App::restart_);

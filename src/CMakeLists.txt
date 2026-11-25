@@ -30,6 +30,7 @@ add_library(sendspin_app STATIC
     picker/picker_window.cpp
     settings_model.cpp
     single_instance.cpp
+    track_announcer.cpp
     update_checker.cpp
     update_installer.cpp
 )
@@ -183,6 +184,7 @@ if(BUILD_TESTING)
     sendspin_add_test(picker/picker_test)
     sendspin_add_test(settings_model_test)
     sendspin_add_test(single_instance_test)
+    sendspin_add_test(track_announcer_test)
     sendspin_add_test(update_checker_test)
     sendspin_add_test(update_installer_test)
 

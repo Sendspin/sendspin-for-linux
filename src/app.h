@@ -11,6 +11,7 @@
 #include "picker/picker.h"
 #include "picker/picker_window.h"
 #include "settings_model.h"
+#include "track_announcer.h"
 
 #include <QAction>
 #include <QIcon>
@@ -89,7 +90,8 @@ private:
     QSystemTrayIcon tray_;
     /// The icon the tray has, so it is only set when it changes
     QString tray_icon_;
-    Notifier notifier_;
+    /// The server pairing's
+    Notifier notifier_{QStringLiteral("pairing")};
     /// The notification up, when it is one to take down again
     enum class Notice { None, Code, Approval };
     Notice notice_{Notice::None};
@@ -100,6 +102,9 @@ private:
     Outputs outputs_;
     Client client_;
     Mpris mpris_;
+    /// The track a server plays here, for those who switched it on; beside the pairing's
+    Notifier track_notifier_{QStringLiteral("now-playing")};
+    TrackAnnouncer announcer_;
     CastEngine cast_;
     // After the client and the engine, so its capture thread is gone before what it writes to
     SendspinOutput output_;

@@ -69,7 +69,9 @@ than 1.4.2 API without a fallback.
   under Flatpak. Either starts the app with `--background`. The portal's entry has the same
   name as the user's own, and is left alone.
 - `src/client/` — the Sendspin client and its roles. `src/mpris.*` shows what a server plays here;
-  its bus test needs a session bus and skips without one.
+  its bus test needs a session bus and skips without one. `src/track_announcer.*` says when a
+  track is worth a notification, as plain logic; `src/notifier.*` shows it, and the pairing
+  notification, each under its own id.
 - `src/settings_model.*` — what the Settings window shows and changes; `src/qml/` is the window,
   one file per section, with no logic of its own. `app_test` loads it and fails on anything the
   QML engine warns of.

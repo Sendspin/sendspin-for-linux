@@ -104,6 +104,7 @@ private slots:
         QVERIFY(!model.open_at_login());
         QVERIFY(model.unpaired_access());
         QVERIFY(model.media_controls());
+        QVERIFY(!model.track_notifications());
         // Looking writes nothing
         QVERIFY(conf().allKeys().isEmpty());
     }
@@ -119,6 +120,10 @@ private slots:
             model.setOutput("alsa_output.usb-dac");
             model.setUnpairedAccess(false);
             model.setMediaControls(false);
+            QSignalSpy tracks(&model, &SettingsModel::trackNotificationsChanged);
+            model.setTrackNotifications(true);
+            model.setTrackNotifications(true);
+            QCOMPARE(tracks.size(), 1);
             QCOMPARE(unpaired.size(), 1);
             QCOMPARE(controls.size(), 1);
             // The same again is no change
@@ -129,6 +134,7 @@ private slots:
         QCOMPARE(conf().value("player/output").toString(), "alsa_output.usb-dac");
         QCOMPARE(conf().value("client/unpaired_access").toBool(), false);
         QCOMPARE(conf().value("mpris/enabled").toBool(), false);
+        QCOMPARE(conf().value("notifications/now_playing").toBool(), true);
 
         Parts parts(dir.path());
         QCOMPARE(parts.client.name(), "Den PC");
@@ -137,6 +143,7 @@ private slots:
         QCOMPARE(parts.model->output(), "alsa_output.usb-dac");
         QVERIFY(!parts.model->unpaired_access());
         QVERIFY(!parts.model->media_controls());
+        QVERIFY(parts.model->track_notifications());
     }
 
     void aNewDeviceNameWaitsForTheNextStart() {

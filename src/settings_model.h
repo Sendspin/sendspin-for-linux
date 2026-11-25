@@ -47,6 +47,8 @@ class SettingsModel : public QObject {
                    unpairedAccessChanged)
     Q_PROPERTY(
         bool mediaControls READ media_controls WRITE setMediaControls NOTIFY mediaControlsChanged)
+    Q_PROPERTY(bool trackNotifications READ track_notifications WRITE setTrackNotifications NOTIFY
+                   trackNotificationsChanged)
 
 public:
     /// Where pairing a speaker from Settings stands
@@ -74,6 +76,7 @@ public:
     static QByteArray stored_output();
     static bool stored_unpaired_access();
     static bool stored_media_controls();
+    static bool stored_track_notifications();
 
     SettingsModel(Client& client, CastEngine& cast, Outputs& outputs, Mpris& mpris,
                   PairedServers& servers, UpdateChecker& updates, UpdateInstaller& installer,
@@ -124,6 +127,7 @@ public:
     QVariantList paired_servers() const;
     bool unpaired_access() const;
     bool media_controls() const;
+    bool track_notifications() const;
 
     /// @brief text as a QR code, one pixel a module, with its quiet zone
     static QImage qr_image(const QString& text);
@@ -139,6 +143,7 @@ public slots:
     void installUpdate();
     void setUnpairedAccess(bool allowed);
     void setMediaControls(bool enabled);
+    void setTrackNotifications(bool enabled);
 
     // id is a row's SpeakerModel::IdRole
 
@@ -170,6 +175,7 @@ signals:
     void pairedServersChanged();
     void unpairedAccessChanged();
     void mediaControlsChanged();
+    void trackNotificationsChanged();
 
 private:
     void set_step_(PairingStep step, const QString& message = {});

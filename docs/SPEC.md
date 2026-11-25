@@ -116,12 +116,13 @@ tray, that is the only way in; its gear button opens Settings.
 - *Music Assistant:* which server is connected, or none; the pairing code while pairing, as
   digits or as a QR code, whichever the server asked for; Allow pairing, when the library holds
   pairing back; the servers this PC paired with, from the app's own record of `on_paired()`;
-  Copy pairing token; allow playback without pairing (on by default); media controls on/off.
+  Copy pairing token; allow playback without pairing (on by default); media controls on/off;
+  a notification when a track starts playing here (off by default).
 
 It is Qt Quick, like the picker: one toolkit for the app's windows, in the desktop's palette
 (the Fusion style, unless the desktop brings its own). It opens from the tray menu, the picker's
-gear and a click on a pairing notification. The
-settings are kept in `~/.config/sendspin/sendspin.conf`; open at login is an XDG autostart entry,
+gear and a click on a pairing notification; a click on a track's notification opens the picker.
+The settings are kept in `~/.config/sendspin/sendspin.conf`; open at login is an XDG autostart entry,
 `com.sendspin_audio.Sendspin.desktop`: the one a package installs, and the user's own in
 `~/.config/autostart/` where theirs differs. Under Flatpak it is the Background portal's.
 
@@ -580,6 +581,28 @@ Two controls, independent of each other:
 - MPRIS never describes what the PC casts: the app playing into the Sendspin output keeps its own
   card and controls.
 
+### A notification for the track
+
+- Off unless switched on in Settings (`notifications/now_playing`). Only for what a server plays
+  to this PC: what the PC casts has no track to name.
+- Shown when playing starts, and when the track changes while it plays: another title, artist or
+  album. A pause, a resume, a seek, the position moving on and the same metadata again show
+  nothing. A track that changed while paused shows when it plays. Idle, stopped with no track,
+  forgets the last one, so the same track after it is a start.
+- A track is due a second after it arrived, so skipping through an album shows the one it stops
+  on. The second also lets the cover follow its track.
+- The title is the summary, `Artist — Album` the body, the cover the picture: scaled to 256
+  pixels and sent as the `image-data` hint, so it needs neither MPRIS switched on nor a file
+  that outlives the track. A track with no title shows nothing.
+- One notification, which the next track replaces, apart from the pairing notification and its
+  id. `transient`, so it does not pile up in the desktop's list, and gone at the desktop's own
+  timeout. Normal urgency, not low: GNOME shows no banner for low urgency, only a line in its
+  list, and a transient one would then never leave it. No sound hint. A click opens the picker.
+- Through the portal, under Flatpak: the cover is the `icon`, as PNG bytes and cropped square;
+  priority `normal`, for the same reason; only keys version 1 of the portal knows, as that
+  version turns down a notification with any other. The portal has no timeout: the app removes
+  the notification after ten seconds, which is also what keeps it out of the list.
+
 ## Timing
 
 - **The speaker buffer is the library's.** The server computes the group's lead from what each
@@ -679,8 +702,8 @@ Listed in this order in the README and on the website:
    - `--talk-name=org.kde.StatusNotifierWatcher`
    - `--system-talk-name=org.freedesktop.Avahi`
    - MPRIS name is auto-granted — do not declare it
-   - Notification portal for the pairing notification, which needs no permission. The other
-     builds talk to `org.freedesktop.Notifications` themselves.
+   - Notification portal for the pairing notification and the track's, which needs no
+     permission. The other builds talk to `org.freedesktop.Notifications` themselves.
    - Background portal for autostart. Only this build gets GNOME's Background Apps entry. The
      app asks again at each start, which is how it learns that the desktop's settings took the
      permission back. The portal's entry has the name of a package's own: with both installed,

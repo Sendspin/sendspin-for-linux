@@ -34,16 +34,18 @@ SINK = "ci-null-sink"
 
 
 class Notifications(ServiceInterface):
-    """The desktop's notifications, which is where the app shows its pairing code."""
+    """The desktop's notifications, which is where the app shows its pairing code and its track."""
 
     def __init__(self):
         super().__init__("org.freedesktop.Notifications")
         self.summaries: list[str] = []
+        self.shown: dict[str, tuple[str, dict]] = {}  # by summary: the body and the hints
 
     @method()
     def Notify(self, app_name: "s", replaces_id: "u", app_icon: "s", summary: "s", body: "s",
                actions: "as", hints: "a{sv}", expire_timeout: "i") -> "u":  # fmt: skip
         self.summaries.append(summary)
+        self.shown[summary] = (body, {name: hint.value for name, hint in hints.items()})
         return replaces_id or 1
 
     @method()
@@ -95,7 +97,7 @@ class MusicAssistant:
         # the PC's sound go to it rather than to speakers or this PC's own output
         settings = self.home / "config" / "sendspin" / "sendspin.conf"
         settings.parent.mkdir(parents=True, exist_ok=True)
-        settings.write_text("[picker]\nlocal=false\nserver_chosen=true\n")
+        settings.write_text("[picker]\nlocal=false\nserver_chosen=true\n[notifications]\nnow_playing=true\n")
 
         self.app = Process("the app", [APP], private_env(self.home))
         port = int(self.app.wait_for(r"sendspin\.client: listening on port (\d+)").group(1))
@@ -272,6 +274,19 @@ def test_the_pc_plays_what_the_server_sends(ma):
         assert abs(heard - PLAYER_HZ) < 10, f"the sink got {heard:.0f} Hz; the app ended with:\n{ma.app.tail()}"
 
     ma.run(play())
+
+
+def test_a_notification_names_the_track(ma):
+    async def shown():
+        await ma.until(lambda: "Interop Title" in ma.notifications.shown, "the track's notification")
+        body, hints = ma.notifications.shown["Interop Title"]
+        assert body == "Interop Artist — Interop Album"
+        assert hints == {"transient": True}
+        # Once: the position moving on is no news
+        await asyncio.sleep(1.5)
+        assert ma.notifications.summaries.count("Interop Title") == 1
+
+    ma.run(shown())
 
 
 def test_mpris_shows_what_plays(ma):
