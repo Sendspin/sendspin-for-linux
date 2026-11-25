@@ -1,8 +1,10 @@
 # Everything but main(), so the tests link it
 add_library(sendspin_app STATIC
     app.cpp
+    audio/drift_corrector.cpp
     audio/outputs.cpp
     audio/pcm_ring.cpp
+    audio/play_along.cpp
     audio/playback_stream.cpp
     audio/player_formats.cpp
     audio/sendspin_output.cpp
@@ -115,8 +117,10 @@ if(BUILD_TESTING)
 
     sendspin_add_test(app_test)
     sendspin_add_test(autostart_test)
+    sendspin_add_test(audio/drift_corrector_test)
     sendspin_add_test(audio/outputs_test)
     sendspin_add_test(audio/pcm_ring_test)
+    sendspin_add_test(audio/play_along_test)
     sendspin_add_test(audio/playback_stream_test)
     sendspin_add_test(audio/player_formats_test)
     sendspin_add_test(audio/sendspin_output_test)

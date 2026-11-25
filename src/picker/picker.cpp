@@ -56,6 +56,7 @@ Picker::Picker(CastEngine& cast, Client& client, Outputs& outputs, QObject* pare
     connect(speakers, &QAbstractItemModel::modelReset, this, &Picker::refresh_);
     connect(speakers, &QAbstractItemModel::dataChanged, this, &Picker::refresh_);
     connect(&this->cast_, &CastEngine::playingChanged, this, &Picker::refresh_);
+    connect(&this->cast_, &CastEngine::localChanged, this, &Picker::refresh_);
     connect(&this->cast_, &CastEngine::discoveryAvailableChanged, this, &Picker::refresh_);
     connect(&this->client_, &Client::stateChanged, this, &Picker::refresh_);
     connect(&this->client_, &Client::serverNameChanged, this, &Picker::refresh_);
@@ -104,13 +105,11 @@ speaker_menu::State Picker::state_() const {
 }
 
 speaker_menu::Row Picker::local_row_() const {
-    const bool found = this->outputs_.local().has_value();
-    speaker_menu::Output output;
-    output.is_local = true;
+    // The engine plays along on it, and knows when it can't: an output slower than the speaker
+    // buffer
+    speaker_menu::Output output = this->cast_.local_output();
     output.in_group = this->local_ticked_;
-    // Beside speakers it plays once it plays along with them
-    output.plays = this->local_ticked_ && found;
-    output.is_discovered = found;
+    output.plays = output.plays && this->local_ticked_;
     return speaker_menu::row(output,
                              {.plays_groupable = this->route_ != Route::SERVER,
                               .group_count = static_cast<int>(this->state_().group.size())});
@@ -359,6 +358,10 @@ void Picker::refresh_() {
     // Its own republished rows must not come back in here
     this->applying_ = true;
     this->cast_.set_plays_groupable(this->route_ != Route::SERVER);
+    // This PC's own output plays along on what the system uses, whatever the player is set to
+    const std::optional<OutputSink> local = this->outputs_.local();
+    this->cast_.set_local_target(local ? std::optional(local->name) : std::nullopt);
+    this->cast_.setLocalInGroup(this->local_ticked_);
     this->applying_ = false;
 
     const Server server = this->server_();

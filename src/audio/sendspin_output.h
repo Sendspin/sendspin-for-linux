@@ -52,6 +52,10 @@ public:
     bool start(QString* error = nullptr);
     void stop();
 
+    const QByteArray& node_name() const {
+        return this->node_name_;
+    }
+
     /// @brief The node's id in the graph, or PW_ID_ANY while stopped.
     uint32_t node_id() const;
 

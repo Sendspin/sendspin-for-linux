@@ -144,11 +144,18 @@ tray icon until interrupted, and casts what plays to the Sendspin output:
 ./build/src/sendspin-for-linux --list              # the speakers found, as they change
 ./build/src/sendspin-for-linux --add "Kitchen"     # add a speaker to the group
 ./build/src/sendspin-for-linux --remove "Kitchen"  # take it out
+./build/src/sendspin-for-linux --add "Kitchen" --play-along  # and play on this PC too, in sync
 ```
 
 The speakers added are remembered in `~/.local/share/sendspin/cast.ini`, and the app casts to
 them when it starts normally too. Adding a speaker that another server is playing to takes it
 from that server.
+
+With this PC's output ticked in the picker beside a speaker, the app plays along on it: the
+system's default output, or the one that was the default before the Sendspin output. With
+`QT_LOGGING_RULES=sendspin.cast.info=true` it logs every 5 s how far off the group's time it
+plays. An output whose delay is longer than the speakers' buffer, as Bluetooth's can be, cannot
+play along and stays silent.
 
 A speaker built on sendspin-cpp v0.10.0 or later stays silent for now: sendspin-server-cpp
 starts its stream before it declares playback, which those clients ignore. See "Depends on" in

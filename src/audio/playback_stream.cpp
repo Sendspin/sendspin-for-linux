@@ -532,24 +532,14 @@ void PlaybackStream::on_process(void* data) {
         std::fill_n(dest, frames * stride, uint8_t{0});
     }
 
-    // Read before queueing: `delay` is how long after `now`, the start of this graph cycle on
-    // CLOCK_MONOTONIC, this buffer's first frame is heard, behind what the stream still holds.
-    // The cycle's age carries onto the raw clock: over milliseconds the two do not differ.
+    // Read before queueing, which changes what the stream holds
     uint32_t report = 0;
     int64_t finish_us = 0;
     if (played != 0) {
-        pw_time time{};
-        if (pw_stream_get_time_n(self->stream_, &time, sizeof(time)) == 0 && time.now != 0 &&
-            time.rate.denom != 0) {
-            const int64_t cycle_age = clock_ns(CLOCK_MONOTONIC) - time.now;
-            const double delay_ns = static_cast<double>(time.delay) * 1e9 *
-                                    static_cast<double>(time.rate.num) /
-                                    static_cast<double>(time.rate.denom);
-            const double held_ns = static_cast<double>(time.queued + time.buffered + played) * 1e9 /
-                                   static_cast<double>(self->format_.rate);
-            finish_us = (clock_ns(CLOCK_MONOTONIC_RAW) - cycle_age +
-                         static_cast<int64_t>(delay_ns + held_ns)) /
-                        1000;
+        if (const std::optional<int64_t> heard = heard_at_ns(self->stream_, self->format_.rate)) {
+            const int64_t played_ns =
+                static_cast<int64_t>(played) * 1'000'000'000 / self->format_.rate;
+            finish_us = (*heard + played_ns) / 1000;
             report = played + self->owed_frames_.exchange(0, std::memory_order_relaxed);
         } else {
             // No timing this cycle: the frames ride on the next report that has some
