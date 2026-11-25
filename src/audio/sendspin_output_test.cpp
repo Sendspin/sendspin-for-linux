@@ -13,7 +13,6 @@
 #include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QTest>
-#include <QVersionNumber>
 
 #include <atomic>
 #include <cmath>
@@ -23,6 +22,8 @@
 namespace {
 
 constexpr int TONE_MS = 1000;
+/// The largest quantum the graph may run at.
+constexpr quint32 PAD_FRAMES = 8192;
 /// How late into its cycle a callback may run on a busy machine.
 constexpr int64_t MAX_SCHEDULING_LAG_NS = 20000000;
 /// How far a block's timestamp may be from where the block before it ended: the graph's own
@@ -92,10 +93,12 @@ struct Capture {
     }
 };
 
-/// A 16-bit stereo 48 kHz sine at half scale.
-bool write_tone(const QString& path) {
+/// A 16-bit stereo 48 kHz sine at half scale, then silence: pw-play does not always put its
+/// last quantum into the graph, and that must not be tone.
+bool write_tone(const QString& path, int tone_ms = TONE_MS) {
     const quint32 rate = SendspinOutput::RATE;
-    const quint32 frames = rate * TONE_MS / 1000;
+    const quint32 tone_frames = rate * tone_ms / 1000;
+    const quint32 frames = tone_frames + PAD_FRAMES;
     const quint32 data_bytes = frames * 4;
     QByteArray wav;
     QDataStream out(&wav, QIODevice::WriteOnly);
@@ -109,7 +112,9 @@ bool write_tone(const QString& path) {
     out << data_bytes;
     for (quint32 i = 0; i < frames; i++) {
         const auto sample = static_cast<qint16>(
-            16384.0 * std::sin(2.0 * std::numbers::pi * 440.0 * i / static_cast<double>(rate)));
+            i < tone_frames
+                ? 16384.0 * std::sin(2.0 * std::numbers::pi * 440.0 * i / static_cast<double>(rate))
+                : 0.0);
         out << sample << sample;
     }
     QFile file(path);
@@ -134,6 +139,19 @@ QJsonObject dump_object(uint32_t id) {
 
 QJsonObject node_props(const QJsonObject& node) {
     return node[QLatin1String("info")][QLatin1String("props")].toObject();
+}
+
+/// The input latency the graph shows for a node, or -1 if it shows none.
+qint64 input_latency_ns(uint32_t id) {
+    const QJsonArray latencies =
+        dump_object(id)[QLatin1String("info")][QLatin1String("params")][QLatin1String("Latency")]
+            .toArray();
+    for (const QJsonValue& latency : latencies) {
+        if (latency[QLatin1String("direction")].toString() == QStringLiteral("Input")) {
+            return latency[QLatin1String("minNs")].toInteger();
+        }
+    }
+    return -1;
 }
 
 /// Not the app's node name: the session manager saves volume per name.
@@ -182,16 +200,6 @@ bool have(const char* tool) {
             SKIP_UNLESS_REQUIRED(                                                  \
                 qPrintable(QStringLiteral("no PipeWire daemon: ") + start_error)); \
         }                                                                          \
-    } while (false)
-
-// PipeWire 1.4.2 drops volume and mute on an idle node and never publishes the latency; fix
-// pending. Remove with it.
-#define EXPECT_FAIL_BEFORE_1_6(mode)                                              \
-    do {                                                                          \
-        if (QVersionNumber::fromString(QLatin1String(pw_get_library_version())) < \
-            QVersionNumber(1, 6)) {                                               \
-            QEXPECT_FAIL("", "PipeWire < 1.6, fix pending", mode);                \
-        }                                                                         \
     } while (false)
 
 #define NEED_TOOL(tool)                                     \
@@ -313,8 +321,6 @@ private slots:
         const QSignalSpy mutes(&output, &SendspinOutput::mutedChanged);
 
         output.set_volume(0.5F);
-        // Abort: mute is dropped the same way, so nothing past here holds either
-        EXPECT_FAIL_BEFORE_1_6(Abort);
         QTRY_COMPARE(volumes.count(), 1);
         QVERIFY(near(volumes.first().first().toFloat(), 0.5F));
         QVERIFY(near(output.volume(), 0.5F));
@@ -344,8 +350,6 @@ private slots:
         QCOMPARE(QProcess::execute(QStringLiteral("wpctl"),
                                    {QStringLiteral("set-volume"), id, QStringLiteral("0.5")}),
                  0);
-        // Abort: the capture and mute checks below rest on this volume having taken
-        EXPECT_FAIL_BEFORE_1_6(Abort);
         QTRY_VERIFY(near(output.volume(), 0.5F));
 
         const QTemporaryDir dir;
@@ -377,25 +381,42 @@ private slots:
         START_OR_SKIP(output);
         NEED_TOOL("pw-dump");
 
-        const auto reported_ns = [&output]() -> qint64 {
-            const QJsonArray latencies =
-                dump_object(output.node_id())[QLatin1String("info")][QLatin1String("params")]
-                                             [QLatin1String("Latency")]
-                                                 .toArray();
-            for (const QJsonValue& latency : latencies) {
-                if (latency[QLatin1String("direction")].toString() == QStringLiteral("Input")) {
-                    return latency[QLatin1String("minNs")].toInteger();
-                }
-            }
-            return -1;
-        };
-
         output.set_latency(250000000);
-        EXPECT_FAIL_BEFORE_1_6(Continue);
-        QTRY_COMPARE(reported_ns(), 250000000);
+        QTRY_COMPARE(input_latency_ns(output.node_id()), 250000000);
         output.set_latency(400000000);
-        EXPECT_FAIL_BEFORE_1_6(Continue);
-        QTRY_COMPARE(reported_ns(), 400000000);
+        QTRY_COMPARE(input_latency_ns(output.node_id()), 400000000);
+    }
+
+    void latencyOutlastsAPlayer() {
+        std::atomic<uint64_t> blocks{0};
+        SendspinOutput output(nullptr, TEST_NODE);
+        output.set_consumer([&blocks](const CapturedBlock& /*block*/) { blocks++; });
+        START_OR_SKIP(output);
+        NEED_TOOL("pw-play");
+        NEED_TOOL("pw-dump");
+        output.set_latency(250000000);
+        QTRY_COMPARE(input_latency_ns(output.node_id()), 250000000);
+
+        const QTemporaryDir dir;
+        const QString tone = dir.filePath(QStringLiteral("tone.wav"));
+        QVERIFY(write_tone(tone, 3000));
+        const QString serial =
+            node_props(dump_object(output.node_id()))[QLatin1String("object.serial")]
+                .toVariant()
+                .toString();
+        QProcess play;
+        play.start(QStringLiteral("pw-play"), {QStringLiteral("--latency"), QStringLiteral("4096"),
+                                               QStringLiteral("--target"), serial, tone});
+        // Linked and running: the player's own latency has reached the node by now
+        QTRY_VERIFY(blocks.load() > 0);
+        QCOMPARE(input_latency_ns(output.node_id()), 250000000);
+        QCOMPARE(play.state(), QProcess::Running);
+
+        QVERIFY(play.waitForFinished(10000));
+        QCOMPARE(play.exitCode(), 0);
+        // The unlink clears the player's latency a moment after it exits
+        QTest::qWait(200);
+        QCOMPARE(input_latency_ns(output.node_id()), 250000000);
     }
 };
 
