@@ -24,6 +24,7 @@ constexpr const char* KEY_NAME = "client/name";      ///< empty or unset for the
 constexpr const char* KEY_OUTPUT = "player/output";  ///< a node.name; unset for the default
 constexpr const char* KEY_MPRIS = "mpris/enabled";   ///< on unless set false
 constexpr const char* KEY_TRACKS = "notifications/now_playing";  ///< off unless set true
+constexpr const char* KEY_DISCORD = "discord/rich_presence";     ///< off unless set true
 constexpr const char* KEY_UNPAIRED = "client/unpaired_access";   ///< on unless set false
 
 QSettings store() {
@@ -75,14 +76,19 @@ bool SettingsModel::stored_track_notifications() {
     return store().value(KEY_TRACKS, false).toBool();
 }
 
+bool SettingsModel::stored_discord_rich_presence() {
+    return store().value(KEY_DISCORD, false).toBool();
+}
+
 SettingsModel::SettingsModel(Client& client, CastEngine& cast, Outputs& outputs, Mpris& mpris,
-                             PairedServers& servers, UpdateChecker& updates,
-                             UpdateInstaller& installer, QObject* parent)
+                             DiscordPresence& discord, PairedServers& servers,
+                             UpdateChecker& updates, UpdateInstaller& installer, QObject* parent)
     : QObject(parent),
       client_(client),
       cast_(cast),
       outputs_(outputs),
       mpris_(mpris),
+      discord_(discord),
       servers_(servers),
       updates_(updates),
       installer_(installer),
@@ -458,6 +464,23 @@ void SettingsModel::setTrackNotifications(bool enabled) {
     }
     store().setValue(KEY_TRACKS, enabled);
     emit this->trackNotificationsChanged();
+}
+
+bool SettingsModel::discord_available() const {
+    return this->discord_.available();
+}
+
+bool SettingsModel::discord_rich_presence() const {
+    return stored_discord_rich_presence();
+}
+
+void SettingsModel::setDiscordRichPresence(bool enabled) {
+    if (enabled == this->discord_rich_presence()) {
+        return;
+    }
+    store().setValue(KEY_DISCORD, enabled);
+    this->discord_.set_enabled(enabled);
+    emit this->discordRichPresenceChanged();
 }
 
 bool SettingsModel::check_for_updates() const {

@@ -4,6 +4,7 @@
 #include "audio/sendspin_output.h"
 #include "cast/cast_engine.h"
 #include "client/client.h"
+#include "discord_presence.h"
 #include "mpris.h"
 #include "notifier.h"
 #include "paired_servers.h"
@@ -26,8 +27,9 @@
 #include <vector>
 
 /// @brief The running app: the tray icon, the picker, the Sendspin output, the cast engine that
-/// plays it on speakers, the Sendspin client that offers it to a server, and MPRIS for what a
-/// server plays here. And the updater: what checks for a newer release, and what installs it.
+/// plays it on speakers, the Sendspin client that offers it to a server, and MPRIS and
+/// Discord for what a server plays here. And the updater: what checks for a newer release, and what
+/// installs it.
 class App : public QObject {
     Q_OBJECT
 
@@ -120,6 +122,7 @@ private:
     /// The track a server plays here, for those who switched it on; beside the pairing's
     Notifier track_notifier_{QStringLiteral("now-playing")};
     TrackAnnouncer announcer_;
+    DiscordPresence discord_;
     CastEngine cast_;
     // After the client and the engine, so its capture thread is gone before what it writes to
     SendspinOutput output_;

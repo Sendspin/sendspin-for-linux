@@ -3,6 +3,9 @@
 Qt 6 tray app on sendspin-cpp (client) and sendspin-server-cpp (server), with PipeWire for
 audio. The design is `docs/SPEC.md`.
 
+`README.md` is for users alone: installing, using, troubleshooting. Building and testing go in
+`docs/DEVELOPING.md`, packages, releases and the repositories in `docs/MAINTAINING.md`.
+
 ## Build and test
 
 ```sh
@@ -72,6 +75,9 @@ than 1.4.2 API without a fallback.
   its bus test needs a session bus and skips without one. `src/track_announcer.*` says when a
   track is worth a notification, as plain logic; `src/notifier.*` shows it, and the pairing
   notification, each under its own id.
+- `src/discord_ipc.*` is Discord's local socket and its frames, with no Discord library;
+  `src/discord_presence.*` decides what it shows of what a server plays here, and which cover
+  URL Discord may have. `discord_test_server.h` is the tests' Discord. docs/SPEC.md, "Discord".
 - `src/pairing_clipboard.*` — the pairing code's digits on the clipboard, and off it again.
   Which sessions take a copy from the background is in docs/SPEC.md, "Music Assistant (we are
   the client)".
@@ -104,8 +110,9 @@ than 1.4.2 API without a fallback.
   packages; it names no package, so another project's can go through it. `repositories.yml`
   runs it over every published release and deploys to GitHub Pages. `packages.yml` runs it with
   a throwaway key (`ci/repo-fixture.sh`) and installs from the result in clean containers
-  (`ci/repo-test.sh`). The README's setup lines and `repo-test.sh` say the same thing: change
-  them together.
+  (`ci/repo-test.sh`). `repo-test.sh` runs the README's install blocks, the ones marked
+  `<!-- repo-setup: … -->`, with the site's address swapped: the last of each kind ends with the
+  install line, alone.
 - `ci/` — `start-pipewire.sh` and the daemon config it loads: a null sink, no hardware.
 - `tests/interop/` — the app end to end, in Python on pytest, run by `uv`: `test_cast.py` casts to
   a real sendspin-cpp-cli player, `test_music_assistant.py` is a server on aiosendspin that pairs

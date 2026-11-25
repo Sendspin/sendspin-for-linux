@@ -23,6 +23,9 @@ finish-args:
   - --filesystem=xdg-run/pipewire-0
   - --talk-name=org.kde.StatusNotifierWatcher
   - --system-talk-name=org.freedesktop.Avahi
+  # Discord's Rich Presence socket: a native Discord's, and Flatpak Discord's
+  - --filesystem=xdg-run/discord-ipc-0
+  - --filesystem=xdg-run/app/com.discordapp.Discord:create
 # The packages' autostart entry, and their updater, which Flatpak is here: nothing reads them
 cleanup:
   - /etc

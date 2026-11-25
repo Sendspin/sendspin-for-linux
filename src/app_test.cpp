@@ -129,6 +129,21 @@ private slots:
         QCOMPARE(app.settings_window(), window);
     }
 
+    // Hidden in a build with no Discord application to show itself as
+    void theDiscordSwitchIsOffAndThereOnlyWithAnApplication() {
+        const QTemporaryDir dir;
+        App app(dir.path().toStdString());
+        app.showSettings();
+        // Music Assistant: what is on another section is not visible either way
+        app.settings_window()->setProperty("section", 2);
+        const QObject* discord = app.settings_window()->findChild<QObject*>("discordRichPresence");
+        QVERIFY(discord != nullptr);
+        QCOMPARE(discord->property("visible").toBool(), app.settings()->discord_available());
+        QCOMPARE(app.settings()->discord_available(),
+                 !DiscordPresence::build_client_id().isEmpty());
+        QCOMPARE(discord->property("checked").toBool(), false);
+    }
+
     // A click on a pairing notification
     void showPairingOpensSettingsOnMusicAssistant() {
         const QTemporaryDir dir;

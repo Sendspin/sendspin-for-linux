@@ -26,7 +26,8 @@ struct Parts {
     /// @param speaker_port a speaker the cast engine dials; 0 for none
     /// @param release where the update checker asks, as version 1.0.0; empty for no checks
     explicit Parts(const QString& dir, uint16_t speaker_port = 0, const QUrl& release = {},
-                   const UpdateInstaller::System& system = {})
+                   const UpdateInstaller::System& system = {},
+                   const QString& discord_client_id = {})
         : client_persistence(dir.toStdString()),
           client({.name = SettingsModel::stored_device_name(),
                   .port = Client::free_port(0),
@@ -34,6 +35,7 @@ struct Parts {
                   .unpaired_access = SettingsModel::stored_unpaired_access()},
                  &client_persistence),
           mpris(client, dir + "/art", ".settings_test"),
+          discord(client, discord_client_id, dir + "/run"),
           servers(dir.toStdString()),
           updates(release.isEmpty() ? QVersionNumber() : QVersionNumber(1, 0, 0), release),
           installer(system) {
@@ -44,9 +46,9 @@ struct Parts {
                 QStringList{QStringLiteral("ws://127.0.0.1:%1/sendspin").arg(speaker_port)});
         }
         this->cast = std::make_unique<CastEngine>(dir.toStdString(), this->output);
-        this->model =
-            std::make_unique<SettingsModel>(this->client, *this->cast, this->outputs, this->mpris,
-                                            this->servers, this->updates, this->installer);
+        this->model = std::make_unique<SettingsModel>(this->client, *this->cast, this->outputs,
+                                                      this->mpris, this->discord, this->servers,
+                                                      this->updates, this->installer);
     }
 
     const SpeakerRow* row(const QString& id) const {
@@ -62,6 +64,7 @@ struct Parts {
     Outputs outputs;
     Client client;
     Mpris mpris;
+    DiscordPresence discord;
     SendspinOutput output;
     PairedServers servers;
     UpdateChecker updates;
@@ -105,6 +108,7 @@ private slots:
         QVERIFY(model.unpaired_access());
         QVERIFY(model.media_controls());
         QVERIFY(!model.track_notifications());
+        QVERIFY(!model.discord_rich_presence());
         // Looking writes nothing
         QVERIFY(conf().allKeys().isEmpty());
     }
@@ -144,6 +148,28 @@ private slots:
         QVERIFY(!parts.model->unpaired_access());
         QVERIFY(!parts.model->media_controls());
         QVERIFY(parts.model->track_notifications());
+    }
+
+    void discordIsOffUntilSwitchedOnAndKept() {
+        const QTemporaryDir dir;
+        {
+            Parts parts(dir.path(), 0, {}, {}, "1234");
+            SettingsModel& model = *parts.model;
+            QVERIFY(model.discord_available());
+            QSignalSpy changed(&model, &SettingsModel::discordRichPresenceChanged);
+            model.setDiscordRichPresence(true);
+            model.setDiscordRichPresence(true);
+            QCOMPARE(changed.size(), 1);
+        }
+        QCOMPARE(conf().value("discord/rich_presence").toBool(), true);
+        Parts parts(dir.path(), 0, {}, {}, "1234");
+        QVERIFY(parts.model->discord_rich_presence());
+    }
+
+    void aBuildWithoutADiscordApplicationHasNoSwitch() {
+        const QTemporaryDir dir;
+        Parts parts(dir.path());
+        QVERIFY(!parts.model->discord_available());
     }
 
     void aNewDeviceNameWaitsForTheNextStart() {

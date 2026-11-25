@@ -1,7 +1,7 @@
 # Publishing a release rebuilds the apt and dnf repositories on GitHub Pages from the packages of
 # every published release, so earlier versions stay and nothing is kept between runs. The
 # signing key is in the package-signing environment's secrets REPO_GPG_PRIVATE_KEY and
-# REPO_GPG_PASSPHRASE; the README's "Package repositories" has what a maintainer sets up.
+# REPO_GPG_PASSPHRASE; docs/MAINTAINING.md, "One-time setup", has what a maintainer sets up.
 name: Package repositories
 
 on:

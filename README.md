@@ -1,113 +1,186 @@
-# Sendspin for Linux
+<p align="center">
+  <img src="data/icons/hicolor/256x256/apps/com.sendspin_audio.Sendspin.png" width="128" height="128" alt="App icon: Sendspin's mark in cream on a coral tile">
+</p>
 
-A [Sendspin](https://github.com/Sendspin/spec) desktop app for Linux: a tray app that plays
-Music Assistant on this machine, offers its audio as a source, and casts what the desktop plays
-to Sendspin speakers. It is built on [sendspin-cpp](https://github.com/Sendspin/sendspin-cpp)
-and [sendspin-server-cpp](https://github.com/Sendspin/sendspin-server-cpp) with Qt 6 and
-PipeWire. The design is in [docs/SPEC.md](docs/SPEC.md).
+<h1 align="center">Sendspin for Linux</h1>
 
-Click the tray icon, or start Sendspin again from the launcher, to pick the speakers this PC
-plays on. Music Assistant finds the PC on the network: pair it there with the code that pops up
-here, and it can play to this PC and take this PC's sound as an input.
+<p align="center">Your PC's sound on every speaker: lossless, in sync and open source, using <a href="https://www.sendspin-audio.com/">Sendspin</a>.</p>
+
+<p align="center">
+  <a href="https://github.com/Sendspin/sendspin-for-linux/releases"><img src="https://img.shields.io/github/v/release/Sendspin/sendspin-for-linux" alt="GitHub Release"></a>
+</p>
+
+Play this PC's sound on your Sendspin speakers: wireless, lossless and in sync. Sendspin for
+Linux adds an output named **Sendspin** to your sound
+settings and a small tray app to pick the speakers it plays on. If you run Music Assistant, it
+can play to this PC too, and take this PC's sound as an input for anything it controls.
+
+[![A project from the Open Home Foundation](https://www.openhomefoundation.org/badges/ohf-project.png)](https://www.openhomefoundation.org/)
+
+<img src="data/screenshots/picker.png" width="340" alt="The picker: the Sendspin row with the group's volume slider, this PC's output, and the Sendspin speakers on the network, each with a round check to tick.">
 
 ## Install
 
-Fedora 44, Ubuntu 26.04 and Debian 13, or newer, and Arch Linux, with PipeWire. Each
-[release](https://github.com/Sendspin/sendspin-for-linux/releases) carries the files below and
-their `SHA256SUMS`.
+The packages come from a signed repository, so the system's updates bring new versions. Three
+steps: get the repository's key, check it, then add the repository and install.
 
-1. **Distro packages**, from the package repository, so the system's updates bring new versions.
+### Debian 13 and Ubuntu 26.04
 
-   Debian 13 and Ubuntu 26.04:
+1. Download the key:
 
+   <!-- repo-setup: apt -->
    ```sh
    sudo wget -O /etc/apt/keyrings/sendspin.asc https://sendspin.github.io/sendspin-for-linux/sendspin.asc
-   . /etc/os-release && echo "deb [signed-by=/etc/apt/keyrings/sendspin.asc] https://sendspin.github.io/sendspin-for-linux/apt $ID$VERSION_ID main" | sudo tee /etc/apt/sources.list.d/sendspin.list
-   sudo apt update && sudo apt install sendspin-for-linux
    ```
 
-   On a distribution built on one of them, write `debian13` or `ubuntu26.04` in place of
-   `$ID$VERSION_ID`.
-
-   Fedora 44:
+2. Check that it is ours, before anything is installed with it:
 
    ```sh
-   sudo curl -fsSLo /etc/pki/rpm-gpg/RPM-GPG-KEY-sendspin https://sendspin.github.io/sendspin-for-linux/sendspin.asc
-   sudo curl -fsSLo /etc/yum.repos.d/sendspin.repo https://sendspin.github.io/sendspin-for-linux/rpm/sendspin.repo
-   sudo dnf install sendspin-for-linux
+   gpg --show-keys /etc/apt/keyrings/sendspin.asc
    ```
 
-   The repositories are signed with the key the first line downloads, and from then on the
-   system takes nothing that key did not sign. Before installing, `gpg --show-keys` on that file
-   prints the key's fingerprint, which should be:
+   It should print this fingerprint. If it doesn't, stop here.
 
    ```
    85FF 9044 844F D44C 8BE6  98B9 C117 75C2 E4CA 1288
    ```
 
-   It is the same key for apt and for dnf, and the one every package carries as
-   `/usr/share/sendspin-for-linux/sendspin.asc`, which Sendspin verifies its own
-   [updates](#updates) with.
+3. Add the repository and install:
 
-   Or, and on Arch for now,
-   download a release's package and install it with its dependencies. Nothing but Sendspin
-   itself updates it then (see [Updates](#updates)):
-
+   <!-- repo-setup: apt -->
    ```sh
-   sudo apt install ./sendspin-for-linux-*-debian13-amd64.deb     # Debian 13
-   sudo apt install ./sendspin-for-linux-*-ubuntu26.04-amd64.deb  # Ubuntu 26.04
-   sudo dnf install ./sendspin-for-linux-*-fedora44-x86_64.rpm    # Fedora 44
-   sudo pacman -U ./sendspin-for-linux-*-archlinux-x86_64.pkg.tar.zst  # Arch Linux
+   . /etc/os-release && echo "deb [signed-by=/etc/apt/keyrings/sendspin.asc] https://sendspin.github.io/sendspin-for-linux/apt $ID$VERSION_ID main" | sudo tee /etc/apt/sources.list.d/sendspin.list
+   sudo apt update
+   sudo apt install sendspin-for-linux
    ```
 
-   Sendspin then starts with your session, in the tray. **Open at login** in Settings switches
-   that off for you.
+   On a distribution built on one of them, write `debian13` or `ubuntu26.04` in place of
+   `$ID$VERSION_ID`.
 
-2. **Flatpak.** Not on Flathub yet; the release's bundle installs with its runtime from Flathub:
+### Fedora 44 and newer
 
+1. Download the key:
+
+   <!-- repo-setup: dnf -->
    ```sh
-   flatpak install --user ./sendspin-for-linux-*-x86_64.flatpak
+   sudo curl -fsSLo /etc/pki/rpm-gpg/RPM-GPG-KEY-sendspin https://sendspin.github.io/sendspin-for-linux/sendspin.asc
    ```
 
-   Here **Open at login** is off until you switch it on.
-
-3. **From source.** The release's `sendspin-for-linux-<version>.tar.xz` carries everything the
-   build needs besides Qt 6, PipeWire, Avahi and OpenSSL 3, and downloads nothing
-   ([NOTICES.md](NOTICES.md) lists what is in it). With the packages under
-   [Build](#build) installed:
+2. Check that it is ours, before anything is installed with it:
 
    ```sh
-   cmake -B build -G Ninja -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
-   cmake --build build
-   sudo cmake --install build
+   gpg --show-keys /etc/pki/rpm-gpg/RPM-GPG-KEY-sendspin
    ```
 
-The Arch package is not in the AUR or a repository yet: there, a new release is a new download.
+   It should print this fingerprint. If it doesn't, stop here.
 
-## Updates
+   ```
+   85FF 9044 844F D44C 8BE6  98B9 C117 75C2 E4CA 1288
+   ```
 
-Once a day Sendspin asks GitHub whether there is a newer release, and says so in Settings and in
-the tray menu. **Check for updates** in Settings turns that off. It sends nothing but the
-request.
+3. Add the repository and install:
 
-- Installed from the package repository, or as the Flatpak: the system's updates bring the new
-  version, and Sendspin only tells you of it.
-- Installed from a downloaded `.deb` or `.rpm`: **Install update** in Settings downloads the new
-  package, verifies it, asks for an administrator's password and installs it, then restarts
-  Sendspin. `sendspin-for-linux --update` does the same from a terminal.
+   <!-- repo-setup: dnf -->
+   ```sh
+   sudo curl -fsSLo /etc/yum.repos.d/sendspin.repo https://sendspin.github.io/sendspin-for-linux/rpm/sendspin.repo
+   sudo dnf install sendspin-for-linux
+   ```
 
-  It verifies the download against the signing key that came with the package you installed,
-  `/usr/share/sendspin-for-linux/sendspin.asc`, and never fetches one. It is the package
-  repositories' key, with the fingerprint above.
+That's it: Sendspin is in your launcher, starts with your session from now on, and new versions
+arrive with the system's updates. From here on your system takes nothing that key did not sign.
 
-## Settings and files
+### Arch Linux
 
-Keys and pairing records are stored as owner-only files under `$XDG_DATA_HOME/sendspin/`
-(`~/.local/share/sendspin/`).
+Not in the AUR yet. Until it is, download the `.pkg.tar.zst` from
+[Releases](https://github.com/Sendspin/sendspin-for-linux/releases) and install it:
 
-**Settings…** in the tray menu, or the picker's gear, opens the Settings window. Every change
-applies at once, except the device name, which servers see from the next start. The settings are
-kept in `~/.config/sendspin/sendspin.conf`:
+```sh
+sudo pacman -U ./sendspin-for-linux-*-archlinux-x86_64.pkg.tar.zst
+```
+
+A new version is a new download.
+
+### Flatpak
+
+Coming soon to Flathub. Until then, each release carries a bundle, which installs with its
+runtime from Flathub:
+
+```sh
+flatpak install --user ./sendspin-for-linux-*-x86_64.flatpak
+```
+
+The Flatpak doesn't start with your session until you switch on **Open at login** in Settings.
+
+### A package from Releases
+
+If you'd rather not add a repository, download the `.deb` or `.rpm` for your system from
+[Releases](https://github.com/Sendspin/sendspin-for-linux/releases), where `SHA256SUMS` has
+each file's checksum:
+
+```sh
+sudo apt install ./sendspin-for-linux-*-debian13-amd64.deb     # Debian 13
+sudo apt install ./sendspin-for-linux-*-ubuntu26.04-amd64.deb  # Ubuntu 26.04
+sudo dnf install ./sendspin-for-linux-*-fedora44-x86_64.rpm    # Fedora 44
+```
+
+Installed this way, Sendspin updates itself: see [Updates](#updates).
+
+## What you need
+
+- **Fedora 44, Ubuntu 26.04 or Debian 13**, or newer, or **Arch Linux**. Ubuntu 24.04 and
+  Debian 12 are too old.
+- **PipeWire** for sound, which all of them use by default.
+- **Speakers or players that speak Sendspin.** Sendspin's site keeps
+  [the current list](https://www.sendspin-audio.com/#speakers).
+
+Music Assistant is optional: without it, this PC plays to the speakers on its own.
+
+## Using it
+
+### Pick your speakers
+
+Click the tray icon to open the picker. On a desktop without a tray, such as stock GNOME, start
+Sendspin again from the launcher instead.
+
+- **Tick a speaker** and the PC's sound plays on it. Ticking the first one makes **Sendspin**
+  your system's output; unticking the last one puts back the output you had.
+- **The slider** on the Sendspin row is the volume of all the ticked speakers together.
+- **This PC's own output** is the first row. Tick it next to a speaker and it plays along, in
+  sync with the others. On its own, the PC plays as it always did.
+
+A speaker that needs pairing asks for its code when you tick it. Settings lists the speakers
+you've paired, each with **Forget**.
+
+### With Music Assistant
+
+Music Assistant finds this PC on the network by itself. It then shows up in the picker, below
+the speakers.
+
+- **Music Assistant plays here.** This PC is a player in Music Assistant like any other, with no
+  setup. What it plays shows in your desktop's media controls.
+- **This PC as an input.** Pair first: set this PC up in Music Assistant and enter the code that
+  pops up here, in a notification and in the picker. Then choose Music Assistant in the picker
+  and select this PC as an input source there. Music Assistant now plays the PC's sound on any
+  of its speakers and groups, and chooses the speakers and the volume.
+
+The PC's sound goes to the speakers you ticked or to Music Assistant, one or the other: the two
+aren't in sync with each other.
+
+### Settings
+
+**Settings…** in the tray menu, or the gear in the picker. Every change applies at once, except
+the device name, which servers see from the next start.
+
+- **This PC:** the name servers see, the output to play on, **Open at login** and
+  **Check for updates**.
+- **Speakers:** pair one, or forget one.
+- **Music Assistant:** the servers this PC is paired with, whether a server may play here
+  without pairing, and whether what it plays shows in the desktop's media controls.
+
+**Open at login** starts Sendspin in the tray, without the picker. The packages switch it on for
+you; the Flatpak leaves it off.
+
+The settings are kept in `~/.config/sendspin/sendspin.conf`:
 
 ```ini
 [client]
@@ -124,28 +197,93 @@ output=alsa_output.usb-Example_DAC-00.analog-stereo
 ; false keeps what a server plays here out of the desktop's media controls
 enabled=true
 
+[discord]
+; true shows what a server plays here in Discord, as "Listening to": the title, artist and album
+rich_presence=false
+
 [updates]
 ; false never asks GitHub for a newer release
 check=true
 ```
 
-Open at login starts the app with `--background`: the tray alone, no picker. A package installs
-the entry for every user, `/etc/xdg/autostart/com.sendspin_audio.Sendspin.desktop`, and the
-switch in Settings writes `~/.config/autostart/com.sendspin_audio.Sendspin.desktop` only where
-yours differs: to switch the package's off, or to switch it on where there is none. The Flatpak
-asks the desktop's Background portal instead. The servers that paired with this PC are listed
-from `~/.local/share/sendspin/paired_servers.ini`.
+Keys, pairings and the speakers you ticked are in `~/.local/share/sendspin/`, readable only by
+you.
+
+### Updates
+
+Once a day Sendspin asks GitHub whether there is a newer release, and says so in Settings and in
+the tray menu. It sends nothing but the request, and **Check for updates** in Settings turns it
+off.
+
+- **From the repository, or the Flatpak:** the system's updates bring the new version. Sendspin
+  only tells you of it.
+- **From a downloaded `.deb` or `.rpm`:** **Install update** in Settings downloads the new
+  package, verifies it, asks for an administrator's password, installs it and restarts Sendspin.
+  `sendspin-for-linux --update` does the same from a terminal. The download is verified against
+  the key that came with the package you installed,
+  `/usr/share/sendspin-for-linux/sendspin.asc`, the one with the fingerprint above; Sendspin
+  never fetches a key.
+- **On Arch:** a new download, for now.
 
 ## Troubleshooting
 
-The app logs little while it works: its start, what it plays on, a server or a speaker coming
+### No speakers show up
+
+- **Is the speaker a Sendspin speaker, and on the same network?** See
+  [the list](https://www.sendspin-audio.com/#speakers). Guest networks and some mesh setups keep
+  devices from finding each other.
+- **Does the picker say discovery is unavailable?** Speakers are found over mDNS, which needs
+  Avahi running:
+
+  ```sh
+  sudo systemctl enable --now avahi-daemon
+  ```
+
+- **Is a firewall in the way?** Sendspin needs mDNS (UDP 5353) to find speakers and be found,
+  TCP 8927 for speakers that connect to this PC, and TCP 8928 for Music Assistant. Fedora
+  Workstation's default firewall and Ubuntu's (off by default) let all of it through. If yours
+  is stricter:
+
+  ```sh
+  # firewalld (Fedora)
+  sudo firewall-cmd --permanent --add-service=mdns --add-port=8927-8928/tcp
+  sudo firewall-cmd --reload
+
+  # ufw (Ubuntu, Debian)
+  sudo ufw allow 5353/udp
+  sudo ufw allow 8927:8928/tcp
+  ```
+
+### A speaker is ticked, but silent
+
+- **Check the output.** Your sound settings should show **Sendspin** as the output while a
+  speaker is ticked. An app that was sent to another output by hand stays there.
+- **Check both volumes.** The picker's slider is the speakers' volume; the desktop's volume
+  control sets the level of what is sent to them. Either one at zero is silence.
+- **A recent speaker may stay silent for now.** Speakers built on sendspin-cpp 0.10.0 or later
+  miss the start of the stream, a known problem being fixed upstream: see "Depends on" in
+  [docs/SPEC.md](docs/SPEC.md#depends-on).
+- **This PC's output says "Can't play".** Its delay is longer than the speakers' buffer, as
+  Bluetooth's can be, so it can't play along in sync.
+
+### Music Assistant doesn't see this PC, or pairing fails
+
+- Both need to be on the same network, with the firewall as above: Music Assistant connects to
+  this PC, on TCP 8928.
+- The code is only valid while it shows. If it's gone, start pairing again in Music Assistant.
+- Music Assistant plays here but can't use the PC as an input: an input needs pairing, playing
+  doesn't.
+
+### Getting logs
+
+Sendspin logs little while it works: its start, what it plays on, a server or a speaker coming
 and going, and anything that went wrong. To see what it logged since you logged in:
 
 ```sh
 journalctl --user -b /usr/bin/sendspin-for-linux
 ```
 
-For a bug report, quit the app from the tray and start it from a terminal with `--verbose`
+For a bug report, quit Sendspin from the tray menu and start it from a terminal with `--verbose`
 (or `-v`), which adds every dial, connection and timing line:
 
 ```sh
@@ -154,165 +292,43 @@ sendspin-for-linux --verbose 2> sendspin.log
 flatpak run com.sendspin_audio.Sendspin --verbose 2> sendspin.log
 ```
 
-No key, PSK or pairing code is logged at any level. `QT_LOGGING_RULES` works as in any Qt app
-and wins over both: `QT_LOGGING_RULES="sendspin.*.debug=true"` is `--verbose`, and
-`sendspin.cast.debug=true` alone turns up one part. `sendspin.server.lib` and
-`sendspin.client.lib` are the two Sendspin libraries.
+Reproduce the problem, then attach `sendspin.log`. No key or pairing code is logged at any
+level.
 
-# For developers
+### Still stuck?
 
-## Build
+Open an [issue](https://github.com/Sendspin/sendspin-for-linux/issues) with your distribution
+and desktop, how you installed Sendspin, the output of `sendspin-for-linux --version`, and the
+logs.
 
-Needs CMake 3.28, a C++20 compiler, Qt 6.8, PipeWire 1.4.2, avahi-client and OpenSSL 3, or
-newer. Debian 13 is the oldest supported release.
-
-Fedora:
+## Uninstall
 
 ```sh
-sudo dnf install cmake ninja-build gcc-c++ git patch pkgconf-pkg-config xz \
-    qt6-qtbase-devel qt6-qtdeclarative-devel pipewire-devel avahi-devel openssl-devel
+# Debian and Ubuntu
+sudo apt remove sendspin-for-linux
+sudo rm -f /etc/apt/sources.list.d/sendspin.list /etc/apt/keyrings/sendspin.asc
+
+# Fedora
+sudo dnf remove sendspin-for-linux
+sudo rm -f /etc/yum.repos.d/sendspin.repo /etc/pki/rpm-gpg/RPM-GPG-KEY-sendspin
+
+# Arch Linux
+sudo pacman -R sendspin-for-linux
+
+# Flatpak
+flatpak uninstall com.sendspin_audio.Sendspin
 ```
 
-Debian and Ubuntu:
+To remove your settings and pairings as well:
 
 ```sh
-sudo apt install cmake ninja-build g++ git patch pkg-config xz-utils \
-    qt6-base-dev qt6-declarative-dev libpipewire-0.3-dev libavahi-client-dev libssl-dev
+rm -rf ~/.config/sendspin ~/.local/share/sendspin ~/.config/autostart/com.sendspin_audio.Sendspin.desktop
 ```
 
-Then:
+## Developing
 
-```sh
-cmake -B build -G Ninja
-cmake --build build
-ctest --test-dir build
-./build/src/sendspin-for-linux
-```
+Building it, or working on it? See [docs/DEVELOPING.md](docs/DEVELOPING.md).
 
-The first configure downloads the Sendspin libraries and their dependencies.
+## License
 
-The audio tests need a PipeWire daemon and skip without one. To run them anywhere, a container
-included, against a private headless daemon (needs `dbus-daemon`, `pipewire`, `wireplumber` and
-the `pw-play`, `pw-dump` and `wpctl` tools):
-
-```sh
-ci/start-pipewire.sh ctest --test-dir build
-```
-
-The interop tests run the built app against other implementations, on loopback under the same
-private daemon: casting to a [sendspin-cpp-cli](https://github.com/Sendspin/sendspin-cpp-cli)
-player, and as Music Assistant sees it, with a server scripted on
-[aiosendspin](https://github.com/Sendspin/aiosendspin) that pairs by the code, takes the PC as a
-source and plays to it. They need `uv` and `curl` as well, and the libraries the player release
-links (Fedora: `portaudio` and `avahi-compat-libdns_sd`):
-
-```sh
-tests/interop/run.sh
-```
-
-The player is downloaded once, an x86_64 release pinned in `run.sh`; `SENDSPIN_CLI` names another.
-Two of the cast tests are expected to fail until the silent-speaker problem below is fixed
-upstream, and fail the run when they start passing.
-
-## Casting without the UI
-
-The speakers can be chosen from the command line too. Each of these runs the app without its
-tray icon until interrupted, and casts what plays to the Sendspin output:
-
-```sh
-./build/src/sendspin-for-linux --list              # the speakers found, as they change
-./build/src/sendspin-for-linux --add "Kitchen"     # add a speaker to the group
-./build/src/sendspin-for-linux --remove "Kitchen"  # take it out
-./build/src/sendspin-for-linux --add "Kitchen" --play-along  # and play on this PC too, in sync
-```
-
-The speakers added are remembered in `~/.local/share/sendspin/cast.ini`, and the app casts to
-them when it starts normally too. Adding a speaker that another server is playing to takes it
-from that server.
-
-With this PC's output ticked in the picker beside a speaker, the app plays along on it: the
-system's default output, or the one that was the default before the Sendspin output. With
-`--verbose` it logs every 5 s how far off the group's time it
-plays. An output whose delay is longer than the speakers' buffer, as Bluetooth's can be, cannot
-play along and stays silent.
-
-A speaker built on sendspin-cpp v0.10.0 or later stays silent for now: sendspin-server-cpp
-starts its stream before it declares playback, which those clients ignore. See "Depends on" in
-[docs/SPEC.md](docs/SPEC.md).
-
-## Packages and releases
-
-`scripts/vendor.sh` makes the source tarball: the tree at `HEAD` with what the build would
-download in `third_party/fetched/`, and its commit's date in `RELEASE_DATE` for the metainfo. A
-tree that has that directory builds offline. The packages are CPack's, built from the tarball
-on the release they are for, Arch's is `makepkg`'s from `arch/PKGBUILD`, and the Flatpak is
-`flatpak/com.sendspin_audio.Sendspin.yml`, built inside the tarball:
-
-```sh
-scripts/vendor.sh dist
-cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
-cmake --build build && (cd build && cpack -G DEB)   # or RPM
-```
-
-CI builds all of them on every change, builds the tarball with no network, and installs and
-starts each package in a clean container. To release, set `project(VERSION)` in
-`CMakeLists.txt` and push the tag `v<version>`: the Release workflow attaches the tarball, the
-packages, the Flatpak bundle, the manifest Flathub builds from and `SHA256SUMS` to a draft
-release. Its last job signs `SHA256SUMS` with the repositories' key, once the
-`package-signing` environment's reviewer approves it: that signature is what an installed app
-verifies an update with, so publish the draft after it is there. The job fails if `data/sendspin.asc`, the public key the packages
-carry, does not verify what it signed. CI has each package update
-itself to a later build in a clean container (`ci/update-test.sh`).
-[flatpak/FLATHUB.md](flatpak/FLATHUB.md) has the Flathub side: submitting the app, and what each
-release needs there.
-
-Publishing the release runs the Package repositories workflow: `scripts/package-repos.sh` builds
-apt and dnf repositories from the packages of every published release, signs them, and the
-workflow puts them on GitHub Pages. It can be run by hand too, after a release is deleted or the
-key is replaced. CI builds the same repositories with a key of its own on every change, and
-installs and upgrades from them in clean containers (`ci/repo-fixture.sh`, `ci/repo-test.sh`).
-
-The script takes any package named `<name>-<version>-<distro>-<arch>.deb` or `.rpm`, so another
-project's packages are published by downloading them into the same directory.
-
-Only what the Release workflow built is signed: each package has to match its release's
-`SHA256SUMS` and carry that workflow's build attestation, or the run fails.
-
-Once, by a maintainer:
-
-1. Create the signing key on a machine you trust: a primary key that only certifies and stays
-   there, and a signing subkey, which alone goes to GitHub. Give it a passphrase.
-
-   ```sh
-   gpg --quick-generate-key "Sendspin packages" rsa4096 cert never
-   gpg --quick-add-key <primary fingerprint> rsa4096 sign never
-   gpg --list-keys --with-subkey-fingerprints "Sendspin packages"
-   gpg --armor --export-secret-subkeys '<subkey fingerprint>!'
-   ```
-
-   Put the primary key's fingerprint in this README's install section and in docs/SPEC.md's
-   "Updates", and the public key (`gpg --armor --export`) in `data/sendspin.asc`: the packages
-   install it, and an installed app verifies its updates with that file alone. Keep the primary key and
-   the passphrase somewhere safe: machines that installed from the repositories trust this key,
-   and a new one means setting each of them up again.
-2. Create the environment `package-signing`, with a required reviewer and its deployment
-   branches and tags limited to `main` and `v*`. Add the export there as the secret
-   `REPO_GPG_PRIVATE_KEY` and the passphrase as `REPO_GPG_PASSPHRASE`: environment secrets, not
-   repository secrets, so only the jobs that name the environment can read them: this one, and
-   the Release workflow's, which signs a draft's `SHA256SUMS`. Each then waits for the reviewer.
-3. Set the Pages source to **GitHub Actions**. Publishing a release runs on its tag, and the
-   `github-pages` environment allows only the default branch at first: add `v*` to its
-   deployment branches and tags.
-4. Add a ruleset that restricts who can create `v*` tags, and turn on immutable releases, so a
-   published release's files cannot be replaced before they are signed.
-
-`arch/PKGBUILD` is the AUR's: it downloads a published release's tarball and checks its sha256,
-which only exists once the release does. So set `pkgver` with `project(VERSION)`, and after
-publishing, on Arch (`updpkgsums` is in `pacman-contrib`):
-
-```sh
-cd arch && updpkgsums && makepkg --printsrcinfo >.SRCINFO
-```
-
-Commit both, and copy them to the AUR repository, which needs a maintainer's account. CI builds
-the PKGBUILD against the tarball it has just made instead, with that tarball's sum.
+[Apache 2.0](LICENSE)
