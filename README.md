@@ -184,7 +184,7 @@ packages, the Flatpak bundle and `SHA256SUMS` to a draft release, which a person
 
 `arch/PKGBUILD` is the AUR's: it downloads a published release's tarball and checks its sha256,
 which only exists once the release does. So set `pkgver` with `project(VERSION)`, and after
-publishing, on Arch:
+publishing, on Arch (`updpkgsums` is in `pacman-contrib`):
 
 ```sh
 cd arch && updpkgsums && makepkg --printsrcinfo >.SRCINFO
