@@ -219,6 +219,25 @@ private slots:
         this->port_ = free_port();
     }
 
+    // Our server must not take our own client's one connection
+    void browsingLeavesThisAppsOwnClientAlone() {
+        const QList<QHostAddress> own{QHostAddress("192.0.2.7"), QHostAddress("fe80::1%eth0")};
+        sendspin::server::DiscoveredClient found;
+        found.port = 8928;
+        found.addresses = {"192.0.2.7"};
+        QVERIFY(is_own_client(found, 8928, own));
+        found.addresses = {"203.0.113.9", "fe80::1%wlan0"};
+        QVERIFY(is_own_client(found, 8928, own));
+
+        // Another machine's client on the same port, and another client on this machine
+        found.addresses = {"192.0.2.8"};
+        QVERIFY(!is_own_client(found, 8928, own));
+        found.addresses = {"192.0.2.7"};
+        QVERIFY(!is_own_client(found, 8930, own));
+        // No client of our own
+        QVERIFY(!is_own_client(found, 0, own));
+    }
+
     // Nothing plays on a speaker the user didn't add
     void aSpeakerThatIsFoundIsListedAndWaitsOutOfTheGroup() {
         Peer peer(this->speaker_dir_->path(), this->port_, true);

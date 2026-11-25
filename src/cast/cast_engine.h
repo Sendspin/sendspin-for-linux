@@ -6,6 +6,8 @@
 #include "cast/speaker_model.h"
 #include "persistence.h"
 
+#include <QHostAddress>
+#include <QList>
 #include <QObject>
 #include <QSettings>
 #include <QString>
@@ -19,6 +21,11 @@
 #include <optional>
 #include <string>
 #include <vector>
+
+/// @brief Whether a browsed instance is this app's own Sendspin client: its port, at one of this
+/// machine's addresses. The server must never dial it; its one connection is Music Assistant's.
+bool is_own_client(const sendspin::server::DiscoveredClient& found, uint16_t own_port,
+                   const QList<QHostAddress>& own_addresses);
 
 /// @brief Casts the Sendspin output to the speakers the user added, through an embedded
 /// SendspinServer. Discovery, pairing, trust, reconnects and the speaker buffer are the
@@ -48,6 +55,12 @@ public:
     CastEngine(const std::filesystem::path& data_dir, SendspinOutput& output,
                QObject* parent = nullptr);
     ~CastEngine() override;
+
+    /// @brief The port this app's own Sendspin client listens on, so browsing leaves it alone.
+    /// Before start().
+    void set_own_client_port(uint16_t port) {
+        this->own_client_port_ = port;
+    }
 
     /// @brief Starts the server. A taken port is replaced by one the system picks.
     /// @param discovery advertise the server and browse for speakers; tests go without
@@ -124,6 +137,7 @@ signals:
 
 private:
     class Listener;
+    class Discovery;
     static constexpr int DEFAULT_VOLUME = 100;
 
     struct Speaker {
@@ -181,6 +195,7 @@ private:
     SendspinOutput& output_;
     ServerPersistence persistence_;
     QSettings settings_;
+    uint16_t own_client_port_{0};
     std::unique_ptr<Listener> listener_;
     std::unique_ptr<sendspin::server::SendspinServer> server_;
     CastFeed feed_;

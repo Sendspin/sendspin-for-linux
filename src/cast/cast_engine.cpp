@@ -3,6 +3,7 @@
 #include "device_name.h"
 
 #include <QLoggingCategory>
+#include <QNetworkInterface>
 
 #include <algorithm>
 #include <cstdlib>
@@ -123,6 +124,59 @@ private:
     CastEngine* engine_;
 };
 
+bool is_own_client(const sendspin::server::DiscoveredClient& found, uint16_t own_port,
+                   const QList<QHostAddress>& own_addresses) {
+    if (own_port == 0 || found.port != own_port) {
+        return false;
+    }
+    return std::ranges::any_of(found.addresses, [&own_addresses](const std::string& text) {
+        // A link-local address comes with its zone, which the comparison would trip over
+        QHostAddress address(QString::fromStdString(text));
+        address.setScopeId({});
+        return std::ranges::any_of(own_addresses, [&address](QHostAddress own) {
+            own.setScopeId({});
+            return own == address;
+        });
+    });
+}
+
+/// The library's own discovery, minus this app's client. Called on the discovery thread.
+class CastEngine::Discovery final : public sendspin::server::DiscoveryProvider,
+                                    private sendspin::server::DiscoverySink {
+public:
+    Discovery(std::shared_ptr<sendspin::server::DiscoveryProvider> platform, uint16_t own_port)
+        : platform_(std::move(platform)), own_port_(own_port) {}
+
+    bool start(const sendspin::server::DiscoveryRequest& request,
+               sendspin::server::DiscoverySink& sink) override {
+        this->sink_ = &sink;
+        return this->platform_->start(request, *this);
+    }
+    void stop() override {
+        this->platform_->stop();
+    }
+
+private:
+    void on_client_found(const sendspin::server::DiscoveredClient& client) override {
+        if (!is_own_client(client, this->own_port_, QNetworkInterface::allAddresses())) {
+            this->sink_->on_client_found(client);
+        }
+    }
+    void on_client_lost(const std::string& instance) override {
+        this->sink_->on_client_lost(instance);
+    }
+    void on_unavailable() override {
+        this->sink_->on_unavailable();
+    }
+    void on_available() override {
+        this->sink_->on_available();
+    }
+
+    std::shared_ptr<sendspin::server::DiscoveryProvider> platform_;
+    uint16_t own_port_;
+    sendspin::server::DiscoverySink* sink_{nullptr};
+};
+
 QString CastEngine::Speaker::key() const {
     return QString::fromStdString(this->client_id.empty() ? this->url : this->client_id);
 }
@@ -152,6 +206,11 @@ bool CastEngine::start(uint16_t port, bool discovery) {
     config.listen_port = port;
     config.advertise = discovery;
     config.browse = discovery;
+    if (std::shared_ptr<sendspin::server::DiscoveryProvider> platform =
+            sendspin::server::platform_discovery();
+        discovery && platform) {
+        config.discovery = std::make_shared<Discovery>(std::move(platform), this->own_client_port_);
+    }
     // Follows the category, so QT_LOGGING_RULES turns the library's log up and down too
     config.log_level = lc_cast().isInfoEnabled() ? sendspin::server::LogLevel::INFO
                                                  : sendspin::server::LogLevel::WARN;

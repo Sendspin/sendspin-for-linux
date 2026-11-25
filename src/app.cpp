@@ -68,6 +68,8 @@ void App::start() {
     if (!this->output_.start(&error)) {
         qCWarning(lc_app, "no Sendspin output: %s", qUtf8Printable(error));
     }
+    // Our server never connects to our own client
+    this->cast_.set_own_client_port(this->client_.port());
     if (!this->cast_.start()) {
         qCWarning(lc_app, "casting to speakers is unavailable");
     }
