@@ -256,9 +256,6 @@ off.
   speaker is ticked. An app that was sent to another output by hand stays there.
 - **Check both volumes.** The picker's slider is the speakers' volume; the desktop's volume
   control sets the level of what is sent to them. Either one at zero is silence.
-- **A recent speaker may stay silent for now.** Speakers built on sendspin-cpp 0.10.0 or later
-  miss the start of the stream, a known problem being fixed upstream: see "Depends on" in
-  [docs/SPEC.md](docs/SPEC.md#depends-on).
 - **This PC's output says "Can't play".** Its delay is longer than the speakers' buffer, as
   Bluetooth's can be, so it can't play along in sync.
 

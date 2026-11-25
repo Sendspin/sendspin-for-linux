@@ -18,21 +18,6 @@ TICKED = r"\[x\] " + NAME
 UNTICKED = r"\[ \] " + NAME
 
 
-
-class NotStreaming(AssertionError):
-    """The player answers, and says no stream has started."""
-
-
-# Only the player staying silent is expected; anything else that goes wrong fails the test.
-# Remove both marks when a server pin with the fix lands: they fail the run once the player plays.
-SILENT_PLAYER = pytest.mark.xfail(
-    strict=True,
-    raises=NotStreaming,
-    reason="sendspin-server-cpp sends stream/start before it declares playback, which a player on "
-    "sendspin-cpp >= v0.10.0 ignores; fixed by Sendspin/sendspin-server-cpp#108",
-)
-
-
 class Cast:
     def __init__(self, home: Path):
         self.env = private_env(home)
@@ -89,7 +74,7 @@ class Cast:
         deadline = time.monotonic() + timeout
         while self.status()["streaming"] != "1":
             if time.monotonic() > deadline:
-                raise NotStreaming(f"the player started no stream; it ended with:\n{self.player.tail()}")
+                raise AssertionError(f"the player started no stream; it ended with:\n{self.player.tail()}")
             time.sleep(0.1)
 
 
@@ -134,12 +119,10 @@ def test_the_app_casts_what_plays_to_the_sendspin_output(cast, tone):
     cast.app.wait_for(r"Speakers \(playing\)", 5, since=cast.app.mark())
 
 
-@SILENT_PLAYER
 def test_the_player_gets_the_sound(cast, tone):
     cast.expect_streaming()
 
 
-@SILENT_PLAYER
 def test_the_sound_comes_back_after_an_idle_stop(cast):
     # 3 s of silence is idle: the stream ends, and the next sound starts another
     mark = cast.app.mark()

@@ -6,8 +6,8 @@ the Linux child of [#42](https://github.com/Sendspin/backlog/issues/42). Modelle
 to speakers) is now the core of the MVP, and the player role comes on top of what the Mac does.
 Sources for every claim are in [research.md](research.md).
 
-Library references are to `main` as read on 2026-11-24:
-[sendspin-server-cpp](https://github.com/Sendspin/sendspin-server-cpp) `f217a96` (**server**),
+Library references are to `main` as read on 2026-11-24, the server's on 2026-11-25:
+[sendspin-server-cpp](https://github.com/Sendspin/sendspin-server-cpp) `c33d6e5` (**server**),
 [sendspin-cpp](https://github.com/Sendspin/sendspin-cpp) `f49a5bf` (**client**) and
 [sendspin-mac](https://github.com/Sendspin/sendspin-mac) `32444d6` (**mac**). A path such as
 `server: include/sendspin/server/server.h` is a file in that repository.
@@ -824,13 +824,6 @@ also calls `install-update install` directly, with nothing having checked the fi
   - **A floor on a live input's lead**, as `SourceRouteOptions::min_latency_us` gives a routed
     source, for when this PC's output is slower than every speaker.
   - **The format a speaker receives**, to show on hover as the Mac does. Nice to have.
-  - **`playback` declared before a run's `stream/start`.** At `f217a96` a group that starts
-    playing sends its members `stream/start` first and the `server/activate` that declares
-    `playback` after it (`server: src/group.cpp`, `on_epoch_started()`; `src/server_core.cpp`,
-    `refresh_playback()`). sendspin-cpp from v0.10.0 ignores a `stream/start` that arrives
-    without `playback` (`client: src/client_dispatch.cpp`), as the spec asks, so such a speaker
-    stays silent: on the first sound unless its connection was dialed for playback, and on every
-    sound after an idle stop. Older clients play. Nothing the app can call changes the order.
 - **sendspin-cpp** — v0.10.0 is the latest tag; pin a commit until the next one. Encryption,
   pairing, unpaired access and
   `source@v1` are all on `main`. Missing:

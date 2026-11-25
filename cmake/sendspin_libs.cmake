@@ -43,7 +43,7 @@ FetchContent_Declare(
 FetchContent_Declare(
     sendspin_server_cpp
     GIT_REPOSITORY https://github.com/Sendspin/sendspin-server-cpp.git
-    GIT_TAG        f217a96d4b475bd06157e75ad4ee035db78b55c1  # main, 2026-11-20
+    GIT_TAG        c33d6e579ed620b5d187a6bda52897897e6fa638  # main, 2026-11-25
     SYSTEM
     EXCLUDE_FROM_ALL
 )

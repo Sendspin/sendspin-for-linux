@@ -106,7 +106,7 @@ As of 2026-09-10 unless noted.
 ### sendspin-server-cpp
 
 [Sendspin/sendspin-server-cpp](https://github.com/Sendspin/sendspin-server-cpp) `main` at
-`f217a96`. Apache-2.0. No tags; `README.md` says the API changes without deprecation.
+`c33d6e5`. Apache-2.0. No tags; `README.md` says the API changes without deprecation.
 
 - **Entry point** `include/sendspin/server/server.h`: `SendspinServer`, `ServerListener`,
   `PersistenceProvider`, `GroupInput`. Every call but `start()` and the destructor returns

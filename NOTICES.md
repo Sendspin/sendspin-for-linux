@@ -46,7 +46,7 @@ Each keeps its own license file.
 
 | Source | Version | License | In the tarball |
 | --- | --- | --- | --- |
-| [sendspin-server-cpp](https://github.com/Sendspin/sendspin-server-cpp) | `f217a96` (main, 2026-11-20) | Apache-2.0 | `third_party/fetched/sendspin_server_cpp` |
+| [sendspin-server-cpp](https://github.com/Sendspin/sendspin-server-cpp) | `c33d6e5` (main, 2026-11-25) | Apache-2.0 | `third_party/fetched/sendspin_server_cpp` |
 | [sendspin-cpp](https://github.com/Sendspin/sendspin-cpp) | v0.10.0 (`a10289a`) | Apache-2.0 | `third_party/fetched/sendspin_cpp` |
 | [Boost](https://github.com/boostorg/boost): Beast, Asio and what they depend on | 1.90.0 | BSL-1.0 | `third_party/fetched/boost` |
 | [ArduinoJson](https://github.com/bblanchon/ArduinoJson) | v7.4.1 | MIT | `third_party/fetched/arduinojson` |
