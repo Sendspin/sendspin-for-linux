@@ -3,6 +3,7 @@ add_library(sendspin_app STATIC
     app.cpp
     audio/sendspin_output.cpp
     blob_store.cpp
+    cast/speaker_menu.cpp
     client/client.cpp
     client/mdns_advertiser.cpp
     client/source_feed.cpp
@@ -52,6 +53,7 @@ if(BUILD_TESTING)
     sendspin_add_test(app_test)
     sendspin_add_test(audio/sendspin_output_test)
     sendspin_add_test(blob_store_test)
+    sendspin_add_test(cast/speaker_menu_test)
     sendspin_add_test(client/client_test)
     sendspin_add_test(client/mdns_advertiser_test)
     sendspin_add_test(client/source_feed_test)
