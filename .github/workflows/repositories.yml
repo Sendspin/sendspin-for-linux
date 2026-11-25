@@ -1,0 +1,95 @@
+# Publishing a release rebuilds the apt and dnf repositories on GitHub Pages from the packages of
+# every published release, so earlier versions stay and nothing is kept between runs. The
+# signing key is in the package-signing environment's secrets REPO_GPG_PRIVATE_KEY and
+# REPO_GPG_PASSPHRASE; the README's "Package repositories" has what a maintainer sets up.
+name: Package repositories
+
+on:
+  release:
+    types: [published]
+  # After a release is deleted, or the key replaced
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    name: Build and sign
+    runs-on: ubuntu-latest
+    # Holds the key, behind a reviewer
+    environment: package-signing
+    permissions:
+      contents: read
+      # gh attestation verify
+      attestations: read
+      # configure-pages asks for the site's address
+      pages: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install the tools
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends apt-utils createrepo-c gnupg rpm
+      # Only what the Release workflow built gets the key's signature: each file is the one its
+      # release's SHA256SUMS lists, and carries that workflow's attestation
+      - name: Download and verify the packages of every release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          mkdir packages
+          gh release list --exclude-drafts --exclude-pre-releases --limit 1000 --json tagName --jq '.[].tagName' |
+            while read -r tag; do
+              dir=releases/$tag
+              gh release download "$tag" --dir "$dir" --pattern '*.deb' --pattern '*.rpm' --pattern SHA256SUMS
+              for file in "$dir"/*.deb "$dir"/*.rpm; do
+                [ -e "$file" ] || continue
+                name=$(basename "$file")
+                sum=$(sha256sum "$file" | cut -d' ' -f1)
+                if ! grep -qxF "$sum  $name" "$dir/SHA256SUMS"; then
+                  echo "::error::$tag: $name is not the file in SHA256SUMS"
+                  exit 1
+                fi
+                if ! gh attestation verify "$file" --repo "$GH_REPO" \
+                  --signer-workflow "$GH_REPO/.github/workflows/release.yml" >/dev/null; then
+                  echo "::error::$tag: $name has no attestation from the Release workflow"
+                  exit 1
+                fi
+                echo "$tag: $name verified"
+                mv "$file" packages/
+              done
+            done
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+        id: pages
+      - name: Build the repositories
+        env:
+          REPO_GPG_PRIVATE_KEY: ${{ secrets.REPO_GPG_PRIVATE_KEY }}
+          REPO_GPG_PASSPHRASE: ${{ secrets.REPO_GPG_PASSPHRASE }}
+          PAGES_URL: ${{ steps.pages.outputs.base_url }}
+        run: scripts/package-repos.sh packages site "$PAGES_URL"
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: site
+
+  deploy:
+    name: Publish to Pages
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+        id: deploy
