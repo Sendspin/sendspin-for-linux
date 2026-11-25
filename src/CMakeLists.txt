@@ -80,8 +80,6 @@ target_compile_options(sendspin-for-linux PRIVATE -Wall -Wextra -Wpedantic)
 target_compile_definitions(sendspin-for-linux PRIVATE SENDSPIN_VERSION="${PROJECT_VERSION}")
 target_link_libraries(sendspin-for-linux PRIVATE sendspin_app)
 
-# The package's name, not the project's
-set(CMAKE_INSTALL_DOCDIR share/doc/sendspin-for-linux CACHE PATH "")
 include(GNUInstallDirs)
 install(TARGETS sendspin-for-linux)
 install(FILES ${CMAKE_SOURCE_DIR}/data/com.sendspin_audio.Sendspin.desktop
@@ -109,8 +107,9 @@ foreach(_source ${_fetched})
     get_filename_component(_name ${_source} NAME)
     string(REGEX REPLACE "-src$" "" _name ${_name})
     set(_patterns)
-    # Their own, and those of what they vendor in turn: lib/opus, third_party/micro-resampler
-    foreach(_depth "" "*/" "*/*/")
+    # Their own, and those of what they vendor in turn: pffft's kissfft, lib/opus,
+    # third_party/micro-resampler. No deeper: every Boost library has a copy of Boost's.
+    foreach(_depth "" "*/" "lib/*/" "third_party/*/")
         list(APPEND _patterns ${_source}/${_depth}LICENSE* ${_source}/${_depth}COPYING*
             ${_source}/${_depth}NOTICE*)
     endforeach()
