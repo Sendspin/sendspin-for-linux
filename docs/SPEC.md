@@ -370,6 +370,9 @@ Two persistence providers, one per library, each a directory of blobs with mode 
 `$XDG_DATA_HOME/<app-id>/`: `server/` and `client/`. No Secret Service: it isn't there on every
 desktop, and both libraries' examples use files. Never log keys, PSKs or tokens.
 
+Beside them, also 0600: `paired_servers.ini`, the app's own record of the servers that paired
+with this PC (id, name, date; no key material), the newest 16.
+
 ## Pairing
 
 ### Speakers (we are the server)
@@ -448,6 +451,9 @@ Two controls, independent of each other:
   was clamped to the others; each player gets one command. Players without volume support are
   left out. Relative levels are kept.
 - Mute goes to each player that supports it. A volume change never clears a mute.
+- Both reach only the players active in the group at that moment, and the library does not say
+  when a speaker that joins has become one: the app sends the kept volume and mute again for
+  2 s after a join.
 - One slider and one mute, on the picker's Sendspin row, shown while a speaker is ticked.
 - No per-speaker sliders. A speaker's level relative to the others is set on the speaker.
 - **Volume is perceived loudness, 0–100, not amplitude** (spec `README.md`, "Player messages",
@@ -526,6 +532,9 @@ Two controls, independent of each other:
   (`state.restore-props=false`): the player's is the one that holds. A new stream is silent until
   it has its volume, as PipeWire creates it at full volume; one that never takes it stays silent
   unless full volume is what was asked.
+- The app keeps the player's volume and mute (`player/volume`, `player/muted`) and starts the
+  player with them, at 100 and unmuted the first time. The library starts at 0 and keeps
+  neither, and a server shows what the player reports instead of setting its own.
 - Transport commands go through the controller role and act on the group. Offer only what
   `supported_commands` lists.
 

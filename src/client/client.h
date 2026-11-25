@@ -45,6 +45,9 @@ public:
         bool unpaired_access{true};
         /// What the player advertises, the preferred one first; empty for 48 kHz, 16-bit
         std::vector<sendspin::AudioSupportedFormatObject> player_formats{};
+        /// What the player starts at; Player::volumeChanged() says what to keep for next time
+        uint8_t player_volume{100};
+        bool player_muted{false};
     };
 
     /// @brief preferred when nothing listens on it, else a port the system picks

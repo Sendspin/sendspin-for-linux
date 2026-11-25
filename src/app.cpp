@@ -1,21 +1,32 @@
 #include "app.h"
 
 #include "app_id.h"
+#include "autostart.h"
 
 #include <QApplication>
 #include <QIcon>
 #include <QLoggingCategory>
 #include <QQuickImageProvider>
 #include <QQuickStyle>
+#include <QSettings>
 #include <QStandardPaths>
 
 #include <pipewire/pipewire.h>
 
+#include <algorithm>
 #include <utility>
 
 Q_LOGGING_CATEGORY(lc_app, "sendspin.app")
 
 namespace {
+
+// The player's own, kept as a server sets them; the rest are SettingsModel's
+constexpr const char* SETTING_VOLUME = "player/volume";  ///< 0-100; 100 unless set
+constexpr const char* SETTING_MUTED = "player/muted";
+
+QSettings conf() {
+    return QSettings(QStringLiteral("sendspin"), QStringLiteral("sendspin"));
+}
 
 /// The QR code a pairing server asked for, as `image://qr/…`: the code stays out of QML
 class QrProvider final : public QQuickImageProvider {
@@ -55,7 +66,10 @@ App::App(const std::filesystem::path& data_dir, QObject* parent)
       client_({.name = SettingsModel::stored_device_name(),
                .port = Client::free_port(),
                .unpaired_access = SettingsModel::stored_unpaired_access(),
-               .player_formats = this->probe_formats_()},
+               .player_formats = this->probe_formats_(),
+               .player_volume = static_cast<uint8_t>(
+                   std::clamp(conf().value(SETTING_VOLUME, 100).toInt(), 0, 100)),
+               .player_muted = conf().value(SETTING_MUTED, false).toBool()},
               &this->client_persistence_),
       mpris_(this->client_, art_dir()),
       cast_(data_dir, output_),
@@ -85,6 +99,11 @@ App::App(const std::filesystem::path& data_dir, QObject* parent)
                     this->picker_window_.toggle(PickerWindow::Place::POINTER);
                 }
             });
+    connect(&this->client_.player(), &Player::volumeChanged, this, [](int volume, bool muted) {
+        QSettings kept = conf();
+        kept.setValue(SETTING_VOLUME, volume);
+        kept.setValue(SETTING_MUTED, muted);
+    });
     connect(&this->outputs_, &Outputs::targetChanged, this,
             [this] { this->client_.player().stream().set_target(this->outputs_.target()); });
     this->client_.player().stream().set_target(this->outputs_.target());
@@ -125,6 +144,8 @@ void App::start() {
     if (!this->output_.start(&error)) {
         qCWarning(lc_app, "no Sendspin output: %s", qUtf8Printable(error));
     }
+    // What the entry starts may have changed since it was written
+    autostart::refresh();
     // First: its client_id comes with its start
     this->client_.start();
     // Our server never connects to our own client

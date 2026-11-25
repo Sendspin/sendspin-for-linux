@@ -35,11 +35,13 @@ int64_t raw_now_ns() {
 
 /// The app's side of a test: the engine with a speaker to dial, and no PipeWire or mDNS
 struct Rig {
-    explicit Rig(const QString& dir, uint16_t speaker_port) : dir(dir) {
+    explicit Rig(const QString& dir, uint16_t speaker_port, uint16_t second_port = 0) : dir(dir) {
         QSettings settings(dir + "/cast.ini", QSettings::IniFormat);
-        settings.setValue(
-            "speaker_urls",
-            QStringList{QStringLiteral("ws://127.0.0.1:%1/sendspin").arg(speaker_port)});
+        QStringList urls{QStringLiteral("ws://127.0.0.1:%1/sendspin").arg(speaker_port)};
+        if (second_port != 0) {
+            urls << QStringLiteral("ws://127.0.0.1:%1/sendspin").arg(second_port);
+        }
+        settings.setValue("speaker_urls", urls);
         settings.sync();
         this->engine = std::make_unique<CastEngine>(dir.toStdString(), this->output);
     }
@@ -326,6 +328,35 @@ private slots:
         QTRY_VERIFY(peer.muted);
         rig.engine->setGroupMuted(false);
         QTRY_VERIFY(!peer.muted);
+    }
+
+    void aSpeakerAddedLaterGetsTheStoredVolumeAndMute() {
+        {
+            QSettings settings(this->app_dir_->path() + "/cast.ini", QSettings::IniFormat);
+            settings.setValue("group_volume", 35);
+            settings.setValue("group_muted", true);
+        }
+        QTemporaryDir second_dir;
+        const uint16_t second_port = free_port();
+        Peer first(this->speaker_dir_->path(), this->port_, true);
+        Peer second(second_dir.path(), second_port, true, "Bedroom");
+        Rig rig(this->app_dir_->path(), this->port_, second_port);
+        QVERIFY(rig.engine->start(0, false));
+        QTRY_VERIFY(rig.row(first.id()) != nullptr);
+        QTRY_VERIFY(rig.row(second.id()) != nullptr);
+
+        rig.engine->add(first.id());
+        QTRY_COMPARE(rig.check(first.id()), Check::FILLED);
+        QTRY_VERIFY(rig.engine->feed().input() != nullptr);
+        QTRY_COMPARE(first.volume, 35);
+        QTRY_VERIFY(first.muted);
+
+        // The input is open already: nothing but the speaker joining sends them again
+        rig.engine->add(second.id());
+        QTRY_COMPARE(rig.check(second.id()), Check::FILLED);
+        QTRY_VERIFY(second.muted);
+        // The group's volume is its players' average, and the library keeps their distance
+        QTRY_VERIFY(second.volume >= 0 && std::abs(first.volume + second.volume - 70) <= 1);
     }
 
     void whatYouAddedStaysWhenItGoesAwayAndComesBackByItself() {

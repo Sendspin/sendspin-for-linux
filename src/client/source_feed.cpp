@@ -49,6 +49,8 @@ sendspin::SourceRoleConfig SourceFeed::config() {
 
 SourceFeed::SourceFeed(sendspin::SendspinClient& client) : role_(client.add_source(config())) {
     this->role_.set_listener(this);
+    // The library reports no signal until one is set, and the spec asks for it always
+    this->role_.set_signal(sendspin::SourceSignal::ABSENT);
 }
 
 void SourceFeed::write(const CapturedBlock& block) {
