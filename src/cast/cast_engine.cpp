@@ -231,6 +231,14 @@ bool CastEngine::start(uint16_t port, bool discovery) {
         config.listen_port = 0;
         result = server->start(config, &this->persistence_, this->listener_.get());
     }
+    if (result == StartResult::DISCOVERY_FAILED) {
+        // mDNS can't even be asked: no system bus, as in a container. Left to its own provider
+        // the library runs on without it, and speakers are reached by URL. No browsing, should
+        // mDNS turn up later: unfiltered, it would find this app's own client.
+        config.discovery.reset();
+        config.browse = false;
+        result = server->start(config, &this->persistence_, this->listener_.get());
+    }
     if (result != StartResult::OK) {
         qCWarning(lc_cast, "the server did not start: %d", static_cast<int>(result));
         return false;
