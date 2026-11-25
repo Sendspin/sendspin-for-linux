@@ -55,7 +55,9 @@ void CastFeed::take(const CapturedBlock& block) {
             if (local == Local::GROUP && result.frames != 0) {
                 // The head is the end of what this write staged, and its latency says when that
                 // plays. No count of positions to keep, which a stop from poll() could race.
-                const int64_t end_ns = clock_ns(CLOCK_MONOTONIC_RAW) + (input->latency_us() * 1000);
+                // The latency first: a wait for the library's lock must not age the clock read
+                const int64_t latency_ns = input->latency_us() * 1000;
+                const int64_t end_ns = clock_ns(CLOCK_MONOTONIC_RAW) + latency_ns;
                 const int64_t staged_ns =
                     static_cast<int64_t>(result.frames) * NS_PER_S / block.rate;
                 (void)this->play_along_->write(block.samples, static_cast<uint32_t>(taken),

@@ -67,6 +67,9 @@ public:
     void set_gain(float gain) {
         this->gain_.store(gain, std::memory_order_relaxed);
     }
+    float gain() const {
+        return this->gain_.load(std::memory_order_relaxed);
+    }
 
     /// @brief A stream is in the graph
     bool is_open() const;
@@ -78,12 +81,18 @@ public:
     int64_t delay_ns() const {
         return this->delay_ns_.load(std::memory_order_relaxed);
     }
+    /// @brief Has delay_ns() measured again by the next stream that runs
+    void forget_delay() {
+        this->delay_ns_.store(0, std::memory_order_relaxed);
+    }
 
     Stats stats() const;
 
     /// @brief Frames written and not yet played or dropped
     uint32_t queued_frames() const {
-        return static_cast<uint32_t>(this->written_.load() - this->read_.load());
+        // In this order: read_ only grows towards written_
+        const uint64_t read = this->read_.load();
+        return static_cast<uint32_t>(this->written_.load() - read);
     }
 
     /// @brief Queues a block. Capture thread: no locks, allocation or blocking calls.

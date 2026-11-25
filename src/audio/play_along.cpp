@@ -56,9 +56,9 @@ void PlayAlong::set_target(const std::optional<QByteArray>& target) {
     }
     this->target_ = wanted;
     this->retry_at_ = {};
+    this->close_();
     // Another output's delay is its own
     this->delay_ns_.store(0);
-    this->close_();
     this->set_active(this->active_);
 }
 
@@ -263,7 +263,7 @@ void PlayAlong::render(float* out, uint32_t frames, int64_t heard_ns) {
         const uint64_t marks = this->marks_read_.load(std::memory_order_relaxed);
         if (resyncing && marks != this->marks_written_.load(std::memory_order_acquire)) {
             const uint64_t block_end = this->marks_[marks % QUEUE_BLOCKS].index;
-            if (read + step.drop > block_end) {
+            if (read + step.drop >= block_end) {
                 read = block_end;
                 step = {};
                 this->corrector_.resync();

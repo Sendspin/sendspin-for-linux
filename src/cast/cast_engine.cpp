@@ -37,6 +37,8 @@ constexpr int64_t STEP_NS = 2'000'000'000;
 /// A latency change smaller than this isn't worth telling the graph
 constexpr int64_t LATENCY_STEP_NS = 1'000'000;
 const char* const PLAYER_ROLE = "player@v1";
+/// How often an output that was late is tried again: its delay may have come down
+constexpr int64_t LOCAL_RETRY_NS = 10'000'000'000;
 /// How often its timing is logged while it plays
 constexpr int64_t LOCAL_LOG_NS = 5'000'000'000;
 
@@ -727,6 +729,13 @@ void CastEngine::update_local_(int64_t now_ns) {
                       "buffer %lld ms",
                       static_cast<long long>(delay_ns / 1'000'000),
                       static_cast<long long>(this->latency_ns_ / 1'000'000));
+            this->local_late_since_ns_ = now_ns;
+        }
+        if (late && now_ns - this->local_late_since_ns_ >= LOCAL_RETRY_NS) {
+            // Out, nothing measures its delay. A stream that is still late plays nothing: what
+            // is late is dropped.
+            this->local_late_since_ns_ = now_ns;
+            this->play_along_.forget_delay();
         }
         this->local_late_ = late;
         local = late ? Local::NOTHING : Local::GROUP;

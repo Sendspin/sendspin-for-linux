@@ -254,6 +254,7 @@ private:
     bool local_in_group_{true};
     /// Its delay is longer than the speaker buffer: it can't play in time
     bool local_late_{false};
+    int64_t local_late_since_ns_{0};
     /// What local_output() last said, to tell a change
     bool local_plays_{false};
     int64_t local_logged_ns_{0};

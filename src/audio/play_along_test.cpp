@@ -167,8 +167,9 @@ private slots:
         QVERIFY(play_along.write(ramp(480, 480).data(), 480, SECOND));
         // The first block's time has not come; the second's has
         QCOMPARE(std::ranges::count(render(play_along, SECOND - (10 * MS)), 0.0F), 480);
-        const std::vector<float> out = render(play_along, SECOND + (510 * MS));
-        QVERIFY(out[0] == 0.0F || out[0] > 480.0F);
+        // Then the first block is late too, and the second by half a second: neither is played
+        QCOMPARE(std::ranges::count(render(play_along, SECOND + (510 * MS)), 0.0F), 480);
+        QCOMPARE(play_along.queued_frames(), 0U);
     }
 
     void runningDryIsAnUnderrunAndTheNextAudioIsPlacedAgain() {

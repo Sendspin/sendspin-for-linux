@@ -506,7 +506,6 @@ private slots:
         QCOMPARE(code_needed.last().at(0).toString(), id);
     }
 
-    // Loop guard 3, whatever way it got to the server
     // --- This PC's own output ---
 
     void thisPcsOutputIsInTheGroupOnceThereIsOneToPlayOn() {
@@ -577,15 +576,38 @@ private slots:
         QCOMPARE(play_along.queued_frames(), BLOCK);
         // When the group plays it
         play_along.render(out.data(), BLOCK, plays_ns - (100 * 1'000'000'000LL / 48000));
-        QCOMPARE(out[2 * 99], 0.0F);
-        QCOMPARE(out[2 * 100], 0.25F);
+        QCOMPARE(out[2 * 97], 0.0F);
+        QCOMPARE(out[2 * 103], 0.25F);
 
         // Out of the group it gets nothing
+        const uint32_t left = play_along.queued_frames();
         rig.engine->setLocalInGroup(false);
         rig.engine->feed().take({tone.data(), BLOCK, SendspinOutput::RATE, raw_now_ns(), false});
-        QCOMPARE(play_along.queued_frames(), BLOCK - 380);
+        QCOMPARE(play_along.queued_frames(), left);
     }
 
+    // Beside a speaker it takes the group's volume and mute; alone the desktop's is all there is
+    void thisPcFollowsTheGroupsVolumeOnlyBesideASpeaker() {
+        Peer peer(this->speaker_dir_->path(), this->port_, true);
+        QVERIFY(peer.started);
+        Rig rig(this->app_dir_->path(), this->port_);
+        QVERIFY(rig.engine->start(0, false));
+        rig.engine->set_local_target(QByteArray("sendspin-test-nowhere"));
+        rig.engine->setGroupVolume(25);
+        QTest::qWait(300);
+        QCOMPARE(rig.engine->play_along().gain(), 1.0F);
+
+        QTRY_VERIFY(rig.row(peer.id()) != nullptr);
+        rig.engine->add(peer.id());
+        QTRY_COMPARE(rig.engine->play_along().gain(), 0.125F);
+        rig.engine->setGroupMuted(true);
+        QTRY_COMPARE(rig.engine->play_along().gain(), 0.0F);
+        rig.engine->setGroupMuted(false);
+        rig.engine->remove(peer.id());
+        QTRY_COMPARE(rig.engine->play_along().gain(), 1.0F);
+    }
+
+    // Loop guard 3, whatever way it got to the server
     void thisAppsOwnClientIsNeverListed() {
         Peer own(this->speaker_dir_->path(), this->port_, true);
         Rig rig(this->app_dir_->path(), this->port_);

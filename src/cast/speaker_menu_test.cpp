@@ -180,7 +180,6 @@ private slots:
         QCOMPARE(speaker_menu::row(local(true, true), GROUPED).click, Click::REMOVE);
     }
 
-    // This PC's own output is always there to take over
     void thisPcsOutputThatCantKeepTimeSaysCantPlay() {
         Output output = local(true, false);
         output.connection = Connection::CANT_PLAY;
@@ -207,6 +206,7 @@ private slots:
         QVERIFY(!local_is_late(250 * MS, 0, true));
     }
 
+    // This PC's own output is always there to take over
     void aSendspinSpeakerAloneCanBeRemoved() {
         QCOMPARE(speaker_menu::row(speaker(true, true), {.group_count = 1}).click, Click::REMOVE);
     }

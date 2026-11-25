@@ -148,10 +148,11 @@ private slots:
         // An output heard 100 frames before the first frame plays waits those 100 frames
         std::vector<float> out(2 * FRAMES * SendspinOutput::CHANNELS, -1.0F);
         play_along.render(out.data(), 2 * FRAMES, plays_ns - (100 * SECOND_NS / 48000));
-        QCOMPARE(out[2 * 99], 0.0F);
-        QCOMPARE(out[2 * 100], 0.25F);
+        // To a frame or two: the stamp and time_of() read the clock a moment apart
+        QCOMPARE(out[2 * 97], 0.0F);
+        QCOMPARE(out[2 * 103], 0.25F);
         // The second block follows the first without a seam
-        QCOMPARE(out[2 * (100 + FRAMES)], 0.25F);
+        QCOMPARE(out[2 * (103 + FRAMES)], 0.25F);
         QCOMPARE(play_along.stats().resyncs, 1U);
     }
 

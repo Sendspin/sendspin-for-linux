@@ -495,8 +495,8 @@ Two controls, independent of each other:
   away. Each block is due at its capture time plus the output's delay and one block. Never
   beside a group that plays, which would be an echo.
 - **When its delay is longer than the speaker buffer it cannot be on time**, and plays nothing
-  rather than late: its row says "Can't play" until the buffer has 20 ms to spare. The buffer is
-  the library's and the app cannot raise it. See [Open questions](#open-questions).
+  rather than late: its row says "Can't play" until the buffer has 20 ms to spare, and its delay
+  is measured again every 10 s. The buffer is the library's and the app cannot raise it. See [Open questions](#open-questions).
 - Until the picker has the row, `--play-along` puts it in the group from the command line. The
   app logs its timing every 5 s under `sendspin.cast`: how far off the timeline it plays, the
   output's delay, the buffer, and the frames dropped and repeated.
