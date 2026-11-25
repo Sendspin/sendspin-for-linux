@@ -13,7 +13,6 @@
 #include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QTest>
-#include <QVersionNumber>
 
 #include <atomic>
 #include <cmath>
@@ -184,16 +183,6 @@ bool have(const char* tool) {
         }                                                                          \
     } while (false)
 
-// PipeWire 1.4.2 drops volume and mute on an idle node and never publishes the latency; fix
-// pending. Remove with it.
-#define EXPECT_FAIL_BEFORE_1_6(mode)                                              \
-    do {                                                                          \
-        if (QVersionNumber::fromString(QLatin1String(pw_get_library_version())) < \
-            QVersionNumber(1, 6)) {                                               \
-            QEXPECT_FAIL("", "PipeWire < 1.6, fix pending", mode);                \
-        }                                                                         \
-    } while (false)
-
 #define NEED_TOOL(tool)                                     \
     do {                                                    \
         if (!have(tool)) {                                  \
@@ -313,8 +302,6 @@ private slots:
         const QSignalSpy mutes(&output, &SendspinOutput::mutedChanged);
 
         output.set_volume(0.5F);
-        // Abort: mute is dropped the same way, so nothing past here holds either
-        EXPECT_FAIL_BEFORE_1_6(Abort);
         QTRY_COMPARE(volumes.count(), 1);
         QVERIFY(near(volumes.first().first().toFloat(), 0.5F));
         QVERIFY(near(output.volume(), 0.5F));
@@ -344,8 +331,6 @@ private slots:
         QCOMPARE(QProcess::execute(QStringLiteral("wpctl"),
                                    {QStringLiteral("set-volume"), id, QStringLiteral("0.5")}),
                  0);
-        // Abort: the capture and mute checks below rest on this volume having taken
-        EXPECT_FAIL_BEFORE_1_6(Abort);
         QTRY_VERIFY(near(output.volume(), 0.5F));
 
         const QTemporaryDir dir;
@@ -391,10 +376,8 @@ private slots:
         };
 
         output.set_latency(250000000);
-        EXPECT_FAIL_BEFORE_1_6(Continue);
         QTRY_COMPARE(reported_ns(), 250000000);
         output.set_latency(400000000);
-        EXPECT_FAIL_BEFORE_1_6(Continue);
         QTRY_COMPARE(reported_ns(), 400000000);
     }
 };
