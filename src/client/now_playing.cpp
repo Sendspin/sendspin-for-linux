@@ -68,9 +68,12 @@ void NowPlaying::send(const sendspin::ClientCommandControllerObject& command) {
 }
 
 void NowPlaying::seek(qint64 position_ms) {
-    const qint64 end = this->controls_.seek_max_ms.value_or(0);
-    this->send({.command = Command::SEEK,
-                .position_ms = static_cast<uint32_t>(std::clamp<qint64>(position_ms, 0, end))});
+    // No range, as on a live stream: nowhere to seek to
+    if (const auto end = this->controls_.seek_max_ms) {
+        this->send(
+            {.command = Command::SEEK,
+             .position_ms = static_cast<uint32_t>(std::clamp<qint64>(position_ms, 0, *end))});
+    }
 }
 
 void NowPlaying::on_controller_state(const sendspin::ServerStateControllerObject& state) {
@@ -90,7 +93,6 @@ void NowPlaying::on_track_metadata(const sendspin::TrackMetadata& metadata) {
     track.album = text(metadata.album);
     track.album_artist = text(metadata.album_artist);
     track.number = metadata.track.value_or(0);
-    track.year = metadata.year.value_or(0);
     track.duration_ms = metadata.progress ? metadata.progress->track_duration : 0;
     if (track != this->track_) {
         this->track_ = std::move(track);

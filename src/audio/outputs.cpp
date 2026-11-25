@@ -184,13 +184,8 @@ void Outputs::stop() {
     if (this->loop_ != nullptr) {
         {
             const LoopLock lock(this->loop_);
-            for (Metadata* metadata : {&this->default_metadata_, &this->settings_metadata_}) {
-                if (metadata->proxy != nullptr) {
-                    spa_hook_remove(&metadata->hook);
-                    pw_proxy_destroy(metadata->proxy);
-                    *metadata = {};
-                }
-            }
+            unbind_metadata_(this->default_metadata_);
+            unbind_metadata_(this->settings_metadata_);
             if (this->registry_ != nullptr) {
                 spa_hook_remove(&this->registry_hook_);
                 pw_proxy_destroy(reinterpret_cast<pw_proxy*>(this->registry_));
@@ -326,11 +321,20 @@ void Outputs::bind_metadata_(Metadata& metadata, uint32_t id, bool settings) {
     if (metadata.proxy == nullptr) {
         return;
     }
+    metadata.id = id;
     pw_metadata_add_listener(reinterpret_cast<pw_metadata*>(metadata.proxy), &metadata.hook,
                              settings ? &settings_events : &default_events, this);
     // Its values follow the bind: whoever waits for the listing waits for them too
     this->synced_ = false;
     this->sync_seq_ = pw_core_sync(this->core_, PW_ID_CORE, 0);
+}
+
+void Outputs::unbind_metadata_(Metadata& metadata) {
+    if (metadata.proxy != nullptr) {
+        spa_hook_remove(&metadata.hook);
+        pw_proxy_destroy(metadata.proxy);
+        metadata = {};
+    }
 }
 
 void Outputs::on_global(void* data, uint32_t id, uint32_t /*permissions*/, const char* type,
@@ -365,6 +369,14 @@ void Outputs::on_global_remove(void* data, uint32_t id) {
     auto* self = static_cast<Outputs*>(data);
     if (std::erase_if(self->sinks_, [id](const auto& sink) { return sink.id == id; }) != 0) {
         self->changed_();
+    }
+    // The session manager went, and its metadata with it: the one it comes back with is new
+    if (self->default_metadata_.proxy != nullptr && self->default_metadata_.id == id) {
+        unbind_metadata_(self->default_metadata_);
+        self->default_sink_.clear();
+        self->changed_();
+    } else if (self->settings_metadata_.proxy != nullptr && self->settings_metadata_.id == id) {
+        unbind_metadata_(self->settings_metadata_);
     }
 }
 

@@ -41,18 +41,6 @@ private slots:
         QCOMPARE(ring.read(out.data(), out.size()), size_t{2});
         QCOMPARE(out, (std::array<uint8_t, 4>{7, 9, 0, 0}));
     }
-
-    void aRequestedClearEmptiesItOnTheNextRead() {
-        PcmRing ring;
-        ring.reset(8 + 1);
-        const std::array<uint8_t, 3> in{1, 2, 3};
-        ring.write(in.data(), in.size());
-        ring.request_clear();
-        std::array<uint8_t, 3> out{9, 9, 9};
-        QCOMPARE(ring.read(out.data(), out.size()), size_t{0});
-        QCOMPARE(out, (std::array<uint8_t, 3>{0, 0, 0}));
-        QCOMPARE(ring.available(), size_t{0});
-    }
 };
 
 QTEST_APPLESS_MAIN(PcmRingTest)

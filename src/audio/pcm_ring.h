@@ -26,9 +26,6 @@ public:
     /// Bytes that can be written before the ring is full.
     size_t free_space() const;
 
-    /// Asks the consumer to drop everything on its next read(); safe while the callback runs.
-    void request_clear();
-
     /// Drops everything now. Only with no reader running and the producer's mutex held.
     void drop();
 
@@ -40,5 +37,4 @@ private:
     size_t capacity_{0};
     std::atomic<size_t> write_pos_{0};
     std::atomic<size_t> read_pos_{0};
-    std::atomic<bool> clear_requested_{false};
 };

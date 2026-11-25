@@ -64,6 +64,7 @@ signals:
 
 private:
     struct Metadata {
+        uint32_t id{0};  ///< the global's, to know it by when it goes
         pw_proxy* proxy{nullptr};
         spa_hook hook{};
     };
@@ -81,6 +82,7 @@ private:
                               const spa_pod* param);
 
     void bind_metadata_(Metadata& metadata, uint32_t id, bool settings);
+    static void unbind_metadata_(Metadata& metadata);
     /// Starts a round trip to the daemon and waits it out. Caller holds the loop lock.
     bool sync_(int timeout_ms);
     /// From PipeWire's thread: has the event loop look at the graph again

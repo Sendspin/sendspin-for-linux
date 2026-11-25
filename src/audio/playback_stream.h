@@ -55,9 +55,8 @@ public:
     /// @return Bytes taken, a whole number of frames
     size_t write(const uint8_t* data, size_t length, const Format& format, uint32_t timeout_ms);
 
-    /// @brief The server's stream ended: drops what is queued and lets the output idle
-    void clear();
-    /// @brief Closes the stream; the next write() opens one again
+    /// @brief Closes the stream and drops what is queued; the next write() opens one again.
+    /// Between a server's streams the output is left to idle.
     void stop();
 
     /// @brief The stream's volume as a linear gain, which the OS mixer shows as its own
@@ -98,10 +97,10 @@ private:
     void apply_gain_();
     void apply_mute_();
     /// The stream reported a volume or mute that was set from here
-    void took_(std::atomic<bool>& applied);
-    /// A volume reported now is not the mixer's doing: the one the stream was born with, or the
+    static void took_(std::atomic<bool>& applied, std::atomic<int64_t>& own_until_ns);
+    /// A value reported now is not the mixer's doing: the one the stream was born with, or the
     /// echo of a value since replaced
-    bool own_time_() const;
+    static bool own_time_(const std::atomic<int64_t>& own_until_ns);
 
     const QByteArray node_name_;
     Played played_;
@@ -118,10 +117,8 @@ private:
     Format format_;
     /// Read by on_process() unlocked: changed only while no stream is connected
     size_t bytes_per_frame_{0};
-    /// Bumped on open, close and clear; a write() that waited compares it on waking
+    /// Bumped on open and close; a write() that waited compares it on waking
     uint64_t generation_{0};
-    /// Paused by clear(), so the output can suspend between streams
-    bool paused_{false};
     /// No sooner than this is a failed open tried again
     std::chrono::steady_clock::time_point retry_at_;
 
@@ -132,7 +129,8 @@ private:
     std::atomic<bool> gain_applied_{false};
     std::atomic<bool> mute_applied_{false};
     /// CLOCK_MONOTONIC nanoseconds: see own_time_()
-    std::atomic<int64_t> own_until_ns_{0};
+    std::atomic<int64_t> gain_own_until_ns_{0};
+    std::atomic<int64_t> mute_own_until_ns_{0};
     /// By then a new stream plays whether it took its volume or not
     std::atomic<int64_t> gate_until_ns_{0};
 

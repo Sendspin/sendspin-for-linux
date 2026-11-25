@@ -369,6 +369,57 @@ private slots:
         QVERIFY(!client.source().streaming());
     }
 
+    void anUnpairedServerPlaysHereOnceApproved_data() {
+        QTest::addColumn<bool>("unpaired_access");
+        QTest::newRow("allowed") << true;
+        QTest::newRow("pairing required") << false;
+    }
+
+    // A PC of its own identity, so the pairing above plays no part
+    void anUnpairedServerPlaysHereOnceApproved() {
+        QFETCH(const bool, unpaired_access);
+        const QTemporaryDir dir;
+        ClientPersistence persistence(dir.path().toStdString());
+        Client::Config config = this->config_;
+        config.unpaired_access = unpaired_access;
+        Client client(config, &persistence);
+        QVERIFY(client.start());
+        this->dial();
+        QTRY_COMPARE(client.state(), Client::State::Connected);
+        QVERIFY(this->server_.approve(client.client_id().toStdString(),
+                                      server::ApprovalScope::PLAYBACK));
+        // On a new session: the server activates this one without `playback`
+        // (Sendspin/sendspin-server-cpp#107)
+        client.stop();
+        QTRY_VERIFY(!this->events_.get(&ServerEvents::connected));
+        QVERIFY(client.start());
+        this->dial();
+
+        const auto group = this->server_.default_group();
+        QVERIFY(group.has_value());
+        const server::OpenedInput opened =
+            this->server_.open_input(*group, {.format = {48000, 2, server::SampleFormat::S16}});
+        QCOMPARE(opened.result, server::OpenInputResult::OK);
+        const std::vector<int16_t> silence(48000 * 2, 0);
+        size_t written = 0;
+        for (int i = 0; i < 100 && written < 48000 && !client.player().streaming(); ++i) {
+            written += opened.input->write(silence.data(), 48000 - written).frames;
+            QTest::qWait(20);
+        }
+        if (unpaired_access) {
+            QTRY_VERIFY(client.player().streaming());
+            // Playback only: the PC's sound is not the server's to take
+            QVERIFY(!client.source().streaming());
+        } else {
+            QVERIFY(!client.player().streaming());
+        }
+        QVERIFY(!client.is_paired());
+
+        opened.input->stop();
+        client.stop();
+        QTRY_VERIFY(!this->events_.get(&ServerEvents::connected));
+    }
+
     // Also on the paired identity. No PipeWire: the playback stream has no target, so the
     // audio is taken and counted, which is all the player's side of this needs.
     void playsWhatTheServerSendsAndControlsItsGroup() {

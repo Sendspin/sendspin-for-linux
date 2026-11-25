@@ -52,6 +52,8 @@ Client::Client(const Config& config, sendspin::SendspinPersistenceProvider* pers
     this->client_.set_listener(this);
     this->client_.set_network_provider(this);
     this->client_.set_persistence_provider(persistence);
+    // The library does not keep this; before start(), so the first hello carries it
+    this->client_.set_unpaired_access_enabled(config.unpaired_access);
 
     this->loop_timer_.setInterval(LOOP_INTERVAL);
     connect(&this->loop_timer_, &QTimer::timeout, this, &Client::tick_);

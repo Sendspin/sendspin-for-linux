@@ -334,8 +334,8 @@ Beyond the rows above (no driver or Local Network notice, no AirPlay, no QR scan
   interfaces and temporary IPv6 addresses.
 - Identity: a Curve25519 key pair the library generates on first start; `client_id` is its
   public key. Losing it makes the PC a new device to every server.
-- Unpaired access: the app stores the setting and calls `set_unpaired_access_enabled()` before
-  `start()`; the library never persists it.
+- Unpaired access: the app stores the setting (`client/unpaired_access`, on unless set false) and
+  calls `set_unpaired_access_enabled()` before `start()`; the library never persists it.
 
 ### One client connection, two roles
 

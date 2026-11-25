@@ -41,6 +41,8 @@ public:
         uint16_t port{DEFAULT_PORT};
         /// Off in tests, which must not draw in the servers on the network
         bool advertise{true};
+        /// A server may play here without pairing; the source still needs pairing
+        bool unpaired_access{true};
         /// What the player advertises, the preferred one first; empty for 48 kHz, 16-bit
         std::vector<sendspin::AudioSupportedFormatObject> player_formats{};
     };

@@ -18,7 +18,6 @@ struct Track {
     QString album{};
     QString album_artist{};
     int number{0};          ///< on its album; 0 for unknown
-    int year{0};            ///< 0 for unknown
     qint64 duration_ms{0};  ///< 0 for unknown, or live
 
     bool operator==(const Track&) const = default;

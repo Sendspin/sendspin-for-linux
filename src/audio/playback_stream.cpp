@@ -132,12 +132,6 @@ size_t PlaybackStream::write(const uint8_t* data, size_t length, const Format& f
         }
     }
 
-    if (this->paused_) {
-        const LoopLock loop_lock(this->loop_);
-        pw_stream_set_active(this->stream_, true);
-        this->paused_ = false;
-    }
-
     const uint64_t generation = this->generation_;
     size_t done = 0;
     while (done < usable && !this->stopping_.load()) {
@@ -167,25 +161,6 @@ size_t PlaybackStream::write(const uint8_t* data, size_t length, const Format& f
     return done;
 }
 
-void PlaybackStream::clear() {
-    const std::lock_guard lock(this->mutex_);
-    // Ends a waiting write()'s stream
-    ++this->generation_;
-    this->room_.notify_all();
-    // The player zeroes its own count with the stream's end
-    this->owed_frames_.store(0);
-    if (!this->alive_()) {
-        this->ring_.drop();
-        return;
-    }
-    // The process callback owns the read position, so it empties the ring on its next read
-    this->ring_.request_clear();
-    const LoopLock loop_lock(this->loop_);
-    if (pw_stream_set_active(this->stream_, false) == 0) {
-        this->paused_ = true;
-    }
-}
-
 void PlaybackStream::stop() {
     // Before the mutex, so a waiting write() gives up
     this->stopping_.store(true);
@@ -200,7 +175,7 @@ void PlaybackStream::stop() {
 void PlaybackStream::set_gain(float gain) {
     const std::lock_guard lock(this->mutex_);
     this->gain_.store(std::max(gain, 0.0F));
-    this->own_until_ns_.store(clock_ns(CLOCK_MONOTONIC) + OWN_NS);
+    this->gain_own_until_ns_.store(clock_ns(CLOCK_MONOTONIC) + OWN_NS);
     if (this->stream_ != nullptr) {
         const LoopLock loop_lock(this->loop_);
         this->apply_gain_();
@@ -210,7 +185,7 @@ void PlaybackStream::set_gain(float gain) {
 void PlaybackStream::set_muted(bool muted) {
     const std::lock_guard lock(this->mutex_);
     this->muted_.store(muted);
-    this->own_until_ns_.store(clock_ns(CLOCK_MONOTONIC) + OWN_NS);
+    this->mute_own_until_ns_.store(clock_ns(CLOCK_MONOTONIC) + OWN_NS);
     if (this->stream_ != nullptr) {
         const LoopLock loop_lock(this->loop_);
         this->apply_mute_();
@@ -270,7 +245,8 @@ bool PlaybackStream::open_(const Format& format) {
     this->gain_applied_.store(false);
     this->mute_applied_.store(false);
     const int64_t now_ns = clock_ns(CLOCK_MONOTONIC);
-    this->own_until_ns_.store(now_ns + GATE_NS);
+    this->gain_own_until_ns_.store(now_ns + GATE_NS);
+    this->mute_own_until_ns_.store(now_ns + GATE_NS);
     this->gate_until_ns_.store(now_ns + GATE_NS);
 
     // An explicit target, which the session manager may not replace: left to follow the default
@@ -370,7 +346,6 @@ void PlaybackStream::close_() {
         this->stream_ = nullptr;
     }
     ++this->generation_;
-    this->paused_ = false;
     this->format_ = {};
     this->bytes_per_frame_ = 0;
     this->ring_.reset(0);
@@ -403,15 +378,15 @@ void PlaybackStream::apply_mute_() {
     pw_stream_set_control(this->stream_, SPA_PROP_mute, 1, &value, 0);
 }
 
-void PlaybackStream::took_(std::atomic<bool>& applied) {
+void PlaybackStream::took_(std::atomic<bool>& applied, std::atomic<int64_t>& own_until_ns) {
     if (!applied.exchange(true)) {
         // The newborn's long wait is over; a mixer may speak after the usual one
-        this->own_until_ns_.store(clock_ns(CLOCK_MONOTONIC) + OWN_NS);
+        own_until_ns.store(clock_ns(CLOCK_MONOTONIC) + OWN_NS);
     }
 }
 
-bool PlaybackStream::own_time_() const {
-    return clock_ns(CLOCK_MONOTONIC) < this->own_until_ns_.load();
+bool PlaybackStream::own_time_(const std::atomic<int64_t>& own_until_ns) {
+    return clock_ns(CLOCK_MONOTONIC) < own_until_ns.load();
 }
 
 void PlaybackStream::on_state_changed(void* data, pw_stream_state /*old*/, pw_stream_state state,
@@ -436,8 +411,8 @@ void PlaybackStream::on_control_info(void* data, uint32_t id, const pw_stream_co
             gain += control->values[i] / static_cast<float>(control->n_values);
         }
         if (reported && std::abs(gain - self->gain_.load()) < GAIN_EPSILON) {
-            self->took_(self->gain_applied_);
-        } else if (self->own_time_()) {
+            self->took_(self->gain_applied_, self->gain_own_until_ns_);
+        } else if (own_time_(self->gain_own_until_ns_)) {
             if (!self->gain_applied_.load()) {
                 self->apply_gain_();
             }
@@ -445,6 +420,10 @@ void PlaybackStream::on_control_info(void* data, uint32_t id, const pw_stream_co
             QMetaObject::invokeMethod(
                 self,
                 [self, gain] {
+                    // Set from here since: this report is of the volume before that
+                    if (own_time_(self->gain_own_until_ns_)) {
+                        return;
+                    }
                     self->gain_.store(gain);
                     emit self->gainChanged(gain);
                 },
@@ -453,8 +432,8 @@ void PlaybackStream::on_control_info(void* data, uint32_t id, const pw_stream_co
     } else if (id == SPA_PROP_mute && control->n_values != 0) {
         const bool muted = control->values[0] >= 0.5F;
         if (muted == self->muted_.load()) {
-            self->took_(self->mute_applied_);
-        } else if (self->own_time_()) {
+            self->took_(self->mute_applied_, self->mute_own_until_ns_);
+        } else if (own_time_(self->mute_own_until_ns_)) {
             if (!self->mute_applied_.load()) {
                 self->apply_mute_();
             }
@@ -462,6 +441,9 @@ void PlaybackStream::on_control_info(void* data, uint32_t id, const pw_stream_co
             QMetaObject::invokeMethod(
                 self,
                 [self, muted] {
+                    if (own_time_(self->mute_own_until_ns_)) {
+                        return;
+                    }
                     self->muted_.store(muted);
                     emit self->mutedChanged(muted);
                 },

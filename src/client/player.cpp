@@ -66,7 +66,8 @@ void Player::on_stream_start() {
 
 void Player::on_stream_end() {
     this->started_ = false;
-    this->stream_.clear();
+    // The library has dropped its own count of what was queued
+    this->stream_.stop();
 }
 
 void Player::on_volume_changed(uint8_t volume) {

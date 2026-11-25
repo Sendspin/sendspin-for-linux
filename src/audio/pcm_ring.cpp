@@ -37,15 +37,6 @@ size_t PcmRing::read(uint8_t* dest, size_t len) {
         return 0;
     }
 
-    // Cleared on the consumer side so read_pos_ keeps a single writer.
-    if (this->clear_requested_.load(std::memory_order_acquire)) {
-        this->clear_requested_.store(false, std::memory_order_relaxed);
-        this->read_pos_.store(this->write_pos_.load(std::memory_order_acquire),
-                              std::memory_order_release);
-        std::memset(dest, 0, len);
-        return 0;
-    }
-
     const size_t read_pos = this->read_pos_.load(std::memory_order_relaxed);
     const size_t write_pos = this->write_pos_.load(std::memory_order_acquire);
 
@@ -83,12 +74,7 @@ size_t PcmRing::free_space() const {
     return this->capacity_ - 1 - this->available();
 }
 
-void PcmRing::request_clear() {
-    this->clear_requested_.store(true, std::memory_order_release);
-}
-
 void PcmRing::drop() {
-    this->clear_requested_.store(false, std::memory_order_relaxed);
     this->read_pos_.store(0, std::memory_order_relaxed);
     this->write_pos_.store(0, std::memory_order_release);
 }

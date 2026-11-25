@@ -203,10 +203,13 @@ private slots:
         // What the old stream still held is counted with the rest
         QTRY_COMPARE(heard.played_frames.load(), uint64_t{written});
 
-        // The end of the server's stream leaves nothing owed
-        stream.clear();
-        stream.set_target(std::nullopt);
+        // The end of the server's stream closes it, and the next one starts from nothing
+        stream.stop();
         QVERIFY(!stream.is_open());
+        const uint64_t before = heard.played_frames.load();
+        const size_t again = play(stream, 300);
+        QVERIFY(stream.is_open());
+        QTRY_COMPARE(heard.played_frames.load(), before + again);
     }
 };
 

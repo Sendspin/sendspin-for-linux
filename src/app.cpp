@@ -22,6 +22,7 @@ namespace {
 // Settings has no window yet; these are its keys
 constexpr const char* SETTING_OUTPUT = "player/output";  ///< a node.name; empty for the default
 constexpr const char* SETTING_MPRIS = "mpris/enabled";   ///< on unless set false
+constexpr const char* SETTING_UNPAIRED = "client/unpaired_access";  ///< on unless set false
 
 QSettings settings() {
     return QSettings(QStringLiteral("sendspin"), QStringLiteral("sendspin"));
@@ -40,9 +41,11 @@ App::App(const std::filesystem::path& data_dir, QObject* parent)
       server_persistence_(data_dir),
       client_persistence_(data_dir),
       advertised_(this->probe_formats_()),
-      client_(
-          {.name = device_name(), .port = Client::free_port(), .player_formats = this->advertised_},
-          &this->client_persistence_),
+      client_({.name = device_name(),
+               .port = Client::free_port(),
+               .unpaired_access = settings().value(SETTING_UNPAIRED, true).toBool(),
+               .player_formats = this->advertised_},
+              &this->client_persistence_),
       mpris_(this->client_, art_dir()) {
     qCInfo(lc_app, "PipeWire %s", pw_get_library_version());
     this->mpris_.set_enabled(settings().value(SETTING_MPRIS, true).toBool());

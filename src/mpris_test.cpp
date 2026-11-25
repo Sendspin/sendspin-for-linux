@@ -48,7 +48,6 @@ const Track TRACK{.title = "Blue in Green",
                   .album = "Kind of Blue",
                   .album_artist = "Miles Davis Sextet",
                   .number = 3,
-                  .year = 1959,
                   .duration_ms = 337'000};
 
 }  // namespace
