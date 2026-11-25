@@ -1,0 +1,61 @@
+# Publishing a release rebuilds the apt and dnf repositories on GitHub Pages from the packages of
+# every published release, so earlier versions stay and nothing is kept between runs. Needs the
+# repository's Pages source set to "GitHub Actions", and the signing key in the secrets
+# REPO_GPG_PRIVATE_KEY and REPO_GPG_PASSPHRASE (README, "Releasing").
+name: Package repositories
+
+on:
+  release:
+    types: [published]
+  # After a release is deleted, or the key replaced
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build and sign
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the tools
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends apt-utils createrepo-c gnupg rpm
+      - name: Download the packages of every release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release list --exclude-drafts --exclude-pre-releases --limit 1000 --json tagName --jq '.[].tagName' |
+            while read -r tag; do
+              gh release download "$tag" --dir packages --pattern '*.deb' --pattern '*.rpm'
+            done
+      - uses: actions/configure-pages@v5
+        id: pages
+      - name: Build the repositories
+        env:
+          REPO_GPG_PRIVATE_KEY: ${{ secrets.REPO_GPG_PRIVATE_KEY }}
+          REPO_GPG_PASSPHRASE: ${{ secrets.REPO_GPG_PASSPHRASE }}
+          PAGES_URL: ${{ steps.pages.outputs.base_url }}
+        run: scripts/package-repos.sh packages site "$PAGES_URL"
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    name: Publish to Pages
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: deploy

@@ -651,8 +651,14 @@ Two controls, independent of each other:
 Listed in this order in the README and on the website:
 
 1. **Distro packages** — `.deb` for Debian and Ubuntu, `.rpm` for Fedora, attached to each GitHub
-   release, with package repositories later. Arch through the AUR. Same problem as
-   [backlog#52](https://github.com/Sendspin/backlog/issues/52) for `sendspin-cli`; solve it once.
+   release and served from apt and dnf repositories on GitHub Pages. Arch through the AUR. Same
+   problem as [backlog#52](https://github.com/Sendspin/backlog/issues/52) for `sendspin-cli`;
+   solve it once.
+   - The repositories hold every published release, rebuilt from the releases each time one is
+     published. One apt suite per release (`debian13`, `ubuntu26.04`) and one dnf repository
+     (`fedora44`), since the packages are built against each release's own libraries.
+   - Signed with one key, kept in the repository's secrets: apt's `InRelease`, and for dnf both
+     the index and the packages. The public key is published beside them.
    - Built against the distro's Qt 6, libpipewire, avahi-client and OpenSSL 3. Everything else
      comes from the source tree; see [Building offline](#building-offline).
    - Installs an XDG autostart entry for every user, which starts the app with `--background`:
