@@ -37,14 +37,14 @@ QString art_dir() {
 
 App::App(const std::filesystem::path& data_dir, QObject* parent)
     : QObject(parent),
-      server_persistence_(data_dir),
       client_persistence_(data_dir),
       client_({.name = device_name(),
                .port = Client::free_port(),
                .unpaired_access = settings().value(SETTING_UNPAIRED, true).toBool(),
                .player_formats = this->probe_formats_()},
               &this->client_persistence_),
-      mpris_(this->client_, art_dir()) {
+      mpris_(this->client_, art_dir()),
+      cast_(data_dir, output_) {
     qCInfo(lc_app, "PipeWire %s", pw_get_library_version());
     this->mpris_.set_enabled(settings().value(SETTING_MPRIS, true).toBool());
 
@@ -83,12 +83,16 @@ App::App(const std::filesystem::path& data_dir, QObject* parent)
     connect(&this->client_, &Client::pairingEnded, this,
             [this] { this->show_result_(tr("Pairing ended")); });
 
-    this->output_.set_consumer(
-        [this](const CapturedBlock& block) { this->client_.source().write(block); });
+    // Both get every block. Which of the two the sound goes to is the picker's choice, still to
+    // come: the cast takes it while a speaker is added, the server while it has the PC as input.
+    this->output_.set_consumer([this](const CapturedBlock& block) {
+        this->client_.source().write(block);
+        this->cast_.feed().take(block);
+    });
 }
 
 App::~App() {
-    // The capture thread writes into the client
+    // The capture thread writes into the client and the cast
     this->output_.stop();
 }
 
@@ -97,7 +101,13 @@ void App::start() {
     if (!this->output_.start(&error)) {
         qCWarning(lc_app, "no Sendspin output: %s", qUtf8Printable(error));
     }
+    // First: its client_id comes with its start
     this->client_.start();
+    // Our server never connects to our own client
+    this->cast_.set_own_client(this->client_.port(), this->client_.client_id().toStdString());
+    if (!this->cast_.start()) {
+        qCWarning(lc_app, "casting to speakers is unavailable");
+    }
 }
 
 std::vector<sendspin::AudioSupportedFormatObject> App::probe_formats_() {

@@ -2,6 +2,7 @@
 
 #include "audio/outputs.h"
 #include "audio/sendspin_output.h"
+#include "cast/cast_engine.h"
 #include "client/client.h"
 #include "mpris.h"
 #include "notifier.h"
@@ -12,13 +13,12 @@
 #include <QObject>
 #include <QSystemTrayIcon>
 
-#include <sendspin/server/server.h>
-
 #include <filesystem>
 #include <vector>
 
-/// @brief The running app: the tray icon, the Sendspin output, the Sendspin server and client
-/// behind them, and MPRIS for what a server plays here. The server exists but is not started yet.
+/// @brief The running app: the tray icon, the Sendspin output, the cast engine that plays it on
+/// speakers, the Sendspin client that offers it to a server, and MPRIS for what a server plays
+/// here.
 class App : public QObject {
     Q_OBJECT
 
@@ -26,12 +26,15 @@ public:
     explicit App(const std::filesystem::path& data_dir, QObject* parent = nullptr);
     ~App() override;
 
-    /// @brief Creates the Sendspin output and starts the client. Either may fail without the
-    /// other: the app runs on with what works.
+    /// @brief Creates the Sendspin output and starts the cast engine and the client. Each may
+    /// fail without the others: the app runs on with what works.
     void start();
 
     QMenu* menu() {
         return &this->menu_;
+    }
+    CastEngine* cast() {
+        return &this->cast_;
     }
 
     /// @brief The tray's status line for a client state
@@ -62,14 +65,13 @@ private:
     enum class Notice { None, Code, Approval };
     Notice notice_{Notice::None};
 
-    // The providers outlive the server and client that use them
-    ServerPersistence server_persistence_;
+    // The provider outlives the client that uses it
     ClientPersistence client_persistence_;
-    sendspin::server::SendspinServer server_;
     // Before the client, which is created with what the outputs play
     Outputs outputs_;
     Client client_;
     Mpris mpris_;
-    // After the client, so its capture thread is gone before the client it writes to
+    CastEngine cast_;
+    // After the client and the engine, so its capture thread is gone before what it writes to
     SendspinOutput output_;
 };

@@ -45,6 +45,10 @@ is the floor: do not use Qt newer than 6.8 or PipeWire newer than 1.4.2 API with
 - `src/` — the app. Everything except `main.cpp` is the `sendspin_app` library the tests link.
 - `src/audio/` — PipeWire. Its tests need a running daemon (and `pw-play`, `pw-dump`, `wpctl`) and
   skip without one.
+- `src/cast/` — casting to speakers. `speaker_menu` is the picker's rules as plain functions, one
+  test per rule; `cast_engine` carries them out on the embedded server; `cast_feed` is the only
+  part on PipeWire's realtime thread. `cast_engine_test` runs a real sendspin-cpp player on the
+  loopback interface, so it needs no speaker and no mDNS.
 - `src/client/` — the Sendspin client and its roles. `src/mpris.*` shows what a server plays here;
   its bus test needs a session bus and skips without one.
 - `ci/` — `start-pipewire.sh` and the daemon config it loads: a null sink, no hardware.
