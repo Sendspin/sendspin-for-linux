@@ -657,8 +657,12 @@ Listed in this order in the README and on the website:
    - The repositories hold every published release, rebuilt from the releases each time one is
      published. One apt suite per release (`debian13`, `ubuntu26.04`) and one dnf repository
      (`fedora44`), since the packages are built against each release's own libraries.
-   - Signed with one key, kept in the repository's secrets: apt's `InRelease`, and for dnf both
-     the index and the packages. The public key is published beside them.
+   - Signed with one key, whose signing subkey is in an environment's secrets: apt's
+     `InRelease`, and for dnf both the index and the packages. The public key is published
+     beside them, and a machine keeps its own copy: neither apt nor dnf takes a key from the
+     site again.
+   - Only packages that match their release's `SHA256SUMS` and carry the Release workflow's
+     build attestation are signed.
    - Built against the distro's Qt 6, libpipewire, avahi-client and OpenSSL 3. Everything else
      comes from the source tree; see [Building offline](#building-offline).
    - Installs an XDG autostart entry for every user, which starts the app with `--background`:

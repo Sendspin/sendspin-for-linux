@@ -49,13 +49,14 @@ case "$ID" in
         ;;
     fedora)
         for _ in 1 2 3 4 5; do
-            curl -fsSLo /etc/yum.repos.d/sendspin.repo "$url/rpm/sendspin.repo" && break
+            curl -fsSLo /etc/pki/rpm-gpg/RPM-GPG-KEY-sendspin "$url/sendspin.asc" && break
             sleep 1
         done
+        curl -fsSLo /etc/yum.repos.d/sendspin.repo "$url/rpm/sendspin.repo"
         # Fedora's dnf skips a repository it cannot verify and exits 0: ask what is in it.
-        # No -y: a key other than the one it trusts is a question, and no is the answer
+        # With -y, so a key the site offers would be taken if dnf looked there for one
         refresh() {
-            [ -n "$(dnf repoquery --refresh --repo sendspin "$package" </dev/null)" ]
+            [ -n "$(dnf -y repoquery --refresh --repo sendspin "$package")" ]
         }
         dnf -y install "$package-0"
         dnf -y upgrade "$package"

@@ -32,11 +32,20 @@ their `SHA256SUMS`.
    Fedora 44:
 
    ```sh
+   sudo curl -fsSLo /etc/pki/rpm-gpg/RPM-GPG-KEY-sendspin https://sendspin.github.io/sendspin-for-linux/sendspin.asc
    sudo curl -fsSLo /etc/yum.repos.d/sendspin.repo https://sendspin.github.io/sendspin-for-linux/rpm/sendspin.repo
    sudo dnf install sendspin-for-linux
    ```
 
-   The repositories are signed, and `dnf` asks once to trust their key. Or, and on Arch for now,
+   The repositories are signed with the key the first line downloads, and from then on the
+   system takes nothing that key did not sign. Before installing, `gpg --show-keys` on that file
+   prints the key's fingerprint, which should be:
+
+   ```
+   (not created yet: the fingerprint goes here with the first release)
+   ```
+
+   Or, and on Arch for now,
    download a release's package and install it with its dependencies, with no updates:
 
    ```sh
@@ -212,19 +221,34 @@ installs and upgrades from them in clean containers (`ci/repo-fixture.sh`, `ci/r
 The script takes any package named `<name>-<version>-<distro>-<arch>.deb` or `.rpm`, so another
 project's packages are published by downloading them into the same directory.
 
+Only what the Release workflow built is signed: each package has to match its release's
+`SHA256SUMS` and carry that workflow's build attestation, or the run fails.
+
 Once, by a maintainer:
 
-1. Create the signing key, with a passphrase, and export it:
+1. Create the signing key on a machine you trust: a primary key that only certifies and stays
+   there, and a signing subkey, which alone goes to GitHub. Give it a passphrase.
 
    ```sh
-   gpg --quick-generate-key "Sendspin packages" rsa4096 sign never
-   gpg --armor --export-secret-keys "Sendspin packages"
+   gpg --quick-generate-key "Sendspin packages" rsa4096 cert never
+   gpg --quick-add-key <primary fingerprint> rsa4096 sign never
+   gpg --list-keys --with-subkey-fingerprints "Sendspin packages"
+   gpg --armor --export-secret-subkeys '<subkey fingerprint>!'
    ```
 
-2. Add the export as the repository secret `REPO_GPG_PRIVATE_KEY` and the passphrase as
-   `REPO_GPG_PASSPHRASE`. Keep a copy of both somewhere safe: machines that installed from the
-   repositories trust this key, and a new one means setting each of them up again.
-3. In the repository's settings, set the Pages source to **GitHub Actions**.
+   Put the primary key's fingerprint in this README's install section. Keep the primary key and
+   the passphrase somewhere safe: machines that installed from the repositories trust this key,
+   and a new one means setting each of them up again.
+2. Create the environment `package-signing`, with a required reviewer and its deployment
+   branches and tags limited to `main` and `v*`. Add the export there as the secret
+   `REPO_GPG_PRIVATE_KEY` and the passphrase as `REPO_GPG_PASSPHRASE`: environment secrets, not
+   repository secrets, so no other workflow can read them. Each publish then waits for the
+   reviewer.
+3. Set the Pages source to **GitHub Actions**. Publishing a release runs on its tag, and the
+   `github-pages` environment allows only the default branch at first: add `v*` to its
+   deployment branches and tags.
+4. Add a ruleset that restricts who can create `v*` tags, and turn on immutable releases, so a
+   published release's files cannot be replaced before they are signed.
 
 `arch/PKGBUILD` is the AUR's: it downloads a published release's tarball and checks its sha256,
 which only exists once the release does. So set `pkgver` with `project(VERSION)`, and after

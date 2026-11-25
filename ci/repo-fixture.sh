@@ -49,14 +49,19 @@ EOF
     mv "$work"/rpmbuild/RPMS/*/*.rpm "$work/packages/$old"
 done
 
-# A passphrase, as the release's key has one
+# As the README has the release's key: a passphrase, and only the signing subkey leaves the
+# machine that made it
 passphrase=throwaway
+gpg_ci() {
+    GNUPGHOME=$work/gnupg gpg --batch --quiet --pinentry-mode loopback --passphrase "$passphrase" "$@"
+}
 for site in site site-other-key; do
     rm -rf "$work/gnupg"/*
-    GNUPGHOME=$work/gnupg gpg --batch --quiet --pinentry-mode loopback --passphrase "$passphrase" \
-        --quick-generate-key "Sendspin CI ($site)" rsa4096 sign never
-    key=$(GNUPGHOME=$work/gnupg gpg --batch --pinentry-mode loopback --passphrase "$passphrase" \
-        --armor --export-secret-keys)
+    gpg_ci --quick-generate-key "Sendspin CI ($site)" rsa4096 cert never
+    primary=$(gpg_ci --list-keys --with-colons | awk -F: '$1 == "fpr" { print $10; exit }')
+    gpg_ci --quick-add-key "$primary" rsa4096 sign never
+    subkey=$(gpg_ci --list-keys --with-colons | awk -F: '$1 == "fpr" { fpr = $10 } END { print fpr }')
+    key=$(gpg_ci --armor --export-secret-subkeys "$subkey!")
     GNUPGHOME=$work/gnupg gpgconf --kill gpg-agent
     REPO_GPG_PRIVATE_KEY=$key REPO_GPG_PASSPHRASE=$passphrase \
         "$here/../scripts/package-repos.sh" "$work/packages" "$out/$site" "$url"

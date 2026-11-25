@@ -7,7 +7,8 @@
 #     REPO_GPG_PRIVATE_KEY=... REPO_GPG_PASSPHRASE=... \
 #         scripts/package-repos.sh <packages dir> <site dir> <base URL>
 #
-# The key is an armored private key; the passphrase is empty for a key without one. Needs gpg,
+# The key is an armored private key, or its signing subkey alone; the passphrase is empty for a
+# key without one. Prints the key's fingerprint, never the key. Needs gpg,
 # dpkg-deb, apt-ftparchive, rpmsign and createrepo_c.
 set -eu
 
@@ -29,6 +30,7 @@ printf '%s' "${REPO_GPG_PASSPHRASE:-}" >"$GNUPGHOME/passphrase"
 printf '%s\n' "$REPO_GPG_PRIVATE_KEY" | gpg --batch --quiet --import
 key=$(gpg --batch --list-secret-keys --with-colons | awk -F: '$1 == "fpr" { print $10; exit }')
 [ -n "$key" ] || { echo "package-repos: REPO_GPG_PRIVATE_KEY holds no private key" >&2; exit 1; }
+echo "package-repos: signing as $key" >&2
 
 sign_args="--batch --pinentry-mode loopback --passphrase-file $GNUPGHOME/passphrase"
 sign() {
@@ -36,12 +38,15 @@ sign() {
     gpg $sign_args --yes --local-user "$key" "$@"
 }
 
-# <distro> of a release file's name
+# <distro> of a release file's name. It becomes a path, so nothing but a name and a version
 distro() {
     name=${1##*/}
     name=${name%.*}
     name=${name%-*}
-    echo "${name##*-}"
+    name=${name##*-}
+    echo "$name" | grep -qxE '[a-z]+[0-9.]+' ||
+        { echo "package-repos: no distro in the name of ${1##*/}" >&2; return 1; }
+    echo "$name"
 }
 
 mkdir -p "$site"
@@ -51,7 +56,8 @@ gpg --batch --armor --export "$key" >"$site/sendspin.asc"
 # apt: the two releases' packages share a name and a version, so each has its own pool
 for deb in "$packages"/*.deb; do
     [ -e "$deb" ] || continue
-    pool=$site/apt/pool/$(distro "$deb")
+    suite=$(distro "$deb")
+    pool=$site/apt/pool/$suite
     mkdir -p "$pool"
     # apt-ftparchive tells architectures apart by this form of the name
     cp "$deb" "$pool/$(dpkg-deb -W --showformat '${Package}_${Version}_${Architecture}' "$deb").deb"
@@ -67,6 +73,12 @@ for pool in "$site"/apt/pool/*/; do
             mkdir -p "$dir"
             apt-ftparchive --arch "$arch" packages "pool/$suite" >"$dir/Packages"
             gzip -9nk "$dir/Packages"
+            # apt asks for an index by the hash InRelease gave it
+            for index in "$dir/Packages" "$dir/Packages.gz"; do
+                mkdir -p "$dir/by-hash/SHA256" "$dir/by-hash/SHA512"
+                cp "$index" "$dir/by-hash/SHA256/$(sha256sum "$index" | cut -d' ' -f1)"
+                cp "$index" "$dir/by-hash/SHA512/$(sha512sum "$index" | cut -d' ' -f1)"
+            done
         done
         # Written outside the suite first, or it would list itself
         apt-ftparchive \
@@ -76,6 +88,9 @@ for pool in "$site"/apt/pool/*/; do
             -o APT::FTPArchive::Release::Codename="$suite" \
             -o APT::FTPArchive::Release::Components=main \
             -o APT::FTPArchive::Release::Architectures="${archs% }" \
+            -o APT::FTPArchive::Release::Acquire-By-Hash=yes \
+            -o APT::FTPArchive::Release::MD5=false \
+            -o APT::FTPArchive::Release::SHA1=false \
             release "dists/$suite" >Release
         mv Release "dists/$suite/Release"
         sign --clearsign --output "dists/$suite/InRelease" "dists/$suite/Release"
@@ -83,10 +98,12 @@ for pool in "$site"/apt/pool/*/; do
     )
 done
 
-# dnf: the packages and the index are both signed
+# dnf: the packages and the index are both signed. The key is a file on the machine: a
+# gpgkey on this site would let whoever changes the site name the key to trust
 for rpm in "$packages"/*.rpm; do
     [ -e "$rpm" ] || continue
-    dir=$site/rpm/$(distro "$rpm")
+    repo=$(distro "$rpm")
+    dir=$site/rpm/$repo
     mkdir -p "$dir"
     cp "$rpm" "$dir/"
 done
@@ -107,6 +124,6 @@ baseurl=$url/rpm/fedora\$releasever
 enabled=1
 gpgcheck=1
 repo_gpgcheck=1
-gpgkey=$url/sendspin.asc
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-sendspin
 EOF
 fi
