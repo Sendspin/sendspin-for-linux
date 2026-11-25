@@ -441,6 +441,9 @@ Two controls, independent of each other:
   was clamped to the others; each player gets one command. Players without volume support are
   left out. Relative levels are kept.
 - Mute goes to each player that supports it. A volume change never clears a mute.
+- Both reach only the players active in the group at that moment, and the library does not say
+  when a speaker that joins has become one: the app sends the kept volume and mute again for
+  2 s after a join.
 - One slider and one mute, on the picker's Sendspin row, shown while a speaker is ticked.
 - No per-speaker sliders. A speaker's level relative to the others is set on the speaker.
 - **Volume is perceived loudness, 0–100, not amplitude** (spec `README.md`, "Player messages",
