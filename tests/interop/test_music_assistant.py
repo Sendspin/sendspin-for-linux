@@ -253,9 +253,8 @@ def test_the_pc_plays_what_the_server_sends(ma):
     async def play():
         player = ma.client.role("player@v1")
         assert player.set_preferred_format(None, AudioCodec.FLAC)
-        # As the server's slider does. A player nobody has set yet is at 0.
-        player.set_volume(100)
-        await ma.until(lambda: player.volume == 100, "the player to take its volume")
+        # Nobody has set it yet: the app starts its player at full volume, and audible
+        await ma.until(lambda: player.volume == 100 and not player.muted, "the player to report its volume")
         ma.client.group.group_role("metadata").set_metadata(
             Metadata(title="Interop Title", artist="Interop Artist", album="Interop Album")
         )
