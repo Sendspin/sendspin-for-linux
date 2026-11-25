@@ -37,7 +37,8 @@ int64_t frames_ns(int64_t frames) {
 PlayAlong::PlayAlong(QByteArray own_sink, QByteArray node_name)
     : own_sink_(std::move(own_sink)),
       node_name_(std::move(node_name)),
-      queue_(QUEUE_FRAMES * CHANNELS) {
+      queue_(QUEUE_FRAMES * CHANNELS),
+      marks_(QUEUE_BLOCKS) {
     pw_init(nullptr, nullptr);
 }
 
@@ -176,6 +177,7 @@ bool PlayAlong::open_() {
         this->close_();
         return false;
     }
+    this->open_now_.store(true);
     qCInfo(lc_play_along, "playing along on %s", this->target_->constData());
     return true;
 }
@@ -189,6 +191,7 @@ void PlayAlong::close_() {
         this->stream_ = nullptr;
     }
     this->failed_.store(false);
+    this->open_now_.store(false);
 }
 
 // ==============================================================================
@@ -201,7 +204,10 @@ bool PlayAlong::write(const float* samples, uint32_t frames, int64_t due_ns) {
     const uint64_t queued = written - this->read_.load(std::memory_order_acquire);
     const uint64_t marked = marks - this->marks_read_.load(std::memory_order_acquire);
     if (frames == 0 || queued + frames > QUEUE_FRAMES || marked >= QUEUE_BLOCKS) {
-        this->overflows_.fetch_add(1, std::memory_order_relaxed);
+        // With no stream what waits is stale, and is dropped when one opens
+        if (this->open_now_.load(std::memory_order_relaxed)) {
+            this->overflows_.fetch_add(1, std::memory_order_relaxed);
+        }
         return false;
     }
     this->marks_[marks % QUEUE_BLOCKS] = {written, due_ns};
@@ -238,7 +244,11 @@ void PlayAlong::follow_marks_(uint64_t index) {
         if (!this->marked_ ||
             std::abs(next.due_ns - this->due_of_(next.index)) > DriftCorrector::RESYNC_NS) {
             this->corrector_.resync();
+        } else if (this->dry_) {
+            // The same run went on after the output ran out of it
+            this->underruns_++;
         }
+        this->dry_ = false;
         this->mark_ = next;
         this->marked_ = true;
         marks++;
@@ -289,7 +299,7 @@ void PlayAlong::render(float* out, uint32_t frames, int64_t heard_ns) {
                     static_cast<size_t>(frames - done) * CHANNELS, 0.0F);
         // Ran dry while playing; a wait for the first audio, or for audio in time, is none
         if (this->marked_ && !this->corrector_.resyncing()) {
-            this->underruns_++;
+            this->dry_ = true;
             this->corrector_.resync();
         }
     }
@@ -348,9 +358,8 @@ void PlayAlong::on_process(void* data) {
 
     // Read before queueing, which changes what the stream holds
     if (const std::optional<int64_t> heard = heard_at_ns(self->stream_, RATE)) {
-        self->delay_ns_.store(
-            *heard - clock_ns(CLOCK_MONOTONIC_RAW) + frames_ns(static_cast<int64_t>(frames)),
-            std::memory_order_relaxed);
+        self->set_delay(*heard - clock_ns(CLOCK_MONOTONIC_RAW) +
+                        frames_ns(static_cast<int64_t>(frames)));
         self->render(dest, static_cast<uint32_t>(frames), *heard);
     } else {
         // No telling when this cycle is heard: the audio waits for one that says

@@ -269,7 +269,8 @@ std::optional<Plan> plan(const Action& action, const State& state) {
 
 bool local_is_late(int64_t delay_ns, int64_t buffer_ns, bool late) {
     if (delay_ns == 0 || buffer_ns == 0) {
-        return false;
+        // Nothing new to judge by: what was said stands
+        return late;
     }
     return delay_ns + ((late ? 2 : 1) * LOCAL_MARGIN_NS) > buffer_ns;
 }

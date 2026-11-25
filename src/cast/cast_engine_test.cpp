@@ -639,6 +639,58 @@ private slots:
         QTRY_COMPARE(rig.engine->play_along().gain(), 1.0F);
     }
 
+    // An output slower than the speaker buffer stays out, steadily, and comes back once it fits
+    void anOutputSlowerThanTheSpeakerBufferCantPlayAndDoesNotComeAndGo() {
+        constexpr int64_t MS = 1'000'000;
+        constexpr uint32_t BLOCK = 480;
+        const std::vector<float> tone(BLOCK * SendspinOutput::CHANNELS, 0.25F);
+        Peer peer(this->speaker_dir_->path(), this->port_, true);
+        QVERIFY(peer.started);
+        Rig rig(this->app_dir_->path(), this->port_);
+        QVERIFY(rig.engine->start(0, false));
+        rig.engine->set_local_target(QByteArray("sendspin-test-nowhere"));
+        PlayAlong& play_along = rig.engine->play_along();
+        QTRY_VERIFY(rig.row(peer.id()) != nullptr);
+        rig.engine->add(peer.id());
+        QTRY_VERIFY(rig.engine->feed().input() != nullptr);
+        QTRY_COMPARE(rig.engine->feed().input()->state(), sendspin::server::InputState::OPEN);
+        const auto take = [&] {
+            rig.engine->feed().take(
+                {tone.data(), BLOCK, SendspinOutput::RATE, raw_now_ns(), false});
+        };
+        take();
+        const int64_t buffer_ns = rig.engine->feed().input()->latency_us() * 1000;
+        QVERIFY(buffer_ns > 60 * MS);
+        QVERIFY(rig.engine->local_output().plays);
+        QSignalSpy changed(rig.engine.get(), &CastEngine::localChanged);
+
+        // As a Bluetooth output can be: it needs its audio longer ahead than the speakers do
+        play_along.set_delay(buffer_ns + (100 * MS));
+        QTRY_VERIFY(!rig.engine->local_output().plays);
+        QCOMPARE(speaker_menu::row(rig.engine->local_output(), {.group_count = 2}).status,
+                 Status::CANT_PLAY);
+        QCOMPARE(changed.count(), 1);
+        // It gets nothing to play late
+        const uint32_t queued = play_along.queued_frames();
+        take();
+        QCOMPARE(play_along.queued_frames(), queued);
+
+        // Steadily: a delay that is unknown for a while, or fits only just, changes nothing
+        play_along.set_delay(0);
+        QTest::qWait(600);
+        play_along.set_delay(buffer_ns - (15 * MS));
+        QTest::qWait(600);
+        QVERIFY(!rig.engine->local_output().plays);
+        QCOMPARE(changed.count(), 1);
+
+        // With room to spare it plays along again
+        play_along.set_delay(20 * MS);
+        QTRY_VERIFY(rig.engine->local_output().plays);
+        QCOMPARE(changed.count(), 2);
+        take();
+        QCOMPARE(play_along.queued_frames(), queued + BLOCK);
+    }
+
     // Loop guard 3, whatever way it got to the server
     void thisAppsOwnClientIsNeverListed() {
         Peer own(this->speaker_dir_->path(), this->port_, true);

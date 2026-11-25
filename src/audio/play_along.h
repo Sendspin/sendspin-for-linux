@@ -7,7 +7,6 @@
 
 #include <pipewire/pipewire.h>
 
-#include <array>
 #include <atomic>
 #include <chrono>
 #include <cstddef>
@@ -28,8 +27,8 @@ public:
     static constexpr uint32_t RATE = SendspinOutput::RATE;
     /// What the queue holds: more than any speaker buffer
     static constexpr size_t QUEUE_FRAMES = 4 * static_cast<size_t>(RATE);
-    /// Blocks the queue holds, each with its time
-    static constexpr size_t QUEUE_BLOCKS = 1024;
+    /// Blocks the queue holds, each with its time: a full queue of the smallest quantum's
+    static constexpr size_t QUEUE_BLOCKS = QUEUE_FRAMES / 32;
     /// How long a change of gain takes
     static constexpr uint32_t RAMP_FRAMES = RATE / 100;
 
@@ -39,8 +38,9 @@ public:
         uint32_t resyncs{0};
         uint32_t dropped{0};
         uint32_t repeated{0};
+        /// Times the audio came too late to go on without a gap; the end of a run is none
         uint32_t underruns{0};
-        /// Blocks there was no room for
+        /// Blocks there was no room for while a stream was open
         uint32_t overflows{0};
     };
 
@@ -81,9 +81,9 @@ public:
     int64_t delay_ns() const {
         return this->delay_ns_.load(std::memory_order_relaxed);
     }
-    /// @brief Has delay_ns() measured again by the next stream that runs
-    void forget_delay() {
-        this->delay_ns_.store(0, std::memory_order_relaxed);
+    /// @brief What a cycle of the stream measured. The stream's thread; public for the tests.
+    void set_delay(int64_t delay_ns) {
+        this->delay_ns_.store(delay_ns, std::memory_order_relaxed);
     }
 
     Stats stats() const;
@@ -135,12 +135,14 @@ private:
     std::chrono::steady_clock::time_point retry_at_;
     /// The graph errored or dropped the stream
     std::atomic<bool> failed_{false};
+    /// A stream is there to play what is queued
+    std::atomic<bool> open_now_{false};
 
     // The queue: write() owns written_ and marks_written_, render() read_ and marks_read_
     std::vector<float> queue_;
     std::atomic<uint64_t> written_{0};
     std::atomic<uint64_t> read_{0};
-    std::array<Mark, QUEUE_BLOCKS> marks_{};
+    std::vector<Mark> marks_;
     std::atomic<uint64_t> marks_written_{0};
     std::atomic<uint64_t> marks_read_{0};
 
@@ -151,6 +153,8 @@ private:
     bool marked_{false};
     float ramped_gain_{1.0F};
     uint32_t underruns_{0};
+    /// It ran out of audio; whether that was an underrun shows when more comes
+    bool dry_{false};
 
     std::atomic<float> gain_{1.0F};
     std::atomic<int64_t> delay_ns_{0};

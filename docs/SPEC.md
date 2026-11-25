@@ -495,13 +495,15 @@ Two controls, independent of each other:
   device can idle. It opens within a quarter of a second of the first sound; what was due before
   that is not played here.
 - **With no group to keep time with it plays directly**: alone, and while every added speaker is
-  away. Each block is due at its capture time plus the output's delay and one block. Never
+  away (rule 10; [Loop guards](#loop-guards), 4). Each block is due at its capture time plus the output's delay and one block. Never
   beside a group that plays, which would be an echo.
 - **When its delay is longer than the speaker buffer it cannot be on time**, and plays nothing
-  rather than late: its row says "Can't play" until the buffer has 20 ms to spare, and its delay
-  is measured again every 10 s. The buffer is the library's and the app cannot raise it. See [Open questions](#open-questions).
-- The headless mode leaves it out of the group unless given `--play-along`. The app logs its timing every 5 s under `sendspin.cast`: how far off the timeline it plays, the
-  output's delay, the buffer, and the frames dropped and repeated.
+  rather than late: its row says "Can't play" until the buffer has 20 ms to spare. Its stream
+  stays open and silent meanwhile, which keeps its delay measured. The buffer is the library's
+  and the app cannot raise it. See [Open questions](#open-questions).
+- The headless mode leaves it out of the group unless given `--play-along`. The app logs its
+  timing every 5 s under `sendspin.cast`: how far off the timeline it plays, the output's delay,
+  the buffer, and the frames dropped and repeated.
 
 ## Sending to Music Assistant
 
@@ -610,8 +612,10 @@ Two controls, independent of each other:
    find the client's own advertisement. The app wraps the discovery provider
    (`ServerConfig::discovery`) and drops its own instance, and never approves, pairs or lists
    its own `client_id`. Our server taking the one client connection would also take it from MA.
-4. **Captured audio is never played directly while a speaker is ticked or a server is chosen.**
-   This PC hears it only as a group member: through play-along, or through MA.
+4. **Captured audio is never played directly beside a speaker that plays it, or while a server
+   is chosen.** This PC hears it only as a group member: through play-along, or through MA. The
+   one exception is rule 10's: while no ticked speaker is there to play, this PC's ticked output
+   plays directly, and goes back to the group's time when one is.
 5. **Speakers never get source approval.** `ApprovalScope::PLAYBACK` only.
 6. MA's auto-play default can still send a desktop's audio back to itself, delayed — open
    question 1.

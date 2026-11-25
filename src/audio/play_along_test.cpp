@@ -172,21 +172,57 @@ private slots:
         QCOMPARE(play_along.queued_frames(), 0U);
     }
 
+    // The audio came too late to go on without a gap
     void runningDryIsAnUnderrunAndTheNextAudioIsPlacedAgain() {
         PlayAlong play_along(OWN);
         QVERIFY(play_along.write(ramp(480).data(), 480, SECOND));
         QCOMPARE(render(play_along, SECOND)[0], 1.0F);
         QCOMPARE(std::ranges::count(render(play_along, SECOND + (10 * MS)), 0.0F), 480);
-        QCOMPARE(play_along.stats().underruns, 1U);
-        // An output with nothing to play is not running dry again and again
         render(play_along, SECOND + (20 * MS));
-        QCOMPARE(play_along.stats().underruns, 1U);
 
-        QVERIFY(play_along.write(ramp(480, 480).data(), 480, SECOND + (30 * MS)));
-        const std::vector<float> out = render(play_along, SECOND + (30 * MS) - (10 * FRAME_NS));
-        QCOMPARE(out[9], 0.0F);
-        QCOMPARE(out[10], 481.0F);
+        // The run goes on: what the output had no audio for is late now, and the rest in time
+        QVERIFY(play_along.write(ramp(1440, 480).data(), 1440, SECOND + (10 * MS)));
+        const std::vector<float> out = render(play_along, SECOND + (30 * MS));
+        QCOMPARE(out[0], static_cast<float>(480 + 960 + 1));
+        // Once, however many cycles it lasted
+        QCOMPARE(play_along.stats().underruns, 1U);
         QCOMPARE(play_along.stats().resyncs, 2U);
+    }
+
+    // A run that ends leaves the output with nothing to play, as it should
+    void theEndOfARunIsNoUnderrun() {
+        PlayAlong play_along(OWN);
+        QVERIFY(play_along.write(ramp(480).data(), 480, SECOND));
+        QCOMPARE(render(play_along, SECOND)[0], 1.0F);
+        QCOMPARE(std::ranges::count(render(play_along, SECOND + (10 * MS)), 0.0F), 480);
+        // The next run, seconds later
+        QVERIFY(play_along.write(ramp(480, 480).data(), 480, 5 * SECOND));
+        QCOMPARE(render(play_along, 5 * SECOND)[0], 481.0F);
+        QCOMPARE(play_along.stats().underruns, 0U);
+    }
+
+    // A low-latency app sets the graph's quantum to 32 frames: every block has its time, for as
+    // long a speaker buffer as the queue holds
+    void aQueueOfTheSmallestBlocksIsHeldWhole() {
+        PlayAlong play_along(OWN);
+        constexpr uint32_t QUANTUM = 32;
+        constexpr uint32_t BLOCKS = PlayAlong::QUEUE_FRAMES / QUANTUM;
+        for (uint32_t block = 0; block < BLOCKS; block++) {
+            QVERIFY2(play_along.write(ramp(QUANTUM, block * QUANTUM).data(), QUANTUM,
+                                      SECOND + (static_cast<int64_t>(block) * QUANTUM * SECOND /
+                                                PlayAlong::RATE)),
+                     qPrintable(QString::number(block)));
+        }
+        QCOMPARE(play_along.queued_frames(), static_cast<uint32_t>(PlayAlong::QUEUE_FRAMES));
+        // Played through in order, in cycles that span many blocks, with no seam between them
+        for (uint32_t cycle = 0; cycle < PlayAlong::QUEUE_FRAMES / CYCLE; cycle++) {
+            const std::vector<float> out = render(play_along, SECOND + (cycle * 10 * MS));
+            QCOMPARE(out[0], static_cast<float>((cycle * CYCLE) + 1));
+            QCOMPARE(out[CYCLE - 1], static_cast<float>((cycle + 1) * CYCLE));
+        }
+        QCOMPARE(play_along.stats().resyncs, 1U);
+        QCOMPARE(play_along.stats().dropped, 0U);
+        QCOMPARE(play_along.stats().repeated, 0U);
     }
 
     // The output's clock runs 100 ppm slow: single frames are dropped to keep up, never a resync
@@ -235,7 +271,8 @@ private slots:
             QVERIFY(play_along.write(second.data(), PlayAlong::RATE, (i + 1) * SECOND));
         }
         QVERIFY(!play_along.write(second.data(), 1, 5 * SECOND));
-        QCOMPARE(play_along.stats().overflows, 1U);
+        // Not counted with no stream to play it: what waits then is stale anyway
+        QCOMPARE(play_along.stats().overflows, 0U);
         // It reads on across the end of its storage
         render(play_along, 3 * SECOND, PlayAlong::RATE);
         QVERIFY(play_along.write(second.data(), PlayAlong::RATE, 5 * SECOND));

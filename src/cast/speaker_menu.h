@@ -237,7 +237,7 @@ constexpr int64_t LOCAL_MARGIN_NS = 10'000'000;
 /// stays out until the buffer has room to spare, so it doesn't come and go.
 /// @param delay_ns how long before it is due a frame has to reach the output; 0 for unknown
 /// @param buffer_ns the speaker buffer; 0 for unknown
-/// @param late what this said last
+/// @param late what this said last, which stands while either is unknown
 bool local_is_late(int64_t delay_ns, int64_t buffer_ns, bool late);
 
 // ==============================================================================

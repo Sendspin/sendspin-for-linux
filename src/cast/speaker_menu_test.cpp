@@ -201,9 +201,11 @@ private slots:
         // Late once, it comes back only with room to spare
         QVERIFY(local_is_late(185 * MS, 200 * MS, true));
         QVERIFY(!local_is_late(180 * MS, 200 * MS, true));
-        // Until both are known there is nothing to say
+        // While either is unknown, what was said stands: a row that comes and goes is worse
         QVERIFY(!local_is_late(0, 200 * MS, false));
-        QVERIFY(!local_is_late(250 * MS, 0, true));
+        QVERIFY(!local_is_late(250 * MS, 0, false));
+        QVERIFY(local_is_late(0, 200 * MS, true));
+        QVERIFY(local_is_late(40 * MS, 0, true));
     }
 
     // This PC's own output is always there to take over
