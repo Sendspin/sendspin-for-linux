@@ -319,7 +319,9 @@ Beyond the rows above (no driver or Local Network notice, no AirPlay, no QR scan
   at run time. Without it the server still runs; the picker shows the notice.
 - Speakers mDNS can't find: a hidden setting with a list of `ws://host:port/path` URLs, dialed
   with `connect_url()` and `ConnectOptions::retry_until_connected`. Without it a failed dial is
-  not retried.
+  not retried. Such a speaker can't announce that it's back, and the library stops dialing one
+  that said goodbye, so the app dials it again after it went away (lost, `shutdown`, `restart`),
+  and not after any other goodbye. The list is `speaker_urls` in `cast.ini`.
 - Identity: the library creates the server key on first start and stores it through the app's
   `PersistenceProvider`, with the client records (approvals, long-term PSKs).
 
@@ -458,7 +460,9 @@ Two controls, independent of each other:
 - A speaker with a controller can change the group's volume and mute too; the server carries
   that out itself (`types.h`, `TransportCommand`). The library reports no group volume back to
   the host, so the slider shows the last value set from this PC.
-- The value is kept across restarts and applied when the cast group is created.
+- The value is kept across restarts and applied when the cast group is created. Until a volume
+  has been set from this PC there is none to apply, and adding a speaker leaves its volume
+  alone; mute is applied only when it is on.
 
 ## Playing along on this PC
 
@@ -637,6 +641,13 @@ As of 2026-09-10:
   - **A floor on a live input's lead**, as `SourceRouteOptions::min_latency_us` gives a routed
     source, for when this PC's output is slower than every speaker.
   - **The format a speaker receives**, to show on hover as the Mac does. Nice to have.
+  - **`playback` declared before a run's `stream/start`.** At `f217a96` a group that starts
+    playing sends its members `stream/start` first and the `server/activate` that declares
+    `playback` after it (`server: src/group.cpp`, `on_epoch_started()`; `src/server_core.cpp`,
+    `refresh_playback()`). sendspin-cpp from v0.10.0 ignores a `stream/start` that arrives
+    without `playback` (`client: src/client_dispatch.cpp`), as the spec asks, so such a speaker
+    stays silent: on the first sound unless its connection was dialed for playback, and on every
+    sound after an idle stop. Older clients play. Nothing the app can call changes the order.
 - **sendspin-cpp** — v0.10.0 is the latest tag; pin a commit until the next one. Encryption,
   pairing, unpaired access and
   `source@v1` are all on `main`. Missing:

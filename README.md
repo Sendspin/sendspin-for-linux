@@ -8,7 +8,8 @@ PipeWire. The design is in [docs/SPEC.md](docs/SPEC.md).
 
 So far: the "Sendspin" output device, and the PC as an input source for Music Assistant. MA
 finds the PC on the network; pair it there with the code that pops up here, then pick the PC as
-an input. Casting to speakers, playing MA on this PC and the picker are still to come.
+an input. It also casts to Sendspin speakers, chosen from the command line for now (below).
+Playing MA on this PC and the picker are still to come.
 
 ## Build
 
@@ -47,6 +48,25 @@ the `pw-play`, `pw-dump` and `wpctl` tools):
 ```sh
 ci/start-pipewire.sh ctest --test-dir build
 ```
+
+## Casting to speakers
+
+Until the picker exists, the speakers are chosen from the command line. Each of these runs the
+app without its tray icon until interrupted, and casts what plays to the Sendspin output:
+
+```sh
+./build/src/sendspin-for-linux --list              # the speakers found, as they change
+./build/src/sendspin-for-linux --add "Kitchen"     # add a speaker to the group
+./build/src/sendspin-for-linux --remove "Kitchen"  # take it out
+```
+
+The speakers added are remembered in `~/.local/share/sendspin/cast.ini`, and the app casts to
+them when it starts normally too. Adding a speaker that another server is playing to takes it
+from that server.
+
+A speaker built on sendspin-cpp v0.10.0 or later stays silent for now: sendspin-server-cpp
+starts its stream before it declares playback, which those clients ignore. See "Depends on" in
+[docs/SPEC.md](docs/SPEC.md).
 
 Keys and pairing records are stored as owner-only files under `$XDG_DATA_HOME/sendspin/`
 (`~/.local/share/sendspin/`).
