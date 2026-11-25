@@ -55,6 +55,9 @@ public:
     /// @brief The Settings window; nullptr until it was first shown
     QQuickWindow* settings_window() const;
 
+    /// @brief What the notification says under a pairing code
+    /// @param copied the code is on the clipboard; otherwise Settings is where to copy it
+    static QString code_notice_body(const QString& server_name, bool copied);
     /// @brief The tray icon's name: the mark with its waves while Sendspin plays, alone otherwise
     static QString tray_icon_name(bool sendspin_plays);
     /// @brief The icon of that name, as the tray takes it
@@ -66,6 +69,9 @@ public slots:
     void showPicker(const QString& activationToken = {});
     /// @brief Opens the Settings window, or raises the one that is open
     void showSettings();
+    /// @brief What a click on a pairing notification does: Settings on Music Assistant, and the
+    /// keyboard on Copy while digits show
+    void showPairing(const QString& activationToken = {});
 
 private:
     enum class Section { Current = -1, ThisPc, Speakers, MusicAssistant };
@@ -95,6 +101,8 @@ private:
     /// The notification up, when it is one to take down again
     enum class Notice { None, Code, Approval };
     Notice notice_{Notice::None};
+    /// The digits showing, to take off the clipboard when they go; never a QR code's token
+    QString code_;
 
     // The provider outlives the client that uses it
     ClientPersistence client_persistence_;

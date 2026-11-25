@@ -73,6 +73,9 @@ than 1.4.2 API without a fallback.
 - `src/discord_ipc.*` is Discord's local socket and its frames, with no Discord library;
   `src/discord_presence.*` decides what it shows of what a server plays here, and which cover
   URL Discord may have. `discord_test_server.h` is the tests' Discord. docs/SPEC.md, "Discord".
+- `src/pairing_clipboard.*` — the pairing code's digits on the clipboard, and off it again.
+  Which sessions take a copy from the background is in docs/SPEC.md, "Music Assistant (we are
+  the client)".
 - `src/settings_model.*` — what the Settings window shows and changes; `src/qml/` is the window,
   one file per section, with no logic of its own. `app_test` loads it and fails on anything the
   QML engine warns of.

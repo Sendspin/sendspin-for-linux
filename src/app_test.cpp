@@ -143,6 +143,36 @@ private slots:
         QCOMPARE(discord->property("checked").toBool(), false);
     }
 
+    // A click on a pairing notification
+    void showPairingOpensSettingsOnMusicAssistant() {
+        const QTemporaryDir dir;
+        App app(dir.path().toStdString());
+        app.showSettings();
+        QQuickWindow* window = app.settings_window();
+        QVERIFY(window != nullptr);
+        window->setProperty("section", 0);
+        window->close();
+
+        app.showPairing();
+        QVERIFY(window->isVisible());
+        QCOMPARE(window->property("section").toInt(), 2);
+        // Copy is there for when digits show; with none it is hidden, and not given the focus
+        const QObject* copy = window->findChild<QObject*>("copyCode");
+        QVERIFY(copy != nullptr);
+        QVERIFY(!copy->property("visible").toBool());
+        QVERIFY(!copy->property("activeFocus").toBool());
+    }
+
+    // The notification only says the code was copied where it was
+    void theCodesNoticeSaysWhereTheCodeIs() {
+        QCOMPARE(App::code_notice_body("Music Assistant", true),
+                 "It is on the clipboard: paste it in Music Assistant to pair this PC.");
+        QCOMPARE(App::code_notice_body("Music Assistant", false),
+                 "Enter it in Music Assistant to pair this PC. Click to copy it from Settings.");
+        QVERIFY(App::code_notice_body(QString(), true).contains("on the clipboard"));
+        QVERIFY(!App::code_notice_body(QString(), false).contains("on the clipboard"));
+    }
+
     void theTraysSettingsOpensTheWindow() {
         const QTemporaryDir dir;
         App app(dir.path().toStdString());

@@ -114,7 +114,8 @@ tray, that is the only way in; its gear button opens Settings.
 - *Speakers:* the paired speakers, each with Forget; the speakers on the network that aren't
   paired, each with Pair…; a field to paste a pairing token.
 - *Music Assistant:* which server is connected, or none; the pairing code while pairing, as
-  digits or as a QR code, whichever the server asked for; Allow pairing, when the library holds
+  digits (selectable, with a Copy button) or as a QR code, whichever the server asked for; Allow
+  pairing, when the library holds
   pairing back; the servers this PC paired with, from the app's own record of `on_paired()`;
   Copy pairing token; allow playback without pairing (on by default); media controls on/off;
   show what plays here in Discord (off by default), with a line saying it shares what you're
@@ -406,9 +407,28 @@ with this PC (id, name, date; no key material), the newest 16.
 - The server picks the format. Digits are for the person who sits at this PC typing into MA's
   page; a server whose operator can scan (a phone app) may ask for the QR code instead.
 - When a server starts pairing, `on_pairing_code()` delivers the code. Digits: show them as
-  `123-456` in the server row's caption, in Settings, and in a notification; copy them to the
-  clipboard. A QR code: draw it in Settings, open Settings, and say so in the notification; its
-  token is never shown as text. Take either down on `on_clear_pairing_code()`.
+  `123-456` in the server row's caption, in Settings, and in a notification. A QR code: draw it
+  in Settings, open Settings, and say so in the notification; its token is never shown as text.
+  Take either down on `on_clear_pairing_code()`.
+- The digits also go to the clipboard, as the six alone: MA's field takes them pasted, with or
+  without the hyphen. The app has no window with the focus then, and what the session makes of
+  such a copy differs, so the notification says what happened: the app asks, and a moment later
+  reads the clipboard back.
+  - X11, and Wayland on Plasma (KWin 6.3 and 6.8): the copy is taken. "It is on the clipboard:
+    paste it in [server]".
+  - Wayland on GNOME (Mutter 48 and 50): refused, as for any client without the keyboard focus.
+    "Enter it in [server]. Click to copy it from Settings": the click opens Settings on Music
+    Assistant with the keyboard on Copy, and Space or a click copies. Not copied by the
+    notification's click itself: Qt sends a copy with the serial of the app's last input, not
+    of the focus it was just given, and Mutter silently drops one older than the clipboard's
+    own, so only a copy that follows input in the app's window is sure to take. For the same
+    reason a copy made while one of the app's windows has the focus can be dropped and still
+    read back as taken.
+  - When the code goes, it is taken off the clipboard, unless something else was copied since.
+    On GNOME that needs the focus too: without it the app can neither read nor clear the
+    clipboard, and the code stays. A clipboard manager's history may keep it as well; it is no
+    use once pairing ended.
+  - Never the pairing token, and never a QR code's.
 - Result: "Paired with [server]" on `on_paired()`, "Pairing ended" on `on_pairing_aborted()`.
 - The pairing token (`client_pairing_token()`) is only behind Copy pairing token in Settings.
 - The source role needs pairing: MA only accepts paired sources. Unpaired access covers the

@@ -39,11 +39,13 @@ class Notifications(ServiceInterface):
     def __init__(self):
         super().__init__("org.freedesktop.Notifications")
         self.summaries: list[str] = []
+        self.bodies: list[str] = []
 
     @method()
     def Notify(self, app_name: "s", replaces_id: "u", app_icon: "s", summary: "s", body: "s",
                actions: "as", hints: "a{sv}", expire_timeout: "i") -> "u":  # fmt: skip
         self.summaries.append(summary)
+        self.bodies.append(body)
         return replaces_id or 1
 
     @method()
@@ -194,6 +196,8 @@ def test_the_server_pairs_by_the_code_the_pc_shows(ma):
             ),
         )
         assert ma.client.is_paired
+        # Offscreen takes the copy, as X11 and Plasma do, and the notification says so
+        assert any("on the clipboard" in body for body in ma.notifications.bodies)
         # The source is only for a paired server
         await ma.until(
             lambda: {"source@v1", "player@v1", "metadata@v1"} <= set(ma.client.active_role_ids),

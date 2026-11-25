@@ -28,6 +28,7 @@ add_library(sendspin_app STATIC
     mpris.cpp
     notifier.cpp
     paired_servers.cpp
+    pairing_clipboard.cpp
     persistence.cpp
     picker/picker.cpp
     picker/picker_window.cpp
@@ -187,6 +188,7 @@ if(BUILD_TESTING)
     sendspin_add_test(mpris_test)
     sendspin_add_test(notifier_test)
     sendspin_add_test(paired_servers_test)
+    sendspin_add_test(pairing_clipboard_test)
     sendspin_add_test(persistence_test)
     sendspin_add_test(picker/picker_test)
     sendspin_add_test(settings_model_test)
