@@ -56,6 +56,16 @@ public:
         return this->target_;
     }
 
+    /// @brief The outputs Settings offers, the best first: every one but the Sendspin output
+    const std::vector<OutputSink>& choices() const {
+        return this->choices_;
+    }
+
+    /// @brief name is the Sendspin output's
+    bool is_own(const QByteArray& name) const {
+        return name == this->own_sink_;
+    }
+
     /// @brief The graph is listed; false while PipeWire can't be reached
     bool connected() const {
         return this->loop_ != nullptr;
@@ -120,6 +130,7 @@ private:
     const QByteArray own_sink_;
     QByteArray chosen_;
     std::optional<QByteArray> target_;
+    std::vector<OutputSink> choices_;
     QTimer retry_;
 
     pw_thread_loop* loop_{nullptr};

@@ -65,13 +65,21 @@ public:
     State state() const {
         return this->state_;
     }
+    /// @brief What servers show for this PC; fixed while the client runs
+    QString name() const {
+        return this->name_;
+    }
     /// @brief The connected server's name; empty when there is none
     QString server_name() const {
         return this->server_name_;
     }
-    /// @brief The code a pairing server asks for, six digits; empty when none is showing
+    /// @brief The code a pairing server asks for; empty when none is showing. Six digits to
+    /// type into the server, or with pairing_code_is_qr() a token to show it as a QR code.
     QString pairing_code() const {
         return this->pairing_code_;
+    }
+    bool pairing_code_is_qr() const {
+        return this->code_is_qr_;
     }
     /// @brief The connection is to a server this PC is paired with
     bool is_paired() const {
@@ -84,6 +92,9 @@ public:
     }
     /// @brief The user allows the pairing that waits, and pairing in general again
     void allow_pairing();
+    /// @brief Whether a server may play here without pairing. Servers connected unpaired
+    /// reconnect to see the change.
+    void set_unpaired_access(bool enabled);
     /// @brief The token to paste into a server to pair by Pairing PSK ("SP:0…"); empty before
     /// start(). A secret: show it only when asked, never log it.
     QString pairing_token() const;
@@ -108,7 +119,7 @@ signals:
     void serverNameChanged(const QString& name);
     void pairingCodeChanged(const QString& code);
     void pairingApprovalNeededChanged(bool needed);
-    void paired(const QString& serverName);
+    void paired(const QString& serverName, const QString& serverId);
     /// A pairing ended without pairing
     void pairingEnded();
 
@@ -144,6 +155,10 @@ private:
     bool pairing_{false};
     bool pairing_connected_{false};  ///< the pairing server's connection was seen up
     QString code_;
+    bool code_is_qr_{false};
+    QString paired_id_;
+    /// The pairing server's name: its connection is renewed as it pairs, and is nameless then
+    QString pairing_name_;
     bool window_wanted_{false};
     bool paired_event_{false};
     bool ended_event_{false};

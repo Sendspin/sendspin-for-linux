@@ -367,11 +367,16 @@ void Outputs::changed_() {
 
 void Outputs::update_target_() {
     std::optional<QByteArray> target;
+    std::vector<OutputSink> choices;
     if (this->loop_ != nullptr) {
         const LoopLock lock(this->loop_);
         target = choose_target(this->sinks_, this->default_sink_, this->chosen_, this->own_sink_,
                                this->last_default_);
+        choices = this->sinks_;
     }
+    std::erase_if(choices, [this](const auto& sink) { return sink.name == this->own_sink_; });
+    std::ranges::stable_sort(choices, std::ranges::greater{}, &OutputSink::priority);
+    this->choices_ = std::move(choices);
     if (target != this->target_) {
         this->target_ = target;
         qCInfo(lc_outputs, "playing on %s", target ? target->constData() : "nothing");

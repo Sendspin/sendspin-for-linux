@@ -6,17 +6,22 @@
 #include "client/client.h"
 #include "mpris.h"
 #include "notifier.h"
+#include "paired_servers.h"
 #include "persistence.h"
 #include "picker/picker.h"
 #include "picker/picker_window.h"
+#include "settings_model.h"
 
 #include <QAction>
 #include <QIcon>
 #include <QMenu>
 #include <QObject>
+#include <QQmlApplicationEngine>
+#include <QQuickWindow>
 #include <QSystemTrayIcon>
 
 #include <filesystem>
+#include <memory>
 #include <vector>
 
 /// @brief The running app: the tray icon, the picker, the Sendspin output, the cast engine that
@@ -42,6 +47,11 @@ public:
     PickerWindow* picker_window() {
         return &this->picker_window_;
     }
+    SettingsModel* settings() {
+        return &this->settings_;
+    }
+    /// @brief The Settings window; nullptr until it was first shown
+    QQuickWindow* settings_window() const;
 
     /// @brief The tray icon's name: the mark with its waves while Sendspin plays, alone otherwise
     static QString tray_icon_name(bool sendspin_plays);
@@ -52,10 +62,12 @@ public slots:
     /// @brief Opens the picker: a launch, or a second one pinging this instance
     /// @param activationToken that launch's XDG activation token; empty for none
     void showPicker(const QString& activationToken = {});
-    /// @brief Opens the Settings window, once there is one
+    /// @brief Opens the Settings window, or raises the one that is open
     void showSettings();
 
 private:
+    enum class Section { Current = -1, ThisPc, Speakers, MusicAssistant };
+    void show_settings_(Section section);
     void update_tray_();
     void on_pairing_code_(const QString& code);
     void show_result_(const QString& summary);
@@ -85,4 +97,9 @@ private:
     SendspinOutput output_;
     Picker picker_;
     PickerWindow picker_window_;
+
+    PairedServers paired_servers_;
+    SettingsModel settings_;
+    /// The Settings window, made when it is first shown
+    std::unique_ptr<QQmlApplicationEngine> window_;
 };

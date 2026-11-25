@@ -121,7 +121,8 @@ Picker::Server Picker::server_() const {
     Server server;
     server.connected = state == Client::State::Connected || state == Client::State::Pairing;
     server.paired = server.connected && this->client_.is_paired();
-    server.code = this->client_.pairing_code();
+    server.qr_code = this->client_.pairing_code_is_qr() && !this->client_.pairing_code().isEmpty();
+    server.code = server.qr_code ? QString() : this->client_.pairing_code();
     server.chosen = this->server_chosen_;
     server.streaming = this->client_.source().streaming();
     if (server.connected) {
@@ -210,6 +211,9 @@ QString Picker::server_caption(const Server& server, const QString& pc_name) {
     }
     if (!server.code.isEmpty()) {
         return tr("Enter %1 in %2.").arg(grouped_code(server.code), server.name);
+    }
+    if (server.qr_code) {
+        return tr("Scan the code in Settings with %1.").arg(server.name);
     }
     if (!server.paired) {
         return tr("Pair this PC in %1, then enter the code that appears here.").arg(server.name);
