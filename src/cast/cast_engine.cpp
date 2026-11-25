@@ -525,6 +525,9 @@ void CastEngine::refresh_() {
     this->detect_identity_changes_();
     this->take_steps_(now_ns);
     this->update_input_(now_ns);
+    if (now_ns < this->levels_until_ns_) {
+        this->send_group_levels_();
+    }
     this->publish_rows_();
 }
 
@@ -566,15 +569,14 @@ void CastEngine::sync_clients_() {
         speaker.facts.in_cast = this->cast_group_ && speaker.group == this->cast_group_;
     }
 
-    // The library sets a group's volume on the players in it at that moment only
-    bool joined = false;
+    // The library sets a group's volume and mute on the players active in it at that moment,
+    // and does not say when one that joins has become so: they are sent again for a while
     for (Speaker& speaker : this->speakers_) {
         const bool plays = speaker.facts.in_cast && speaker.has_player;
-        joined = joined || (plays && !speaker.plays);
+        if (plays && !speaker.plays) {
+            this->levels_until_ns_ = raw_now_ns() + STEP_NS;
+        }
         speaker.plays = plays;
-    }
-    if (joined) {
-        this->send_group_levels_();
     }
 }
 
