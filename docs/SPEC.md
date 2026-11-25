@@ -650,15 +650,17 @@ Two controls, independent of each other:
 
 Listed in this order in the README and on the website:
 
-1. **Distro packages** — `.deb` for Debian and Ubuntu, `.rpm` for Fedora, attached to each GitHub
-   release, with package repositories later. Arch through the AUR. Same problem as
+1. **Distro packages** — `.deb` for Debian and Ubuntu, `.rpm` for Fedora, `.pkg.tar.zst` for
+   Arch, attached to each GitHub release, with package repositories later. Arch through the AUR
+   too, from `arch/PKGBUILD`. Same problem as
    [backlog#52](https://github.com/Sendspin/backlog/issues/52) for `sendspin-cli`; solve it once.
    - Built against the distro's Qt 6, libpipewire, avahi-client and OpenSSL 3. Everything else
      comes from the source tree; see [Building offline](#building-offline).
    - Installs an XDG autostart entry for every user, which starts the app with `--background`:
      the tray alone. Open at login in Settings switches it off with an entry of the user's own.
      The entry is a configuration file, so an upgrade keeps an admin's change to it.
-   - Carries the licenses of everything linked into the binary, in `/usr/share/doc`.
+   - Carries the licenses of everything linked into the binary, in `/usr/share/doc`, or
+     `/usr/share/licenses` on Arch.
 2. **Flatpak** (Flathub), on the KDE runtime.
    - `--socket=wayland`, `--socket=fallback-x11`, `--share=ipc`, `--device=dri`: its windows
    - `--share=network`
