@@ -12,7 +12,7 @@ here, and it can play to this PC and take this PC's sound as an input.
 
 ## Install
 
-Fedora 44, Ubuntu 26.04 and Debian 13, or newer, with PipeWire. Each
+Fedora 44, Ubuntu 26.04 and Debian 13, or newer, and Arch Linux, with PipeWire. Each
 [release](https://github.com/Sendspin/sendspin-for-linux/releases) carries the files below and
 their `SHA256SUMS`.
 
@@ -36,13 +36,15 @@ their `SHA256SUMS`.
    sudo dnf install sendspin-for-linux
    ```
 
-   The repositories are signed, and `dnf` asks once to trust their key. Or download a release's
+   The repositories are signed, and `dnf` asks once to trust their key. Or, and on Arch for now,
+   download a release's
    package and install it with its dependencies, with no updates:
 
    ```sh
    sudo apt install ./sendspin-for-linux-*-debian13-amd64.deb     # Debian 13
    sudo apt install ./sendspin-for-linux-*-ubuntu26.04-amd64.deb  # Ubuntu 26.04
    sudo dnf install ./sendspin-for-linux-*-fedora44-x86_64.rpm    # Fedora 44
+   sudo pacman -U ./sendspin-for-linux-*-archlinux-x86_64.pkg.tar.zst  # Arch Linux
    ```
 
    Sendspin then starts with your session, in the tray. **Open at login** in Settings switches
@@ -67,8 +69,8 @@ their `SHA256SUMS`.
    sudo cmake --install build
    ```
 
-There is no AUR package or updater yet. Outside the package repositories, a new release is a new
-download.
+There is no updater yet, and the Arch package is not in the AUR or a repository yet: there, a new
+release is a new download.
 
 ## Settings and files
 
@@ -187,8 +189,9 @@ starts its stream before it declares playback, which those clients ignore. See "
 
 `scripts/vendor.sh` makes the source tarball: the tree at `HEAD` with what the build would
 download in `third_party/fetched/`. A tree that has that directory builds offline. The packages
-are CPack's, built from the tarball on the release they are for, and the Flatpak is
-`flatpak/com.sendspin_audio.Sendspin.yml`, built inside the tarball:
+are CPack's, built from the tarball on the release they are for, Arch's is `makepkg`'s from
+`arch/PKGBUILD`, and the Flatpak is `flatpak/com.sendspin_audio.Sendspin.yml`, built inside the
+tarball:
 
 ```sh
 scripts/vendor.sh dist
@@ -223,3 +226,14 @@ Once, by a maintainer:
    `REPO_GPG_PASSPHRASE`. Keep a copy of both somewhere safe: machines that installed from the
    repositories trust this key, and a new one means setting each of them up again.
 3. In the repository's settings, set the Pages source to **GitHub Actions**.
+
+`arch/PKGBUILD` is the AUR's: it downloads a published release's tarball and checks its sha256,
+which only exists once the release does. So set `pkgver` with `project(VERSION)`, and after
+publishing, on Arch (`updpkgsums` is in `pacman-contrib`):
+
+```sh
+cd arch && updpkgsums && makepkg --printsrcinfo >.SRCINFO
+```
+
+Commit both, and copy them to the AUR repository, which needs a maintainer's account. CI builds
+the PKGBUILD against the tarball it has just made instead, with that tarball's sum.

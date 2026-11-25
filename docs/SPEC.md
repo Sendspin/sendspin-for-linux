@@ -650,10 +650,10 @@ Two controls, independent of each other:
 
 Listed in this order in the README and on the website:
 
-1. **Distro packages** — `.deb` for Debian and Ubuntu, `.rpm` for Fedora, attached to each GitHub
-   release and served from apt and dnf repositories on GitHub Pages. Arch through the AUR. Same
-   problem as [backlog#52](https://github.com/Sendspin/backlog/issues/52) for `sendspin-cli`;
-   solve it once.
+1. **Distro packages** — `.deb` for Debian and Ubuntu, `.rpm` for Fedora, `.pkg.tar.zst` for
+   Arch, attached to each GitHub release. The `.deb` and `.rpm` are also served from apt and dnf
+   repositories on GitHub Pages. Arch through the AUR too, from `arch/PKGBUILD`. Same problem as
+   [backlog#52](https://github.com/Sendspin/backlog/issues/52) for `sendspin-cli`; solve it once.
    - The repositories hold every published release, rebuilt from the releases each time one is
      published. One apt suite per release (`debian13`, `ubuntu26.04`) and one dnf repository
      (`fedora44`), since the packages are built against each release's own libraries.
@@ -664,7 +664,8 @@ Listed in this order in the README and on the website:
    - Installs an XDG autostart entry for every user, which starts the app with `--background`:
      the tray alone. Open at login in Settings switches it off with an entry of the user's own.
      The entry is a configuration file, so an upgrade keeps an admin's change to it.
-   - Carries the licenses of everything linked into the binary, in `/usr/share/doc`.
+   - Carries the licenses of everything linked into the binary, in `/usr/share/doc`, or
+     `/usr/share/licenses` on Arch.
 2. **Flatpak** (Flathub), on the KDE runtime.
    - `--socket=wayland`, `--socket=fallback-x11`, `--share=ipc`, `--device=dri`: its windows
    - `--share=network`

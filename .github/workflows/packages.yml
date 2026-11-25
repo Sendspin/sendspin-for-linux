@@ -1,6 +1,6 @@
-# The release's artifacts: the source tarball, built offline; a .deb or .rpm for each supported
-# release, installed and started in a clean container; the Flatpak. CI runs it on every change,
-# the release workflow on a tag.
+# The release's artifacts: the source tarball, built offline; a .deb, .rpm or Arch package for
+# each supported release, installed and started in a clean container; the Flatpak. CI runs it on
+# every change, the release workflow on a tag.
 name: Packages
 
 on:
@@ -118,10 +118,56 @@ jobs:
           path: dist/*
           if-no-files-found: error
 
+  # makepkg, as the AUR's users run it, on arch/PKGBUILD
+  arch:
+    name: Package, Arch Linux
+    needs: source
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    env:
+      VERSION: ${{ needs.source.outputs.version }}
+    steps:
+      # makepkg refuses to run as root, and installs the PKGBUILD's dependencies through sudo
+      - name: A user to build as
+        run: |
+          pacman -Syu --noconfirm
+          useradd -m builder
+          echo 'builder ALL=(ALL) NOPASSWD: ALL' >/etc/sudoers.d/builder
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: source
+          path: arch
+      - name: The PKGBUILD is this version's, and .SRCINFO is its own
+        run: |
+          chown -R builder arch && cd arch
+          pkgver=$(sed -n 's/^pkgver=//p' PKGBUILD)
+          if [ "$pkgver" != "$VERSION" ]; then
+            echo "::error::pkgver $pkgver in arch/PKGBUILD doesn't match project(VERSION) $VERSION"
+            exit 1
+          fi
+          sudo -u builder makepkg --printsrcinfo | diff -u .SRCINFO -
+      # The tarball beside the PKGBUILD is used instead of the release's, which a tarball
+      # cannot name the sum of: give it this one's, so the check still runs
+      - name: Build
+        run: |
+          cd arch
+          sum=$(sha256sum "sendspin-for-linux-$VERSION.tar.xz" | cut -d' ' -f1)
+          sed -i "s/^sha256sums=.*/sha256sums=('$sum')/" PKGBUILD
+          sudo -u builder makepkg --syncdeps --noconfirm
+          mkdir ../dist
+          mv "sendspin-for-linux-$VERSION"-*.pkg.tar.zst \
+            "../dist/sendspin-for-linux-$VERSION-archlinux-$(uname -m).pkg.tar.zst"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package-archlinux
+          path: dist/*
+          if-no-files-found: error
+
   # The same images again, with nothing of the build in them
   smoke:
     name: Install and start, ${{ matrix.name }}
-    needs: [source, package]
+    needs: [source, package, arch]
     runs-on: ubuntu-latest
     container: ${{ matrix.image }}
     strategy:
@@ -154,6 +200,14 @@ jobs:
               dnf -y --setopt=tsflags= install
               ./*.rpm dbus-daemon pipewire pipewire-utils wireplumber
             conffiles: rpm -qc sendspin-for-linux
+          - name: Arch Linux
+            tag: archlinux
+            image: archlinux
+            install: >-
+              pacman -Syu --noconfirm &&
+              pacman -U --noconfirm ./*.pkg.tar.zst &&
+              pacman -S --noconfirm dbus pipewire wireplumber
+            conffiles: pacman -Qii sendspin-for-linux
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
