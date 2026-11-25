@@ -164,9 +164,10 @@ starts its stream before it declares playback, which those clients ignore. See "
 ## Packages and releases
 
 `scripts/vendor.sh` makes the source tarball: the tree at `HEAD` with what the build would
-download in `third_party/fetched/`. A tree that has that directory builds offline. The packages
-are CPack's, built from the tarball on the release they are for, and the Flatpak is
-`flatpak/com.sendspin_audio.Sendspin.yml`, built inside the tarball:
+download in `third_party/fetched/`, and its commit's date in `RELEASE_DATE` for the metainfo. A
+tree that has that directory builds offline. The packages are CPack's, built from the tarball
+on the release they are for, and the Flatpak is `flatpak/com.sendspin_audio.Sendspin.yml`,
+built inside the tarball:
 
 ```sh
 scripts/vendor.sh dist
@@ -177,4 +178,6 @@ cmake --build build && (cd build && cpack -G DEB)   # or RPM
 CI builds all of them on every change, builds the tarball with no network, and installs and
 starts each package in a clean container. To release, set `project(VERSION)` in
 `CMakeLists.txt` and push the tag `v<version>`: the Release workflow attaches the tarball, the
-packages, the Flatpak bundle and `SHA256SUMS` to a draft release, which a person publishes.
+packages, the Flatpak bundle, the manifest Flathub builds from and `SHA256SUMS` to a draft
+release, which a person publishes. [flatpak/FLATHUB.md](flatpak/FLATHUB.md) has the Flathub
+side: submitting the app, and what each release needs there.

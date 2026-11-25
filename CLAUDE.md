@@ -61,8 +61,10 @@ than 1.4.2 API without a fallback.
   default output; it holds no rules of its own. `qml/` is the window. `picker_test` loads the QML
   offscreen and checks each status against its row.
 - `data/` — the launcher's entry, the autostart entry packages install, the AppStream metainfo
-  and the icons, installed by `cmake --install`. The app icon's PNGs are rendered from its SVG
-  by `scripts/render-app-icon.py`.
+  and the icons, installed by `cmake --install`. `screenshots/` is what the metainfo links, by
+  the release's tag, drawn by `scripts/render-screenshots.sh`: run it again when the picker or
+  Settings changes. The app icon's PNGs are rendered from its SVG by
+  `scripts/render-app-icon.py`.
 - `src/autostart.*` — open at login: the user's entry over a package's, the Background portal
   under Flatpak. Either starts the app with `--background`. The portal's entry has the same
   name as the user's own, and is left alone.
@@ -76,8 +78,11 @@ than 1.4.2 API without a fallback.
   FetchContent would download, which the build then uses instead. `NOTICES.md` lists it; update
   it with every pin. `cmake --install` puts its license files with the binary.
 - `cmake/package.cmake` — the .deb and .rpm, by CPack. A QML import or Qt plugin the app starts
-  to use is a dependency to add there. `flatpak/` is the Flatpak's manifest.
-- `.github/workflows/packages.yml` — builds the tarball offline, the packages and the Flatpak,
+  to use is a dependency to add there. `flatpak/` is the Flatpak's manifest;
+  `scripts/flathub-manifest.sh` makes Flathub's from it, and `flatpak/FLATHUB.md` is how to
+  submit and bump there. A permission added to the manifest goes in that file's table too.
+- `.github/workflows/packages.yml` — builds the tarball offline, the packages and the Flatpak
+  (Flathub's manifest, builder and linter),
   and starts each package in a clean container (`ci/smoke-test.sh`, which runs the app with
   `--check`: both windows and an SVG, or it exits); `ci.yml` and `release.yml` both call it. The version is `project(VERSION)` alone; a tag `v<version>` drafts a release.
 - `ci/` — `start-pipewire.sh` and the daemon config it loads: a null sink, no hardware.

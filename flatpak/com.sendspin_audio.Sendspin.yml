@@ -4,7 +4,9 @@
 #     flatpak-builder --user --install-deps-from=flathub --force-clean build-flatpak \
 #         flatpak/com.sendspin_audio.Sendspin.yml
 #
-# For Flathub the source becomes that tarball, by URL and checksum.
+# Flathub's is this one with the tarball as its source: scripts/flathub-manifest.sh, which
+# drops this header and replaces the last two lines.
+
 app-id: com.sendspin_audio.Sendspin
 runtime: org.kde.Platform
 runtime-version: '6.11'

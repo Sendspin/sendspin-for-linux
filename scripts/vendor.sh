@@ -17,6 +17,8 @@ name=sendspin-for-linux-$version
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 git -C "$root" archive --prefix="$name/" HEAD | tar -x -C "$work"
+# The metainfo's release date, whenever the tarball is built
+git -C "$root" log -1 --format=%cs >"$work/$name/RELEASE_DATE"
 
 # Never a system Boost: the tarball has to build where there is none
 cmake -S "$work/$name" -B "$work/build" -G Ninja -DBUILD_TESTING=OFF \

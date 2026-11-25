@@ -1,6 +1,6 @@
 # The release's artifacts: the source tarball, built offline; a .deb or .rpm for each supported
-# release, installed and started in a clean container; the Flatpak. CI runs it on every change,
-# the release workflow on a tag.
+# release, installed and started in a clean container; the Flatpak, and the manifest Flathub
+# builds it from (flatpak/FLATHUB.md). CI runs it on every change, the release workflow on a tag.
 name: Packages
 
 on:
@@ -167,31 +167,53 @@ jobs:
       - name: Start it
         run: ci/start-pipewire.sh ci/smoke-test.sh "${{ needs.source.outputs.version }}"
 
+  # As Flathub builds and checks it: its builder, its linter, and its manifest
   flatpak:
     name: Flatpak
     needs: source
     runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.source.outputs.version }}
+      LINT: flatpak run --command=flatpak-builder-lint org.flatpak.Builder
     steps:
-      - name: Install flatpak-builder
+      - name: Install Flathub's builder
         run: |
-          sudo apt-get update && sudo apt-get install -y flatpak flatpak-builder
+          sudo apt-get update && sudo apt-get install -y flatpak dbus-daemon
           flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user -y --noninteractive flathub org.flatpak.Builder
       - uses: actions/download-artifact@v4
         with:
           name: source
-      # The manifest builds the tree it is in; a module's build has no network
+      - name: Flathub's manifest
+        env:
+          RELEASES: ${{ github.server_url }}/${{ github.repository }}/releases/download
+        run: |
+          tarball=sendspin-for-linux-$VERSION.tar.xz
+          sha256=$(sha256sum "$tarball" | cut -d' ' -f1)
+          tar -xf "$tarball" --strip-components=1 \
+            "sendspin-for-linux-$VERSION/scripts" "sendspin-for-linux-$VERSION/flatpak"
+          mkdir dist
+          scripts/flathub-manifest.sh "$RELEASES/v$VERSION/$tarball" "$sha256" \
+            >dist/com.sendspin_audio.Sendspin.yml
+          # No release has the tarball yet: the build takes the one here
+          scripts/flathub-manifest.sh "file://$PWD/$tarball" "$sha256" >com.sendspin_audio.Sendspin.yml
+          $LINT manifest dist/com.sendspin_audio.Sendspin.yml
+      # flathub-build leaves builddir and repo here. The builder runs flatpak on the host, over
+      # the session bus; a module's build has no network.
       - name: Build
         run: |
-          tar -xf sendspin-for-linux-*.tar.xz --strip-components=1
-          flatpak-builder --user --install-deps-from=flathub --repo=repo build-flatpak \
-            flatpak/com.sendspin_audio.Sendspin.yml
-          licenses=build-flatpak/files/share/licenses/com.sendspin_audio.Sendspin
+          dbus-run-session flatpak run --command=flathub-build org.flatpak.Builder \
+            com.sendspin_audio.Sendspin.yml
+          licenses=builddir/files/share/licenses/com.sendspin_audio.Sendspin
           test -s $licenses/LICENSE -a -s $licenses/NOTICES.md -a -s $licenses/third_party/micro_opus/lib/opus/COPYING
-      - name: Bundle
-        env:
-          VERSION: ${{ needs.source.outputs.version }}
+      # The metainfo links its screenshots by the release's tag, and the linter fetches them
+      - name: Lint the metainfo and the repo
+        if: startsWith(github.ref, 'refs/tags/')
         run: |
-          mkdir dist
+          $LINT appstream builddir/files/share/metainfo/com.sendspin_audio.Sendspin.metainfo.xml
+          $LINT repo repo
+      - name: Bundle
+        run: |
           flatpak build-bundle --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo \
             repo "dist/sendspin-for-linux-$VERSION-$(uname -m).flatpak" com.sendspin_audio.Sendspin
       - uses: actions/upload-artifact@v4
