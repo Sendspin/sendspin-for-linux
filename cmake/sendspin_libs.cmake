@@ -13,6 +13,23 @@
 
 include(FetchContent)
 
+# A release tarball carries what would be fetched, here and by the two libraries, in
+# third_party/fetched/ under FetchContent's own names (scripts/vendor.sh). With it nothing is
+# downloaded: distro and Flatpak builds have no network.
+file(GLOB _fetched ${CMAKE_SOURCE_DIR}/third_party/fetched/*)
+if(_fetched)
+    set(FETCHCONTENT_FULLY_DISCONNECTED ON CACHE BOOL "" FORCE)
+    # As the server does when it fetches: a system Boost from its pin on is used instead
+    find_package(Boost 1.90.0 CONFIG QUIET)
+    foreach(_dir ${_fetched})
+        get_filename_component(_name ${_dir} NAME)
+        if(NOT (_name STREQUAL "boost" AND Boost_FOUND))
+            string(TOUPPER ${_name} _name)
+            set(FETCHCONTENT_SOURCE_DIR_${_name} ${_dir} CACHE PATH "" FORCE)
+        endif()
+    endforeach()
+endif()
+
 FetchContent_Declare(
     micro_flac
     GIT_REPOSITORY https://github.com/esphome-libs/micro-flac.git
