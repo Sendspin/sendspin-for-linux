@@ -12,6 +12,8 @@
 #include <utility>
 
 Q_LOGGING_CATEGORY(lc_cast, "sendspin.cast")
+// sendspin-server-cpp's own lines
+Q_LOGGING_CATEGORY(lc_server_lib, "sendspin.server.lib")
 
 using sendspin::server::ApprovalScope;
 using sendspin::server::ClientDisconnect;
@@ -215,16 +217,17 @@ bool CastEngine::start(uint16_t port, bool discovery) {
         discovery && platform) {
         config.discovery = std::make_shared<Discovery>(std::move(platform), this->own_client_port_);
     }
-    // Follows the category, so QT_LOGGING_RULES turns the library's log up and down too
-    config.log_level = lc_cast().isInfoEnabled() ? sendspin::server::LogLevel::INFO
-                                                 : sendspin::server::LogLevel::WARN;
+    // The library's info is each dial and connection, every minute for a speaker another server
+    // holds: debug here. Follows the category, so QT_LOGGING_RULES turns it up and down too.
+    config.log_level = lc_server_lib().isDebugEnabled() ? sendspin::server::LogLevel::INFO
+                                                        : sendspin::server::LogLevel::WARN;
     // The library never puts a key, a PSK or a client_id in a line
     config.log = [](sendspin::server::LogLevel level, std::string_view line) {
         const QByteArray text(line.data(), static_cast<qsizetype>(line.size()));
         if (level == sendspin::server::LogLevel::INFO) {
-            qCInfo(lc_cast, "%s", text.constData());
+            qCDebug(lc_server_lib, "%s", text.constData());
         } else {
-            qCWarning(lc_cast, "%s", text.constData());
+            qCWarning(lc_server_lib, "%s", text.constData());
         }
     };
 
@@ -453,12 +456,19 @@ void CastEngine::on_connected_(const ClientInfo& info) {
     this->sync_clients_();
     if (Speaker* speaker = this->find_client_(info.client_id)) {
         speaker->left_as.reset();
+        // Only the group's: the rest are dialed again and again while another server has them
+        if (speaker->facts.ticked) {
+            qCInfo(lc_cast, "%s connected", qUtf8Printable(speaker->name));
+        }
     }
     this->refresh_();
 }
 
 void CastEngine::on_disconnected_(const ClientInfo& info, const ClientDisconnect& disconnect) {
     if (Speaker* speaker = this->find_client_(info.client_id)) {
+        if (speaker->facts.ticked) {
+            qCInfo(lc_cast, "%s disconnected", qUtf8Printable(speaker->name));
+        }
         speaker->left_as = speaker_menu::after_disconnect(disconnect);
         speaker->group.reset();
         speaker->busy_until_ns = 0;
@@ -792,14 +802,14 @@ void CastEngine::update_local_(int64_t now_ns) {
     if (active && delay_ns != 0 && now_ns - this->local_logged_ns_ >= LOCAL_LOG_NS) {
         this->local_logged_ns_ = now_ns;
         const PlayAlong::Stats stats = this->play_along_.stats();
-        qCInfo(lc_cast,
-               "this PC plays %s: %lld us off, delay %lld ms, buffer %lld ms, resyncs %u, "
-               "dropped %u, repeated %u, underruns %u, overflows %u",
-               local == Local::GROUP ? "along" : "directly",
-               static_cast<long long>(stats.error_ns / 1000),
-               static_cast<long long>(delay_ns / 1'000'000),
-               static_cast<long long>(this->latency_ns_ / 1'000'000), stats.resyncs, stats.dropped,
-               stats.repeated, stats.underruns, stats.overflows);
+        qCDebug(lc_cast,
+                "this PC plays %s: %lld us off, delay %lld ms, buffer %lld ms, resyncs %u, "
+                "dropped %u, repeated %u, underruns %u, overflows %u",
+                local == Local::GROUP ? "along" : "directly",
+                static_cast<long long>(stats.error_ns / 1000),
+                static_cast<long long>(delay_ns / 1'000'000),
+                static_cast<long long>(this->latency_ns_ / 1'000'000), stats.resyncs, stats.dropped,
+                stats.repeated, stats.underruns, stats.overflows);
     }
 
     const bool plays = wanted && !this->local_late_;
@@ -918,6 +928,8 @@ CastEngine::Speaker* CastEngine::find_client_(const std::string& client_id) {
 void CastEngine::set_ticked_(Speaker& speaker, bool ticked) {
     if (speaker.facts.ticked != ticked) {
         speaker.facts.ticked = ticked;
+        qCInfo(lc_cast, "%s is %s the group", qUtf8Printable(speaker.name),
+               ticked ? "in" : "out of");
         this->save_ticked_();
     }
 }

@@ -1,6 +1,7 @@
 #include "app.h"
 #include "app_id.h"
 #include "headless.h"
+#include "logging.h"
 #include "single_instance.h"
 
 #include <QApplication>
@@ -17,6 +18,7 @@ int main(int argc, char** argv) {
     // What a package's smoke test starts (ci/smoke-test.sh): both windows, and an SVG through
     // each plugin the icons need, which nothing else reports missing
     bool check = false;
+    bool verbose = false;
     for (int i = 1; i < argc; ++i) {
         const std::string_view arg(argv[i]);
         if (arg == "--version") {
@@ -25,6 +27,7 @@ int main(int argc, char** argv) {
         }
         background = background || arg == "--background";
         check = check || arg == "--check";
+        verbose = verbose || arg == "--verbose" || arg == "-v";
     }
     // Before QApplication: the headless mode needs no display
     if (const std::optional<int> code = run_headless(argc, argv, SENDSPIN_VERSION)) {
@@ -32,6 +35,7 @@ int main(int argc, char** argv) {
     }
 
     QApplication qt(argc, argv);
+    set_log_rules(verbose);
     QApplication::setApplicationName(QStringLiteral("sendspin"));
     QApplication::setApplicationDisplayName(QStringLiteral("Sendspin"));
     QApplication::setApplicationVersion(QStringLiteral(SENDSPIN_VERSION));

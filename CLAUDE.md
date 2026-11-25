@@ -73,6 +73,8 @@ than 1.4.2 API without a fallback.
 - `src/settings_model.*` — what the Settings window shows and changes; `src/qml/` is the window,
   one file per section, with no logic of its own. `app_test` loads it and fails on anything the
   QML engine warns of.
+- `src/logging.*` — the log's default, in one place: info and up, debug with `--verbose`. Info is
+  for what happens once; anything on a timer or per dial is debug. docs/SPEC.md, "Logging".
 - `src/update_checker.*` asks GitHub for the latest release, once a day; `src/update_installer.*`
   downloads its package and has `data/install-update` verify and, through pkexec, install it.
   That script is all that runs as root, and verifies again there: keep every check in it.

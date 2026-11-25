@@ -167,6 +167,11 @@ void Client::sync_() {
     }
 
     if (server_name != this->server_name_) {
+        if (server_name.isEmpty()) {
+            qCInfo(lc_client, "%s disconnected", qUtf8Printable(this->server_name_));
+        } else {
+            qCInfo(lc_client, "%s connected", qUtf8Printable(server_name));
+        }
         this->server_name_ = server_name;
         emit this->serverNameChanged(server_name);
     }
@@ -194,6 +199,7 @@ void Client::sync_() {
 }
 
 void Client::on_pairing_attempt(std::string_view /*server_id*/) {
+    qCInfo(lc_client, "a server is pairing with this PC");
     this->pairing_ = true;
     this->pairing_connected_ = false;
 }
