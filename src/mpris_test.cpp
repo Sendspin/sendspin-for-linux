@@ -1,6 +1,7 @@
 #include "mpris.h"
 
 #include "persistence.h"
+#include "skip_unless_required.h"
 
 #include <QBuffer>
 #include <QDBusConnection>
@@ -167,7 +168,7 @@ private slots:
     void isAPlayerOnTheBusWhileAServerIsConnected() {
         QDBusConnection bus = QDBusConnection::sessionBus();
         if (!bus.isConnected()) {
-            QSKIP("no session bus");
+            SKIP_UNLESS_REQUIRED("no session bus");
         }
         // A name of the test's own: the app may be running on this desktop
         const QString instance = QStringLiteral(".test%1").arg(QCoreApplication::applicationPid());

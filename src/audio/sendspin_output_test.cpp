@@ -1,5 +1,7 @@
 #include "audio/sendspin_output.h"
 
+#include "skip_unless_required.h"
+
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -172,12 +174,6 @@ bool have(const char* tool) {
 
 // Everything past silenceIsDetected() needs a PipeWire daemon and skips without one. Under
 // ci/start-pipewire.sh there is always one, so there a skip would be a silent pass and fails.
-#define SKIP_UNLESS_REQUIRED(why)                                                       \
-    do {                                                                                \
-        QVERIFY2(!qEnvironmentVariableIsSet("SENDSPIN_REQUIRE_PIPEWIRE_TESTS"), (why)); \
-        QSKIP(why);                                                                     \
-    } while (false)
-
 #define START_OR_SKIP(output)                                                      \
     do {                                                                           \
         QString start_error;                                                       \

@@ -1,6 +1,7 @@
 #include "audio/outputs.h"
 
 #include "audio/sendspin_output.h"
+#include "skip_unless_required.h"
 
 #include <QTest>
 
@@ -57,7 +58,7 @@ private slots:
         SendspinOutput own(nullptr, "sendspin-test-outputs");
         QString error;
         if (!own.start(&error)) {
-            QSKIP(qPrintable(QStringLiteral("no PipeWire daemon: ") + error));
+            SKIP_UNLESS_REQUIRED(qPrintable(QStringLiteral("no PipeWire daemon: ") + error));
         }
         Outputs outputs("sendspin-test-outputs");
         QVERIFY(outputs.start());

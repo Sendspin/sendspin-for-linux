@@ -3,6 +3,7 @@
 #include "audio/pipewire_util.h"
 #include "audio/sendspin_output.h"
 #include "audio/volume_curve.h"
+#include "skip_unless_required.h"
 
 #include <QProcess>
 #include <QSignalSpy>
@@ -230,7 +231,7 @@ private slots:
 
     void playsOnItsTargetAndReportsWhenItIsHeard() {
         if (!this->live_) {
-            QSKIP("no PipeWire daemon");
+            SKIP_UNLESS_REQUIRED("no PipeWire daemon");
         }
         PlaybackStream stream(nullptr, "sendspin-test-player");
         stream.set_played(
@@ -261,10 +262,10 @@ private slots:
 
     void theVolumeIsTheStreamsOwnBothWays() {
         if (!this->live_) {
-            QSKIP("no PipeWire daemon");
+            SKIP_UNLESS_REQUIRED("no PipeWire daemon");
         }
         if (QStandardPaths::findExecutable(QStringLiteral("wpctl")).isEmpty()) {
-            QSKIP("wpctl is not installed");
+            SKIP_UNLESS_REQUIRED("wpctl is not installed");
         }
         PlaybackStream stream(nullptr, "sendspin-test-player");
         QSignalSpy gains(&stream, &PlaybackStream::gainChanged);
@@ -309,7 +310,7 @@ private slots:
     // Loop guard: a mixer's "move this stream" is how it would end up in the Sendspin output
     void aMixerCannotMoveItToAnotherOutput() {
         if (!this->live_) {
-            QSKIP("no PipeWire daemon");
+            SKIP_UNLESS_REQUIRED("no PipeWire daemon");
         }
         const QByteArray other_name = "sendspin-test-playback-other";
         SendspinOutput other(nullptr, other_name);
@@ -322,7 +323,7 @@ private slots:
         play(stream, 300);
         const uint32_t node = stream.node_id();
         if (!set_target_metadata(node, other_name)) {
-            QSKIP("no session manager metadata to move a stream with");
+            SKIP_UNLESS_REQUIRED("no session manager metadata to move a stream with");
         }
         QTest::qWait(300);
         this->heard_.reset_peak();
@@ -335,7 +336,7 @@ private slots:
 
     void movesToANewTargetAndKeepsCount() {
         if (!this->live_) {
-            QSKIP("no PipeWire daemon");
+            SKIP_UNLESS_REQUIRED("no PipeWire daemon");
         }
         SendspinOutput other(nullptr, "sendspin-test-playback-other");
         Heard elsewhere;
