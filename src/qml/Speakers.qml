@@ -165,6 +165,16 @@ ScrollView {
         modal: true
         closePolicy: Popup.CloseOnEscape
         title: qsTr("Pair %1").arg(page.settings.pairingName)
+        // The style's own header would read a speaker's name as rich text
+        header: Label {
+            objectName: "pairingTitle"
+            text: dialog.title
+            textFormat: Text.PlainText
+            elide: Text.ElideRight
+            font.bold: true
+            padding: 12
+            bottomPadding: 0
+        }
         onStepChanged: entry.clear()
         // However it closes, nothing is left pairing
         onClosed: page.settings.cancelPairing()

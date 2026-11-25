@@ -55,6 +55,43 @@ private slots:
         QVERIFY(autostart::enabled());
     }
 
+    void anEntryGnomeSwitchedOffIsOff() {
+        QVERIFY(autostart::set_enabled(true, "/usr/bin/sendspin-for-linux"));
+        QFile file(autostart::path());
+        QVERIFY(file.open(QIODevice::ReadWrite));
+        const QByteArray entry = file.readAll().replace("X-GNOME-Autostart-enabled=true",
+                                                        "X-GNOME-Autostart-enabled=false");
+        file.resize(0);
+        file.write(entry);
+        file.close();
+        QVERIFY(!autostart::enabled());
+    }
+
+    // The app moved, or starts differently than when the entry was written
+    void refreshRewritesAStaleEntryAndOnlyAnEnabledOne() {
+        const auto entry = [] {
+            QFile file(autostart::path());
+            return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray();
+        };
+        // Off: nothing appears
+        autostart::refresh("/usr/bin/sendspin-for-linux");
+        QVERIFY(!QFile::exists(autostart::path()));
+
+        QVERIFY(autostart::set_enabled(true, "/opt/old/sendspin-for-linux"));
+        autostart::refresh("/usr/bin/sendspin-for-linux");
+        QVERIFY(entry().contains("Exec=\"/usr/bin/sendspin-for-linux\"\n"));
+        QVERIFY(autostart::enabled());
+
+        // Switched off by the desktop: left as it is
+        QFile file(autostart::path());
+        QVERIFY(file.open(QIODevice::Append));
+        file.write("Hidden=true\n");
+        file.close();
+        const QByteArray hidden = entry();
+        autostart::refresh("/somewhere/else");
+        QCOMPARE(entry(), hidden);
+    }
+
     void execIsQuotedAndEscaped() {
         QCOMPARE(autostart::exec_value("/opt/My Apps/sendspin"), "\"/opt/My Apps/sendspin\"");
         QCOMPARE(autostart::exec_value("/opt/50%/a$b"), "\"/opt/50%%/a\\\\$b\"");

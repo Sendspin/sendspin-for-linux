@@ -43,6 +43,8 @@ ScrollView {
                 sourceSize: Qt.size(220, 220)
                 cache: false
                 smooth: false
+                Accessible.role: Accessible.Graphic
+                Accessible.name: qsTr("Pairing QR code")
             }
             Label { text: qsTr("Scan this code with the server's app to pair this PC.") }
         }

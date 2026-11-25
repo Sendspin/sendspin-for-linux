@@ -106,6 +106,10 @@ private slots:
         }
         app.settings()->pair("no-such-speaker");
         QTest::qWait(50);
+        // A speaker names itself: its name is never read as rich text
+        const QObject* title = window->findChild<QObject*>("pairingTitle");
+        QVERIFY(title != nullptr);
+        QCOMPARE(title->property("textFormat").toInt(), int{Qt::PlainText});
         app.settings()->cancelPairing();
         QTest::qWait(50);
         QCOMPARE(qml_complaints, QStringList());

@@ -184,6 +184,10 @@ bool SettingsModel::open_at_login() const {
     return autostart::enabled();
 }
 
+bool SettingsModel::open_at_login_available() const {
+    return autostart::available();
+}
+
 void SettingsModel::setOpenAtLogin(bool open) {
     if (open != autostart::enabled()) {
         autostart::set_enabled(open);

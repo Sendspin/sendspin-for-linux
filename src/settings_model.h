@@ -21,6 +21,7 @@ class SettingsModel : public QObject {
     Q_PROPERTY(QVariantList outputs READ outputs NOTIFY outputsChanged)
     Q_PROPERTY(QString output READ output WRITE setOutput NOTIFY outputChanged)
     Q_PROPERTY(bool openAtLogin READ open_at_login WRITE setOpenAtLogin NOTIFY openAtLoginChanged)
+    Q_PROPERTY(bool openAtLoginAvailable READ open_at_login_available CONSTANT)
 
     Q_PROPERTY(SpeakerModel* speakers READ speakers CONSTANT)
     Q_PROPERTY(int pairedSpeakerCount READ paired_speaker_count NOTIFY speakerCountsChanged)
@@ -72,6 +73,7 @@ public:
     QVariantList outputs() const;
     QString output() const;
     bool open_at_login() const;
+    bool open_at_login_available() const;
 
     SpeakerModel* speakers() const;
     int paired_speaker_count() const;
