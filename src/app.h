@@ -67,7 +67,8 @@ public slots:
 
 private:
     enum class Section { Current = -1, ThisPc, Speakers, MusicAssistant };
-    void show_settings_(Section section);
+    /// @param activation_token the XDG activation token of the click that asks for it, if any
+    void show_settings_(Section section, const QString& activation_token = {});
     void update_tray_();
     void on_pairing_code_(const QString& code);
     void show_result_(const QString& summary);

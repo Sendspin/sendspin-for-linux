@@ -111,8 +111,9 @@ App::App(const std::filesystem::path& data_dir, QObject* parent)
     connect(&this->client_, &Client::pairingApprovalNeededChanged, this,
             &App::on_pairing_approval_needed_);
     // Every notification is about a server pairing
-    connect(&this->notifier_, &Notifier::clicked, this,
-            [this] { this->show_settings_(Section::MusicAssistant); });
+    connect(&this->notifier_, &Notifier::clicked, this, [this](const QString& activationToken) {
+        this->show_settings_(Section::MusicAssistant, activationToken);
+    });
     connect(&this->notifier_, &Notifier::actionInvoked, this, [this] {
         if (this->notice_ == Notice::Approval) {
             this->client_.allow_pairing();
@@ -255,7 +256,7 @@ void App::showSettings() {
     this->show_settings_(Section::Current);
 }
 
-void App::show_settings_(Section section) {
+void App::show_settings_(Section section, const QString& activation_token) {
     if (!this->window_) {
         // As the picker does, whichever opens first: Fusion takes the platform's palette
         if (QQuickStyle::name().isEmpty() &&
@@ -278,6 +279,10 @@ void App::show_settings_(Section section) {
     }
     if (section != Section::Current) {
         window->setProperty("section", static_cast<int>(section));
+    }
+    if (!activation_token.isEmpty()) {
+        // Where Qt's Wayland plugin looks for the token when a window asks for the focus
+        qputenv("XDG_ACTIVATION_TOKEN", activation_token.toLatin1());
     }
     window->show();
     window->raise();
