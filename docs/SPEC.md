@@ -116,7 +116,9 @@ tray, that is the only way in; its gear button opens Settings.
 - *Music Assistant:* which server is connected, or none; the pairing code while pairing, as
   digits or as a QR code, whichever the server asked for; Allow pairing, when the library holds
   pairing back; the servers this PC paired with, from the app's own record of `on_paired()`;
-  Copy pairing token; allow playback without pairing (on by default); media controls on/off.
+  Copy pairing token; allow playback without pairing (on by default); media controls on/off;
+  show what plays here in Discord (off by default), with a line saying it shares what you're
+  listening to with your Discord friends. See [Discord](#discord).
 
 It is Qt Quick, like the picker: one toolkit for the app's windows, in the desktop's palette
 (the Fusion style, unless the desktop brings its own). It opens from the tray menu, the picker's
@@ -580,6 +582,44 @@ Two controls, independent of each other:
 - MPRIS never describes what the PC casts: the app playing into the Sendspin output keeps its own
   card and controls.
 
+### Discord
+
+Optional, and off until switched on in Settings (`discord/rich_presence`): what a server plays
+to this PC as a "Listening to" Rich Presence. Like MPRIS it never describes what the PC casts,
+which has no track.
+
+- **What it shares.** The track's title, artist and album, where in the track it is, and the
+  cover's URL when the rule below lets it through, go to the Discord client running here, which
+  shows them to whoever may see the user's activity. Nothing else leaves the app for it: no
+  account, no token, no cover image, no lookup of a cover anywhere.
+- **Transport.** Discord's local IPC: the first of `discord-ipc-0`…`9` that answers in
+  `$XDG_RUNTIME_DIR`, then in `$XDG_RUNTIME_DIR/app/com.discordapp.Discord/` (Flatpak Discord),
+  then in `$XDG_RUNTIME_DIR/snap.discord/`. A frame is a little-endian opcode and length, then
+  JSON: HANDSHAKE `{v: 1, client_id}`, answered with READY, then `SET_ACTIVITY` frames, each
+  with a nonce. Written here on `QLocalSocket`; no Discord library.
+- **Application.** Discord shows an activity under a registered application: "Sendspin",
+  ID `1575190211321790514`, with the logo uploaded as its art asset `sendspin`. The ID is public
+  and the socket takes no secret. It is the default of the CMake option
+  `SENDSPIN_DISCORD_CLIENT_ID`; a build with it empty has no switch and never connects.
+- **Activity.** `type` 2 (Listening), `details` the title, `state` the artist, `large_text` the
+  album, and `timestamps` `start` and `end` from the track's position and length, which draw
+  the bar; a track of no known length has only `start`. Discord takes texts of 2 to 128
+  characters: longer ones are cut, a one-character one gets a space.
+- **Artwork.** `large_image` is the metadata's `artwork_url`, with the `sendspin` logo as
+  `small_image`, only when Discord's servers, which fetch it, can: `https`, at most 256
+  characters, no user or password, and a host with a public name — not an IP address, a name
+  without a dot, or one under `.local`, `.lan`, `.localhost`, `.internal` or `.home.arpa`.
+  Music Assistant's own image proxy is an address on the LAN, so its covers do not show.
+  Anything else is the `sendspin` logo as `large_image`.
+- **When.** Set when the group plays a track with a title, and again on a new track, a new
+  cover URL or a seek. Cleared when it pauses or stops and when the server disconnects. Switching
+  the setting off, or quitting, closes the connection, and Discord drops the activity with it.
+  At most one update every 4 s, the latest winning: Discord takes five in twenty seconds.
+- **No Discord is normal.** The app looks for the socket only while the setting is on and
+  something plays; without one it looks again after 15 s, then twice as long each time up to
+  5 min, and says nothing. A Discord that restarts is found the same way. All of it is
+  asynchronous on the main loop.
+
 ## Timing
 
 - **The speaker buffer is the library's.** The server computes the group's lead from what each
@@ -679,6 +719,10 @@ Listed in this order in the README and on the website:
    - `--talk-name=org.kde.StatusNotifierWatcher`
    - `--system-talk-name=org.freedesktop.Avahi`
    - MPRIS name is auto-granted — do not declare it
+   - `--filesystem=xdg-run/discord-ipc-0` and
+     `--filesystem=xdg-run/app/com.discordapp.Discord:create`: Discord's socket, a native
+     Discord's and Flatpak Discord's, for the Rich Presence. `:create` so the directory is
+     there for a Discord started after the app. Only reached with the setting on.
    - Notification portal for the pairing notification, which needs no permission. The other
      builds talk to `org.freedesktop.Notifications` themselves.
    - Background portal for autostart. Only this build gets GNOME's Background Apps entry. The

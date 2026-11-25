@@ -46,6 +46,8 @@ reviewer reads them all the same (`docs/SPEC.md`, "Install methods"):
 | `--system-talk-name=org.freedesktop.Avahi` | Finds the speakers and advertises this PC to Music Assistant, over mDNS. |
 | `--share=network` | Serves the speakers and dials them; connects to Music Assistant. |
 | `--talk-name=org.kde.StatusNotifierWatcher` | The tray icon. |
+| `--filesystem=xdg-run/discord-ipc-0` | Discord's Rich Presence socket, for the optional "show what plays here in Discord" setting, off by default. A socket, not files. |
+| `--filesystem=xdg-run/app/com.discordapp.Discord:create` | The same socket where Flatpak Discord keeps it. `:create` so a Discord started after the app is found. |
 
 ## Each release
 

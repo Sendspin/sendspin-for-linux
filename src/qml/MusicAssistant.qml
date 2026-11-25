@@ -140,5 +140,19 @@ ScrollView {
             checked: page.settings.mediaControls
             onToggled: page.settings.mediaControls = checked
         }
+        Switch {
+            objectName: "discordRichPresence"
+            visible: page.settings.discordAvailable
+            text: qsTr("Show what plays here in Discord")
+            checked: page.settings.discordRichPresence
+            onToggled: page.settings.discordRichPresence = checked
+        }
+        Label {
+            Layout.fillWidth: true
+            visible: page.settings.discordAvailable
+            wrapMode: Text.WordWrap
+            opacity: 0.7
+            text: qsTr("Shares what you're listening to with your Discord friends.")
+        }
     }
 }

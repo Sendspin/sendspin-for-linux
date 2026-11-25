@@ -32,6 +32,10 @@ include(cmake/sendspin_libs.cmake)
 add_library(qrcodegen STATIC third_party/qrcodegen/qrcodegen.cpp)
 target_include_directories(qrcodegen SYSTEM PUBLIC third_party/qrcodegen)
 
+# The "Sendspin" application in Discord's developer portal, whose asset `sendspin` is the logo.
+# Public: the local socket takes no secret. Empty builds without the setting.
+set(SENDSPIN_DISCORD_CLIENT_ID "1575190211321790514" CACHE STRING
+    "The Discord application ID for Rich Presence; empty hides the setting")
 option(SENDSPIN_SANITIZE "Build the app and its tests with ASan and UBSan" OFF)
 
 include(CTest)

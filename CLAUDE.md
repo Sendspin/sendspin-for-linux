@@ -70,6 +70,9 @@ than 1.4.2 API without a fallback.
   name as the user's own, and is left alone.
 - `src/client/` — the Sendspin client and its roles. `src/mpris.*` shows what a server plays here;
   its bus test needs a session bus and skips without one.
+- `src/discord_ipc.*` is Discord's local socket and its frames, with no Discord library;
+  `src/discord_presence.*` decides what it shows of what a server plays here, and which cover
+  URL Discord may have. `discord_test_server.h` is the tests' Discord. docs/SPEC.md, "Discord".
 - `src/settings_model.*` — what the Settings window shows and changes; `src/qml/` is the window,
   one file per section, with no logic of its own. `app_test` loads it and fails on anything the
   QML engine warns of.
