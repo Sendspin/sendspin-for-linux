@@ -32,6 +32,8 @@ for src in "$work"/build/_deps/*-src; do
         { echo "vendor: NOTICES.md does not list third_party/fetched/$dep" >&2; exit 1; }
 done
 find "$fetched" -name .git -prune -exec rm -rf {} +
+# Sample audio, most of the tree's size, that no build reads
+rm -rf "$fetched/micro_flac/examples"
 # Boost is every library; keep the ones Beast's build added
 for lib in "$fetched"/boost/libs/*/; do
     [ -d "$work/build/_deps/boost-build/libs/$(basename "$lib")" ] || rm -rf "$lib"
