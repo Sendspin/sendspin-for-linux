@@ -15,9 +15,14 @@ sendspin::PlayerRoleConfig role_config(std::vector<sendspin::AudioSupportedForma
 }  // namespace
 
 Player::Player(sendspin::SendspinClient& client,
-               std::vector<sendspin::AudioSupportedFormatObject> formats)
-    : role_(client.add_player(role_config(std::move(formats)))) {
+               std::vector<sendspin::AudioSupportedFormatObject> formats, uint8_t volume,
+               bool muted)
+    : role_(client.add_player(role_config(std::move(formats)))), volume_(volume), muted_(muted) {
     this->role_.set_listener(this);
+    // Before start(), so the first client/state carries them: a server shows what the player
+    // reports and sets none of its own
+    this->role_.update_volume(volume);
+    this->role_.update_muted(muted);
     this->stream_.set_played([this](uint32_t frames, int64_t finish_us) {
         this->role_.notify_audio_played(frames, finish_us);
     });
@@ -41,6 +46,13 @@ void Player::poll() {
         this->streaming_ = this->started_;
         emit this->streamingChanged(this->streaming_);
     }
+    const uint8_t volume = this->role_.get_volume();
+    const bool muted = this->role_.get_muted();
+    if (volume != this->volume_ || muted != this->muted_) {
+        this->volume_ = volume;
+        this->muted_ = muted;
+        emit this->volumeChanged(volume, muted);
+    }
 }
 
 void Player::stop() {
@@ -59,7 +71,7 @@ size_t Player::on_audio_output(std::span<const uint8_t> pcm, const sendspin::Aud
 
 void Player::on_stream_start() {
     this->started_ = true;
-    // The volume kept from the last run, or set while nothing played
+    // The volume it started with, or set while nothing played
     this->stream_.set_gain(volume_to_amplitude(this->role_.get_volume()));
     this->stream_.set_muted(this->role_.get_muted());
 }

@@ -11,6 +11,7 @@
 
 #include <pipewire/pipewire.h>
 
+#include <algorithm>
 #include <utility>
 
 Q_LOGGING_CATEGORY(lc_app, "sendspin.app")
@@ -19,7 +20,9 @@ namespace {
 
 // Settings has no window yet; these are its keys
 constexpr const char* SETTING_OUTPUT = "player/output";  ///< a node.name; empty for the default
-constexpr const char* SETTING_MPRIS = "mpris/enabled";   ///< on unless set false
+constexpr const char* SETTING_VOLUME = "player/volume";  ///< 0-100; 100 unless set
+constexpr const char* SETTING_MUTED = "player/muted";
+constexpr const char* SETTING_MPRIS = "mpris/enabled";              ///< on unless set false
 constexpr const char* SETTING_UNPAIRED = "client/unpaired_access";  ///< on unless set false
 
 QSettings settings() {
@@ -40,7 +43,10 @@ App::App(const std::filesystem::path& data_dir, QObject* parent)
       client_({.name = device_name(),
                .port = Client::free_port(),
                .unpaired_access = settings().value(SETTING_UNPAIRED, true).toBool(),
-               .player_formats = this->probe_formats_()},
+               .player_formats = this->probe_formats_(),
+               .player_volume = static_cast<uint8_t>(
+                   std::clamp(settings().value(SETTING_VOLUME, 100).toInt(), 0, 100)),
+               .player_muted = settings().value(SETTING_MUTED, false).toBool()},
               &this->client_persistence_),
       mpris_(this->client_, art_dir()),
       cast_(data_dir, output_),
@@ -68,6 +74,11 @@ App::App(const std::filesystem::path& data_dir, QObject* parent)
                     this->picker_window_.toggle(PickerWindow::Place::POINTER);
                 }
             });
+    connect(&this->client_.player(), &Player::volumeChanged, this, [](int volume, bool muted) {
+        QSettings kept = settings();
+        kept.setValue(SETTING_VOLUME, volume);
+        kept.setValue(SETTING_MUTED, muted);
+    });
     connect(&this->outputs_, &Outputs::targetChanged, this,
             [this] { this->client_.player().stream().set_target(this->outputs_.target()); });
     this->client_.player().stream().set_target(this->outputs_.target());
