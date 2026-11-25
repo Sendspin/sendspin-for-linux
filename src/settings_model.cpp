@@ -2,6 +2,7 @@
 
 #include "autostart.h"
 #include "device_name.h"
+#include "pairing_clipboard.h"
 
 #include <QClipboard>
 #include <QGuiApplication>
@@ -395,6 +396,16 @@ QVariantList SettingsModel::paired_servers() const {
             {"pairedAt", QLocale().toString(server.paired_at.date(), QLocale::ShortFormat)}});
     }
     return list;
+}
+
+bool SettingsModel::copyPairingCode() {
+    const QString code = this->client_.pairing_code();
+    if (code.isEmpty() || this->client_.pairing_code_is_qr()) {
+        return false;
+    }
+    pairing_clipboard::copy(code);
+    emit this->pairingCodeCopied();
+    return true;
 }
 
 bool SettingsModel::copyPairingToken() {

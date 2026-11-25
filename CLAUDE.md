@@ -73,6 +73,9 @@ than 1.4.2 API without a fallback.
   name as the user's own, and is left alone.
 - `src/client/` — the Sendspin client and its roles. `src/mpris.*` shows what a server plays here;
   its bus test needs a session bus and skips without one.
+- `src/pairing_clipboard.*` — the pairing code's digits on the clipboard, and off it again.
+  Which sessions take a copy from the background is in docs/SPEC.md, "Music Assistant (we are
+  the client)".
 - `src/settings_model.*` — what the Settings window shows and changes; `src/qml/` is the window,
   one file per section, with no logic of its own. `app_test` loads it and fails on anything the
   QML engine warns of.

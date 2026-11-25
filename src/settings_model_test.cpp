@@ -483,17 +483,27 @@ private slots:
                  qr ? server::CodeFormat::QR_CODE : server::CodeFormat::DIGITS}));
         QTRY_VERIFY(!parts.client.pairing_code().isEmpty());
         QCOMPARE(model.server_status(), "Music Assistant is pairing with this PC");
+        QSignalSpy copied(&model, &SettingsModel::pairingCodeCopied);
+        QGuiApplication::clipboard()->setText("the user's own");
         if (qr) {
             // The token is drawn, never spelled out
             QVERIFY(model.pairing_code().isEmpty());
             QVERIFY(model.pairing_qr().startsWith("image://qr/"));
             QVERIFY(!model.pairing_qr().contains(parts.client.pairing_code()));
             QVERIFY(!model.pairing_qr_image().isNull());
+            // Nor copied
+            QVERIFY(!model.copyPairingCode());
+            QCOMPARE(QGuiApplication::clipboard()->text(), "the user's own");
+            QCOMPARE(copied.size(), 0);
         } else {
             const QString code = parts.client.pairing_code();
             QCOMPARE(model.pairing_code(), code.first(3) + "-" + code.last(3));
             QVERIFY(model.pairing_qr().isEmpty());
             QVERIFY(model.pairing_qr_image().isNull());
+            // Copied as the server's field takes them: the six digits alone
+            QVERIFY(model.copyPairingCode());
+            QCOMPARE(QGuiApplication::clipboard()->text(), code);
+            QCOMPARE(copied.size(), 1);
         }
 
         QSignalSpy listed(&model, &SettingsModel::pairedServersChanged);
@@ -501,6 +511,8 @@ private slots:
         QTRY_COMPARE(listed.size(), 1);
         QVERIFY(model.pairing_code().isEmpty());
         QVERIFY(model.pairing_qr().isEmpty());
+        // With no code showing there is none to copy
+        QVERIFY(!model.copyPairingCode());
         QCOMPARE(model.paired_servers().size(), 1);
         QCOMPARE(model.paired_servers().first().toMap().value("name").toString(),
                  "Music Assistant");
