@@ -1,6 +1,7 @@
 #!/bin/sh
 # Draws the metainfo's screenshots, data/screenshots/picker.png and settings.png, offscreen and
-# at twice their size: Fusion on a light palette, made-up speakers, a private PipeWire.
+# at twice their size: Fusion on a light palette, stand-in speakers on the loopback interface, a
+# private PipeWire.
 #
 #     scripts/render-screenshots.sh [build directory, build by default]
 #

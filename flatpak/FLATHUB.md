@@ -23,8 +23,13 @@ After the first release is published, so that the tarball's URL answers:
 4. When it is merged, Flathub creates `flathub/com.sendspin_audio.Sendspin` and invites the
    submitter, whose GitHub account needs two-factor authentication. The app is published a
    few hours after.
-5. Verify the app from its page on flathub.org: the ID's domain is `sendspin-audio.com`, and
-   Flathub asks for a token at `https://sendspin-audio.com/.well-known/org.flathub.VerifiedApps.txt`.
+5. Verify the app: on flathub.org, signed in as the submitter, the app's website verification
+   gives a token for the ID's domain, `sendspin-audio.com`.
+6. Publish the token: add it as a line of `.well-known/org.flathub.VerifiedApps.txt` in
+   [Sendspin/sendspin-audio.com](https://github.com/Sendspin/sendspin-audio.com), the
+   website's repository, and once the site is deployed and
+   `https://sendspin-audio.com/.well-known/org.flathub.VerifiedApps.txt` answers with it, press
+   Verify on flathub.org.
 
 Flathub builds for x86_64 and aarch64. CI builds x86_64 only: if the aarch64 test build fails
 and can't be fixed in time, a `flathub.json` with `{"only-arches": ["x86_64"]}` next to the
@@ -41,7 +46,6 @@ reviewer reads them all the same (`docs/SPEC.md`, "Install methods"):
 | `--system-talk-name=org.freedesktop.Avahi` | Finds the speakers and advertises this PC to Music Assistant, over mDNS. |
 | `--share=network` | Serves the speakers and dials them; connects to Music Assistant. |
 | `--talk-name=org.kde.StatusNotifierWatcher` | The tray icon. |
-| `--talk-name=org.freedesktop.Notifications` | The pairing code. It goes once the notification goes through the portal ([#15](https://github.com/Sendspin/sendspin-for-linux/issues/15)). |
 
 ## Each release
 
@@ -64,7 +68,7 @@ dated by the tagged commit (`RELEASE_DATE` in the tarball), not by Flathub's bui
 
 The screenshots are `data/screenshots/picker.png` and `settings.png`, linked by the release's
 tag. `scripts/render-screenshots.sh` draws them offscreen from the windows' own QML, over
-made-up speakers: run it when a window changes, and commit the result. Pictures taken on a
+stand-in speakers on the loopback interface: run it when a window changes, and commit the result. Pictures taken on a
 desktop can replace them under the same names.
 
 ## Trying it here

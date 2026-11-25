@@ -254,11 +254,12 @@ jobs:
           scripts/flathub-manifest.sh "file://$PWD/$tarball" "$sha256" >com.sendspin_audio.Sendspin.yml
           $LINT manifest dist/com.sendspin_audio.Sendspin.yml
       # flathub-build leaves builddir and repo here. The builder runs flatpak on the host, over
-      # the session bus; a module's build has no network.
+      # the session bus; a module's build has no network. The runner's FUSE refuses the
+      # builder's read-only mount of builddir, which only guards against a build writing there.
       - name: Build
         run: |
           dbus-run-session flatpak run --command=flathub-build org.flatpak.Builder \
-            com.sendspin_audio.Sendspin.yml
+            --disable-rofiles-fuse com.sendspin_audio.Sendspin.yml
           licenses=builddir/files/share/licenses/com.sendspin_audio.Sendspin
           test -s $licenses/LICENSE -a -s $licenses/NOTICES.md -a -s $licenses/third_party/micro_opus/lib/opus/COPYING
       # The metainfo links its screenshots by the release's tag, and the linter fetches them
