@@ -1,8 +1,43 @@
 #include "autostart.h"
 
+#include "skip_unless_required.h"
+
+#include <QDBusConnection>
+#include <QDBusMessage>
+#include <QDBusObjectPath>
+#include <QDir>
 #include <QFile>
 #include <QTemporaryDir>
 #include <QTest>
+
+namespace {
+
+/// The Background portal, as far as the app uses it: answers each request with what it was told
+class FakePortal : public QObject {
+    Q_OBJECT
+    Q_CLASSINFO("D-Bus Interface", "org.freedesktop.portal.Background")
+
+public:
+    bool grant = true;
+    QVariantMap asked;
+
+public slots:
+    QDBusObjectPath RequestBackground(const QString& /*parent_window*/, const QVariantMap& options,
+                                      const QDBusMessage& message) {
+        this->asked = options;
+        const QString path = QStringLiteral("/org/freedesktop/portal/desktop/request/%1/%2")
+                                 .arg(message.service().mid(1).replace(u'.', u'_'),
+                                      options.value("handle_token").toString());
+        QDBusMessage response = QDBusMessage::createSignal(
+            path, QStringLiteral("org.freedesktop.portal.Request"), QStringLiteral("Response"));
+        const bool autostart = this->grant && options.value("autostart").toBool();
+        response << (this->grant ? 0U : 1U) << QVariantMap{{"autostart", autostart}};
+        QDBusConnection::sessionBus().send(response);
+        return QDBusObjectPath(path);
+    }
+};
+
+}  // namespace
 
 class AutostartTest : public QObject {
     Q_OBJECT
@@ -10,21 +45,31 @@ class AutostartTest : public QObject {
 private slots:
     void init() {
         this->dir_ = std::make_unique<QTemporaryDir>();
-        qputenv("XDG_CONFIG_HOME", this->dir_->path().toUtf8());
+        qputenv("XDG_CONFIG_HOME", (this->dir_->path() + "/home").toUtf8());
+        qputenv("XDG_CONFIG_DIRS", (this->dir_->path() + "/etc").toUtf8());
+    }
+
+    /// What a package installs for every user
+    void install_packaged_entry() {
+        QVERIFY(QDir().mkpath(this->dir_->path() + "/etc/autostart"));
+        QFile file(this->dir_->path() + "/etc/autostart/com.sendspin_audio.Sendspin.desktop");
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write("[Desktop Entry]\nType=Application\nName=Sendspin\n"
+                   "Exec=sendspin-for-linux --background\n");
     }
 
     void offUntilSwitchedOn() {
         QVERIFY(!autostart::enabled());
         // Nothing to remove is not a failure
-        QVERIFY(autostart::set_enabled(false));
+        autostart::set_enabled(false);
         QVERIFY(!QFile::exists(autostart::path()));
     }
 
-    void writesAnEntryTheDesktopStarts() {
-        QVERIFY(autostart::set_enabled(true, "/usr/bin/sendspin-for-linux"));
+    void writesAnEntryThatStartsTheTrayAlone() {
+        autostart::set_enabled(true, "/usr/bin/sendspin-for-linux");
         QVERIFY(autostart::enabled());
         QCOMPARE(autostart::path(),
-                 this->dir_->path() + "/autostart/com.sendspin_audio.Sendspin.desktop");
+                 this->dir_->path() + "/home/autostart/com.sendspin_audio.Sendspin.desktop");
 
         QFile file(autostart::path());
         QVERIFY(file.open(QIODevice::ReadOnly));
@@ -32,31 +77,88 @@ private slots:
         QCOMPARE(lines.first(), "[Desktop Entry]");
         QVERIFY(lines.contains("Type=Application"));
         QVERIFY(lines.contains("Name=Sendspin"));
-        QVERIFY(lines.contains("Exec=\"/usr/bin/sendspin-for-linux\""));
+        QVERIFY(lines.contains("Exec=\"/usr/bin/sendspin-for-linux\" --background"));
     }
 
     void switchingOffRemovesIt() {
-        QVERIFY(autostart::set_enabled(true, "/usr/bin/sendspin-for-linux"));
-        QVERIFY(autostart::set_enabled(false));
+        autostart::set_enabled(true, "/usr/bin/sendspin-for-linux");
+        autostart::set_enabled(false);
         QVERIFY(!QFile::exists(autostart::path()));
         QVERIFY(!autostart::enabled());
     }
 
+    // The same entry, by name: the user's own is written only to switch the package's off
+    void aPackagedEntryIsOnUntilSwitchedOff() {
+        this->install_packaged_entry();
+        QVERIFY(autostart::enabled());
+        QVERIFY(!QFile::exists(autostart::path()));
+
+        autostart::set_enabled(false);
+        QVERIFY(!autostart::enabled());
+        QFile file(autostart::path());
+        QVERIFY(file.open(QIODevice::ReadOnly));
+        QVERIFY(file.readAll().contains("\nHidden=true\n"));
+
+        autostart::set_enabled(true);
+        QVERIFY(autostart::enabled());
+        QVERIFY(!QFile::exists(autostart::path()));
+    }
+
+    void thePortalIsAskedForTheTrayAloneAndAnswers() {
+        QDBusConnection bus = QDBusConnection::sessionBus();
+        if (!bus.isConnected()) {
+            SKIP_UNLESS_REQUIRED("no session bus");
+        }
+        const QString service = QStringLiteral("com.sendspin_audio.Test.Portal");
+        FakePortal portal;
+        QVERIFY(bus.registerService(service));
+        QVERIFY(bus.registerObject("/org/freedesktop/portal/desktop", &portal,
+                                   QDBusConnection::ExportAllSlots));
+
+        std::optional<bool> granted;
+        const auto done = [&granted](bool autostart) { granted = autostart; };
+        autostart::ask_portal(true, service, this, done);
+        QTRY_VERIFY(granted.has_value());
+        QVERIFY(*granted);
+        QCOMPARE(portal.asked.value("autostart").toBool(), true);
+        QCOMPARE(portal.asked.value("commandline").toStringList(),
+                 QStringList({"sendspin-for-linux", "--background"}));
+
+        granted.reset();
+        autostart::ask_portal(false, service, this, done);
+        QTRY_VERIFY(granted.has_value());
+        QVERIFY(!*granted);
+
+        // Refused: nothing starts it
+        portal.grant = false;
+        granted.reset();
+        autostart::ask_portal(true, service, this, done);
+        QTRY_VERIFY(granted.has_value());
+        QVERIFY(!*granted);
+
+        // No portal at all answers the same
+        bus.unregisterService(service);
+        granted.reset();
+        autostart::ask_portal(true, service, this, done);
+        QTRY_VERIFY(granted.has_value());
+        QVERIFY(!*granted);
+    }
+
     // As a desktop's own "startup applications" switches one off
     void aHiddenEntryIsOff() {
-        QVERIFY(autostart::set_enabled(true, "/usr/bin/sendspin-for-linux"));
+        autostart::set_enabled(true, "/usr/bin/sendspin-for-linux");
         QFile file(autostart::path());
         QVERIFY(file.open(QIODevice::Append));
         file.write("Hidden=true\n");
         file.close();
         QVERIFY(!autostart::enabled());
         // Switching it on again writes it afresh
-        QVERIFY(autostart::set_enabled(true, "/usr/bin/sendspin-for-linux"));
+        autostart::set_enabled(true, "/usr/bin/sendspin-for-linux");
         QVERIFY(autostart::enabled());
     }
 
     void anEntryGnomeSwitchedOffIsOff() {
-        QVERIFY(autostart::set_enabled(true, "/usr/bin/sendspin-for-linux"));
+        autostart::set_enabled(true, "/usr/bin/sendspin-for-linux");
         QFile file(autostart::path());
         QVERIFY(file.open(QIODevice::ReadWrite));
         const QByteArray entry = file.readAll().replace("X-GNOME-Autostart-enabled=true",
@@ -77,9 +179,9 @@ private slots:
         autostart::refresh("/usr/bin/sendspin-for-linux");
         QVERIFY(!QFile::exists(autostart::path()));
 
-        QVERIFY(autostart::set_enabled(true, "/opt/old/sendspin-for-linux"));
+        autostart::set_enabled(true, "/opt/old/sendspin-for-linux");
         autostart::refresh("/usr/bin/sendspin-for-linux");
-        QVERIFY(entry().contains("Exec=\"/usr/bin/sendspin-for-linux\"\n"));
+        QVERIFY(entry().contains("Exec=\"/usr/bin/sendspin-for-linux\" --background\n"));
         QVERIFY(autostart::enabled());
 
         // Switched off by the desktop: left as it is

@@ -75,18 +75,27 @@ endif()
 
 add_executable(sendspin-for-linux main.cpp)
 target_compile_options(sendspin-for-linux PRIVATE -Wall -Wextra -Wpedantic)
+target_compile_definitions(sendspin-for-linux PRIVATE SENDSPIN_VERSION="${PROJECT_VERSION}")
 target_link_libraries(sendspin-for-linux PRIVATE sendspin_app)
 
 include(GNUInstallDirs)
 install(TARGETS sendspin-for-linux)
-# The launcher's entry, and the tray's icons where the panel finds and colours them
 install(FILES ${CMAKE_SOURCE_DIR}/data/com.sendspin_audio.Sendspin.desktop
     DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+# For every user, until one switches it off in Settings: an entry of their own by the same name
+install(FILES ${CMAKE_SOURCE_DIR}/data/autostart.desktop
+    DESTINATION ${CMAKE_INSTALL_FULL_SYSCONFDIR}/xdg/autostart
+    RENAME com.sendspin_audio.Sendspin.desktop)
+# The app's icon, and the tray's where the panel finds and colours them
+install(DIRECTORY ${SENDSPIN_ICONS}/hicolor DESTINATION ${CMAKE_INSTALL_DATADIR}/icons)
 install(FILES ${SENDSPIN_ICONS}/sendspin-symbolic.svg ${SENDSPIN_ICONS}/sendspin-waves-symbolic.svg
     DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/symbolic/apps)
-install(FILES ${SENDSPIN_ICONS}/sendspin-symbolic.svg
-    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
-    RENAME com.sendspin_audio.Sendspin.svg)
+# The release's date is the build's, or SOURCE_DATE_EPOCH's
+string(TIMESTAMP SENDSPIN_RELEASE_DATE "%Y-%m-%d" UTC)
+configure_file(${CMAKE_SOURCE_DIR}/data/com.sendspin_audio.Sendspin.metainfo.xml.in
+    com.sendspin_audio.Sendspin.metainfo.xml @ONLY)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/com.sendspin_audio.Sendspin.metainfo.xml
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo)
 
 if(BUILD_TESTING)
     find_package(Qt6 6.8 REQUIRED COMPONENTS Test)
@@ -98,9 +107,10 @@ if(BUILD_TESTING)
         target_compile_options(${NAME} PRIVATE -Wall -Wextra -Wpedantic)
         target_link_libraries(${NAME} PRIVATE sendspin_app Qt6::Test)
         add_test(NAME ${NAME} COMMAND ${NAME})
-        # No display or GPU in CI, and never the settings of whoever runs the tests
+        # No display or GPU in CI, and never the settings of whoever runs the tests, nor an
+        # installed package's autostart entry
         set_tests_properties(${NAME} PROPERTIES ENVIRONMENT
-            "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;XDG_CONFIG_HOME=${CMAKE_CURRENT_BINARY_DIR}/test-config")
+            "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;XDG_CONFIG_HOME=${CMAKE_CURRENT_BINARY_DIR}/test-config;XDG_CONFIG_DIRS=${CMAKE_CURRENT_BINARY_DIR}/test-config-dirs")
     endfunction()
 
     sendspin_add_test(app_test)
