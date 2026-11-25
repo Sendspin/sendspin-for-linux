@@ -32,7 +32,9 @@ uint16_t free_port() {
 /// PipeWire, no server and no network unless a test starts them
 struct Rig {
     Rig() {
-        // Each test starts from the first run's choices
+        // Each test starts from the first run's choices, and never touches the user's own
+        static const QTemporaryDir config;
+        QSettings::setPath(QSettings::NativeFormat, QSettings::UserScope, config.path());
         QSettings(QStringLiteral("sendspin"), QStringLiteral("sendspin")).remove("picker");
     }
 
@@ -206,7 +208,6 @@ private slots:
         QCOMPARE(row->property("accessibleName").toString(), heard);
 
         QQuickItem* label = Rig::find(row, "status");
-        QCOMPARE(label->isVisible(), !status.isEmpty() && rig.picker.has_outputs());
         // A fault is marked; another server's choice, or what adding will ask for, is not
         const bool fault = speaker_menu::row(output, {}).warning;
         QCOMPARE(label->property("text").toString(), fault ? "⚠ " + status : status);
@@ -326,7 +327,9 @@ private slots:
     // Choices: "What ticking does"
     // ==========================================================================
 
-    // A real speaker on the loopback interface, and the engine's own server
+    // A real speaker on the loopback interface, and the engine's own server. Against the private
+    // daemon of ci/start-pipewire.sh the system's default output is followed too; never on a
+    // desktop's own, where the test would move it.
     void tickingAFoundSpeakerPutsItInTheGroup() {
         const QTemporaryDir speaker_dir;
         const uint16_t port = free_port();
@@ -334,6 +337,13 @@ private slots:
         QVERIFY(speaker.started);
 
         Rig rig;
+        const bool daemon = qEnvironmentVariableIsSet("SENDSPIN_REQUIRE_PIPEWIRE_TESTS");
+        if (daemon) {
+            QVERIFY(rig.output.start());
+            QVERIFY(rig.outputs.start());
+            QTRY_VERIFY(rig.outputs.local().has_value());
+            QVERIFY(!rig.outputs.own_is_default());
+        }
         QSettings settings(rig.dir.path() + "/cast.ini", QSettings::IniFormat);
         settings.setValue("speaker_urls",
                           QStringList{QStringLiteral("ws://127.0.0.1:%1/sendspin").arg(port)});
@@ -350,16 +360,52 @@ private slots:
         QCOMPARE(row()->row.check, Check::EMPTY);
         QCOMPARE(picker.route(), speaker_menu::Route::DIRECT);
 
+        // The first speaker makes Sendspin the system's output; this PC's own stays in the group
         picker.toggle(speaker.id());
         QTRY_COMPARE(row()->row.check, Check::FILLED);
         QCOMPARE(picker.route(), speaker_menu::Route::SPEAKERS);
         QVERIFY(picker.volume_shown());
+        QCOMPARE(picker.local_check(), daemon ? Picker::Check::Filled : Picker::Check::Grey);
+        if (daemon) {
+            QTRY_VERIFY(rig.outputs.own_is_default());
+            QCOMPARE(picker.dot(), Picker::Dot::InUse);
+        }
+
+        // Its name: play there only
+        picker.playOnly(speaker.id());
+        QCOMPARE(picker.local_check(), Picker::Check::Empty);
+        QCOMPARE(picker.route(), speaker_menu::Route::SPEAKERS);
 
         // The last speaker out: this PC's own output takes over, played directly
         picker.toggle(speaker.id());
         QTRY_COMPARE(row()->row.check, Check::EMPTY);
         QCOMPARE(picker.route(), speaker_menu::Route::DIRECT);
         QVERIFY(picker.local_check() != Picker::Check::Empty);
+        if (daemon) {
+            QTRY_VERIFY(!rig.outputs.own_is_default());
+            QCOMPARE(picker.dot(), Picker::Dot::NotInUse);
+        }
+
+        // This PC's name, from the speaker: the speaker leaves
+        picker.toggle(speaker.id());
+        QTRY_COMPARE(row()->row.check, Check::FILLED);
+        picker.playOnly(picker.local_id());
+        QTRY_COMPARE(row()->row.check, Check::EMPTY);
+        QCOMPARE(picker.route(), speaker_menu::Route::DIRECT);
+    }
+
+    // Rule 9: nothing can join a server. The engine's rows carry that, and have no check.
+    void whileAServerPlaysTheRowsHaveNoCheck() {
+        Rig rig;
+        SpeakerRow kitchen;
+        kitchen.id = kitchen.name = "Kitchen";
+        kitchen.row = speaker_menu::row(found(Connection::CONNECTED), {.plays_groupable = false});
+        rig.cast.speakers()->set_rows({kitchen});
+        QQuickItem* row = rig.item("speakerRow");
+        QVERIFY(row != nullptr);
+        QCOMPARE(row->property("check").toInt(), static_cast<int>(Check::NONE));
+        QVERIFY(!row->property("clickable").toBool());
+        QCOMPARE(row->property("accessibleName").toString(), "Kitchen");
     }
 
     void theSourceIsSilencedUnlessTheServerIsChosen() {

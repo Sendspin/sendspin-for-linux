@@ -51,6 +51,5 @@ ColumnLayout {
         text: row.picker.serverCaption
         wrapMode: Text.WordWrap
         color: palette.placeholderText
-        font.pointSize: Math.max(1, Application.font.pointSize - 1)
     }
 }

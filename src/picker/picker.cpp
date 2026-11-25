@@ -2,10 +2,13 @@
 
 #include "device_name.h"
 
+#include <QLoggingCategory>
 #include <QSettings>
 
 #include <algorithm>
 #include <utility>
+
+Q_LOGGING_CATEGORY(lc_picker_state, "sendspin.picker")
 
 using speaker_menu::Action;
 using speaker_menu::Route;
@@ -13,7 +16,7 @@ using speaker_menu::Route;
 namespace {
 
 constexpr int REFRESH_MS = 500;
-/// This PC's own output among the speakers' ids, none of which can be this
+/// This PC's own output among the speakers' ids: those are a key's encoding or a URL, never this
 const char* const LOCAL = "local";
 
 constexpr const char* SETTING_LOCAL = "picker/local";
@@ -33,6 +36,9 @@ static_assert(same(Picker::Check::NoCheck, speaker_menu::Check::NONE) &&
               same(Picker::Check::Filled, speaker_menu::Check::FILLED) &&
               same(Picker::Check::Grey, speaker_menu::Check::GREY) &&
               same(Picker::Check::Spinner, speaker_menu::Check::SPINNER));
+static_assert(same(Picker::Click::NoClick, speaker_menu::Click::NONE) &&
+              same(Picker::Click::Add, speaker_menu::Click::ADD) &&
+              same(Picker::Click::Remove, speaker_menu::Click::REMOVE));
 static_assert(same(Picker::Dot::Plays, speaker_menu::Dot::PLAYS) &&
               same(Picker::Dot::InUse, speaker_menu::Dot::IN_USE) &&
               same(Picker::Dot::NotInUse, speaker_menu::Dot::NOT_IN_USE));
@@ -104,7 +110,8 @@ speaker_menu::Row Picker::local_row_() const {
     output.plays = this->local_ticked_ && found;
     output.is_discovered = found;
     return speaker_menu::row(output,
-                             {.group_count = static_cast<int>(this->state_().group.size())});
+                             {.plays_groupable = this->route_ != Route::SERVER,
+                              .group_count = static_cast<int>(this->state_().group.size())});
 }
 
 Picker::Server Picker::server_() const {
@@ -127,8 +134,10 @@ Picker::Server Picker::server_() const {
 }
 
 Picker::Dot Picker::dot() const {
-    return static_cast<Dot>(
-        speaker_menu::dot(this->outputs_.own_is_default(), this->sendspin_plays()));
+    // An app routed to the Sendspin output by hand makes it an output in use too, so the dot
+    // never contradicts the tray icon
+    const bool plays = this->sendspin_plays();
+    return static_cast<Dot>(speaker_menu::dot(this->outputs_.own_is_default() || plays, plays));
 }
 
 QString Picker::dot_text(Dot dot) {
@@ -309,9 +318,14 @@ void Picker::apply_(const speaker_menu::Plan& plan) {
     this->local_ticked_ = plan.group.contains(LOCAL);
     this->server_chosen_ = plan.route == Route::SERVER;
     this->save_();
-    // The user's own click is what moves the system's output (docs/SPEC.md, "Sendspin or direct
-    // follows what's ticked")
-    this->outputs_.set_own_default(plan.route != Route::DIRECT);
+    // The user's own click is what moves the system's output, and only a click that takes the
+    // sound to Sendspin or back: a default set by hand since is left alone (docs/SPEC.md,
+    // "Sendspin or direct follows what's ticked")
+    const bool to_sendspin = plan.route != Route::DIRECT;
+    if (to_sendspin != (this->route_ != Route::DIRECT) &&
+        !this->outputs_.set_own_default(to_sendspin)) {
+        qCWarning(lc_picker_state, "the system's default output could not be changed");
+    }
     this->applying_ = false;
     this->refresh_();
 }
@@ -320,21 +334,26 @@ void Picker::refresh_() {
     if (this->applying_) {
         return;
     }
-    const bool any_speaker =
-        std::ranges::any_of(this->cast_.speakers()->rows(), &SpeakerRow::in_group);
-    if (any_speaker && this->server_chosen_) {
+    const speaker_menu::State state = this->state_();
+    if (!state.group.empty() && this->server_chosen_) {
         // A speaker joined by its own button: the server is no longer chosen
         this->server_chosen_ = false;
         this->save_();
-    } else if (!any_speaker && !this->local_ticked_ && !this->server_chosen_) {
-        // The last speaker left by its own button: this PC's own output takes over
-        this->local_ticked_ = true;
-        this->save_();
-        this->outputs_.set_own_default(false);
+    } else if (state.group.empty() && !this->server_chosen_) {
+        // The last speaker left by its own button, which is a choice like any made here: what
+        // follows it is the rules' to say
+        if (const auto plan = speaker_menu::plan({Action::Kind::PLAY_ONLY, state.local}, state)) {
+            this->apply_(*plan);
+            return;
+        }
     }
     this->route_ = speaker_menu::route(this->state_());
     // The server gets the PC's sound only while it is chosen
     this->client_.source().set_silenced(this->route_ != Route::SERVER);
+    // Its own republished rows must not come back in here
+    this->applying_ = true;
+    this->cast_.set_plays_groupable(this->route_ != Route::SERVER);
+    this->applying_ = false;
 
     const Server server = this->server_();
     if (server.paired && server.name != this->paired_server_) {

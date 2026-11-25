@@ -29,7 +29,7 @@ bool PickerWindow::load_() {
         return false;
     }
     // Fusion takes its colours from the platform's palette; the default style has its own
-    if (QQuickStyle::name().isEmpty()) {
+    if (QQuickStyle::name().isEmpty() && qEnvironmentVariableIsEmpty("QT_QUICK_CONTROLS_STYLE")) {
         QQuickStyle::setStyle(QStringLiteral("Fusion"));
     }
     qmlRegisterUncreatableType<Picker>("Sendspin", 1, 0, "Picker", QStringLiteral("The app's own"));

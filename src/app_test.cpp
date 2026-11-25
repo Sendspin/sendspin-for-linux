@@ -62,7 +62,9 @@ private slots:
         App app(dir.path().toStdString());
         app.showPicker();
         QSignalSpy asked(app.picker_window(), &PickerWindow::settingsRequested);
-        QVERIFY(QMetaObject::invokeMethod(app.picker_window()->window(), "settingsRequested"));
+        QObject* gear = app.picker_window()->window()->findChild<QObject*>("settings");
+        QVERIFY(gear != nullptr);
+        QVERIFY(QMetaObject::invokeMethod(gear, "clicked"));
         QCOMPARE(asked.count(), 1);
     }
 };

@@ -25,6 +25,8 @@ class Picker : public QObject {
     Q_PROPERTY(QString localName READ local_name NOTIFY changed)
     Q_PROPERTY(Check localCheck READ local_check NOTIFY changed)
     Q_PROPERTY(bool localClickable READ local_clickable NOTIFY changed)
+    Q_PROPERTY(QString localStatusText READ local_status_text NOTIFY changed)
+    Q_PROPERTY(bool localWarning READ local_warning NOTIFY changed)
     Q_PROPERTY(bool serverShown READ server_shown NOTIFY changed)
     Q_PROPERTY(QString serverName READ server_name NOTIFY changed)
     Q_PROPERTY(QString serverCaption READ server_caption NOTIFY changed)
@@ -41,6 +43,8 @@ public:
     Q_ENUM(Check)
     enum class Dot { Plays, InUse, NotInUse };
     Q_ENUM(Dot)
+    enum class Click { NoClick, Add, Remove };
+    Q_ENUM(Click)
 
     /// @brief What the server row knows
     struct Server {
@@ -79,6 +83,12 @@ public:
     }
     bool local_clickable() const {
         return this->local_row_().click != speaker_menu::Click::NONE;
+    }
+    QString local_status_text() const {
+        return SpeakerModel::status_text(this->local_row_().status);
+    }
+    bool local_warning() const {
+        return this->local_row_().warning;
     }
 
     bool server_shown() const {

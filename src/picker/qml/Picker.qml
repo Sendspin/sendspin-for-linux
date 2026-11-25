@@ -29,163 +29,173 @@ Window {
         onActivated: root.hide()
     }
 
-    ColumnLayout {
-        id: content
+    // More speakers than fit scroll
+    ScrollView {
+        id: scroll
 
         anchors.fill: parent
         anchors.margins: 8
-        spacing: 4
+        contentWidth: availableWidth
 
-        RowLayout {
-            spacing: 8
+        ColumnLayout {
+            id: content
 
-            Rectangle {
-                id: dot
+            width: scroll.availableWidth
+            spacing: 4
 
-                objectName: "dot"
-                Layout.leftMargin: 8
-                implicitWidth: 12
-                implicitHeight: 12
-                radius: 6
-                color: root.picker.dot === Picker.Plays ? palette.highlight
-                     : root.picker.dot === Picker.InUse ? palette.mid : "transparent"
-                border.width: root.picker.dot === Picker.NotInUse ? 2 : 0
-                border.color: palette.mid
+            RowLayout {
+                spacing: 8
 
-                Accessible.role: Accessible.Indicator
-                Accessible.name: root.picker.dotText
+                Rectangle {
+                    id: dot
 
-                HoverHandler {
-                    id: dotHover
+                    objectName: "dot"
+                    Layout.leftMargin: 8
+                    implicitWidth: 12
+                    implicitHeight: 12
+                    radius: 6
+                    color: root.picker.dot === Picker.Plays ? palette.highlight
+                         : root.picker.dot === Picker.InUse ? palette.mid : "transparent"
+                    border.width: root.picker.dot === Picker.NotInUse ? 2 : 0
+                    border.color: palette.mid
+
+                    Accessible.role: Accessible.Indicator
+                    Accessible.name: root.picker.dotText
+
+                    HoverHandler {
+                        id: dotHover
+                    }
+
+                    ToolTip.visible: dotHover.hovered
+                    ToolTip.text: root.picker.dotText
                 }
 
-                ToolTip.visible: dotHover.hovered
-                ToolTip.text: root.picker.dotText
+                Label {
+                    Layout.fillWidth: true
+                    text: qsTr("Sendspin")
+                    font.bold: true
+                }
+
+                ToolButton {
+                    objectName: "settings"
+                    icon.name: "preferences-system-symbolic"
+                    icon.source: "qrc:/icons/settings.svg"
+                    icon.color: palette.windowText
+                    text: qsTr("Settings")
+                    display: AbstractButton.IconOnly
+                    onClicked: root.settingsRequested()
+
+                    ToolTip.visible: hovered
+                    ToolTip.text: text
+                }
+            }
+
+            // The picker's one slider: the group's volume
+            RowLayout {
+                objectName: "volume"
+                visible: root.picker.volumeShown
+                spacing: 4
+
+                ToolButton {
+                    objectName: "mute"
+                    checkable: true
+                    checked: root.cast.groupMuted
+                    icon.name: checked ? "audio-volume-muted-symbolic" : "audio-volume-high-symbolic"
+                    icon.source: checked ? "qrc:/icons/speaker-muted.svg" : "qrc:/icons/speaker.svg"
+                    icon.color: palette.windowText
+                    text: checked ? qsTr("Unmute the speakers") : qsTr("Mute the speakers")
+                    display: AbstractButton.IconOnly
+                    onToggled: root.cast.groupMuted = checked
+                }
+
+                Slider {
+                    objectName: "volumeSlider"
+                    Layout.fillWidth: true
+                    from: 0
+                    to: 100
+                    stepSize: 1
+                    value: root.cast.groupVolume
+                    onMoved: root.cast.groupVolume = Math.round(value)
+
+                    Accessible.name: qsTr("Volume of the speakers")
+                }
             }
 
             Label {
+                objectName: "notice"
                 Layout.fillWidth: true
-                text: qsTr("Sendspin")
-                font.bold: true
+                Layout.margins: 8
+                visible: text !== ""
+                text: root.picker.notice
+                wrapMode: Text.WordWrap
             }
 
-            ToolButton {
-                objectName: "settings"
-                icon.name: "preferences-system-symbolic"
-                icon.source: "qrc:/icons/settings.svg"
-                icon.color: palette.windowText
-                text: qsTr("Settings")
-                display: AbstractButton.IconOnly
-                onClicked: root.settingsRequested()
-
-                ToolTip.visible: hovered
-                ToolTip.text: text
-            }
-        }
-
-        // The picker's one slider: the group's volume
-        RowLayout {
-            objectName: "volume"
-            visible: root.picker.volumeShown
-            spacing: 4
-
-            ToolButton {
-                objectName: "mute"
-                checkable: true
-                checked: root.cast.groupMuted
-                icon.name: checked ? "audio-volume-muted-symbolic" : "audio-volume-high-symbolic"
-                icon.source: checked ? "qrc:/icons/speaker-muted.svg" : "qrc:/icons/speaker.svg"
-                icon.color: palette.windowText
-                text: checked ? qsTr("Unmute the speakers") : qsTr("Mute the speakers")
-                display: AbstractButton.IconOnly
-                onToggled: root.cast.groupMuted = checked
-            }
-
-            Slider {
-                objectName: "volumeSlider"
-                Layout.fillWidth: true
-                from: 0
-                to: 100
-                stepSize: 1
-                value: root.cast.groupVolume
-                onMoved: root.cast.groupVolume = Math.round(value)
-
-                Accessible.name: qsTr("Volume of the speakers")
-            }
-        }
-
-        Label {
-            objectName: "notice"
-            Layout.fillWidth: true
-            Layout.margins: 8
-            visible: text !== ""
-            text: root.picker.notice
-            wrapMode: Text.WordWrap
-        }
-
-        // Without PipeWire there is nothing to choose between
-        ColumnLayout {
-            objectName: "rows"
-            visible: root.picker.hasOutputs
-            spacing: 0
-
-            OutputRow {
-                objectName: "localRow"
-                speakerId: root.picker.localId
-                name: root.picker.localName
-                check: root.picker.localCheck
-                clickable: root.picker.localClickable
-                statusText: ""
-                warning: false
-                iconName: "computer-symbolic"
-                iconSource: "qrc:/icons/computer.svg"
-                onToggled: root.picker.toggle(speakerId)
-                onNameClicked: root.picker.playOnly(speakerId)
-            }
-
-            Repeater {
-                model: root.cast.speakers
+            // Without PipeWire there is nothing to choose between
+            ColumnLayout {
+                objectName: "rows"
+                visible: root.picker.hasOutputs
+                spacing: 0
 
                 OutputRow {
-                    required property int click
-
-                    objectName: "speakerRow"
-                    clickable: click !== 0
-                    iconName: "audio-speakers-symbolic"
-                    iconSource: "qrc:/icons/speaker.svg"
+                    objectName: "localRow"
+                    speakerId: root.picker.localId
+                    name: root.picker.localName
+                    check: root.picker.localCheck
+                    clickable: root.picker.localClickable
+                    statusText: root.picker.localStatusText
+                    warning: root.picker.localWarning
+                    iconName: "computer-symbolic"
+                    iconSource: "qrc:/icons/computer.svg"
                     onToggled: root.picker.toggle(speakerId)
                     onNameClicked: root.picker.playOnly(speakerId)
                 }
-            }
 
-            Label {
-                objectName: "looking"
-                Layout.fillWidth: true
-                Layout.margins: 8
-                visible: root.picker.looking
-                text: qsTr("Looking for speakers… <a href=\"%1\">Which speakers work?</a>")
-                    .arg("https://www.sendspin-audio.com/#speakers")
-                textFormat: Text.StyledText
-                wrapMode: Text.WordWrap
-                onLinkActivated: link => Qt.openUrlExternally(link)
+                Repeater {
+                    model: root.cast.speakers
 
-                Accessible.role: Accessible.Link
-                Accessible.name: qsTr("Looking for speakers. Which speakers work?")
-            }
+                    OutputRow {
+                        required property int click
 
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.topMargin: 4
-                Layout.bottomMargin: 4
-                visible: root.picker.serverShown
-                implicitHeight: 1
-                color: palette.mid
-            }
+                        objectName: "speakerRow"
+                        clickable: click !== Picker.NoClick
+                        iconName: "audio-speakers-symbolic"
+                        iconSource: "qrc:/icons/speaker.svg"
+                        onToggled: root.picker.toggle(speakerId)
+                        onNameClicked: root.picker.playOnly(speakerId)
+                    }
+                }
 
-            ServerRow {
-                objectName: "serverRow"
-                visible: root.picker.serverShown
-                picker: root.picker
+                Label {
+                    objectName: "looking"
+                    Layout.fillWidth: true
+                    Layout.margins: 8
+                    visible: root.picker.looking
+                    text: qsTr("Looking for speakers… <a href=\"%1\">Which speakers work?</a>")
+                        .arg("https://www.sendspin-audio.com/#speakers")
+                    textFormat: Text.StyledText
+                    wrapMode: Text.WordWrap
+                    onLinkActivated: link => Qt.openUrlExternally(link)
+                    activeFocusOnTab: true
+                    Keys.onReturnPressed: Qt.openUrlExternally("https://www.sendspin-audio.com/#speakers")
+
+                    Accessible.role: Accessible.Link
+                    Accessible.name: qsTr("Looking for speakers. Which speakers work?")
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.topMargin: 4
+                    Layout.bottomMargin: 4
+                    visible: root.picker.serverShown
+                    implicitHeight: 1
+                    color: palette.mid
+                }
+
+                ServerRow {
+                    objectName: "serverRow"
+                    visible: root.picker.serverShown
+                    picker: root.picker
+                }
             }
         }
     }
