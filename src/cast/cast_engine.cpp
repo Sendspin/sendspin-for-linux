@@ -550,6 +550,30 @@ void CastEngine::sync_clients_() {
         }
         speaker.facts.in_cast = this->cast_group_ && speaker.group == this->cast_group_;
     }
+
+    // The library sets a group's volume on the players in it at that moment only
+    bool joined = false;
+    for (Speaker& speaker : this->speakers_) {
+        const bool plays = speaker.facts.in_cast && speaker.has_player;
+        joined = joined || (plays && !speaker.plays);
+        speaker.plays = plays;
+    }
+    if (joined) {
+        this->send_group_levels_();
+    }
+}
+
+void CastEngine::send_group_levels_() {
+    if (!this->cast_group_) {
+        return;
+    }
+    if (this->volume_) {
+        (void)this->server_->set_group_volume(*this->cast_group_,
+                                              static_cast<uint32_t>(*this->volume_));
+    }
+    if (this->muted_) {
+        (void)this->server_->set_group_mute(*this->cast_group_, true);
+    }
 }
 
 void CastEngine::detect_identity_changes_() {
@@ -639,13 +663,7 @@ void CastEngine::update_input_(int64_t now_ns) {
             this->server_->open_input(*this->cast_group_, options);
         if (opened.result == sendspin::server::OpenInputResult::OK) {
             this->feed_.attach(std::move(opened.input));
-            if (this->volume_) {
-                (void)this->server_->set_group_volume(*this->cast_group_,
-                                                      static_cast<uint32_t>(*this->volume_));
-            }
-            if (this->muted_) {
-                (void)this->server_->set_group_mute(*this->cast_group_, true);
-            }
+            this->send_group_levels_();
         } else {
             qCWarning(lc_cast, "the group's input did not open: %d",
                       static_cast<int>(opened.result));

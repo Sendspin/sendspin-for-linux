@@ -152,6 +152,8 @@ private:
         bool listed{false};
         speaker_menu::Facts facts;
         bool has_player{false};
+        /// In the cast group with a player: the group's volume and mute have been sent to it
+        bool plays{false};
         bool can_pair{false};
         sendspin::server::PairingOffers offers;
         /// Why it isn't connected, from how it left or how the dial failed
@@ -178,6 +180,7 @@ private:
     void update_input_(int64_t now_ns);
     void publish_rows_();
     void release_cast_();
+    void send_group_levels_();
 
     void on_connected_(const sendspin::server::ClientInfo& info);
     void on_disconnected_(const sendspin::server::ClientInfo& info,
