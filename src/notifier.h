@@ -56,10 +56,10 @@ private:
         bool transient{false};
         QImage image{};
     };
-    void send(const Notice& notice);
-    void send_to_portal(const Notice& notice);
+    void send_(const Notice& notice);
+    void send_to_portal_(const Notice& notice);
     void remove_from_portal();
-    void close_notification(quint32 id);
+    void close_notification_(quint32 id);
 
     const QString name_;
     const QString service_;

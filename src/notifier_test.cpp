@@ -110,7 +110,7 @@ private:
 
 /// Lets a notifier have the id of what it showed: the stand-in has it a moment sooner
 void let_the_id_arrive() {
-    QTest::qWait(100);
+    QTest::qWait(250);
 }
 
 QImage cover(int width, int height) {

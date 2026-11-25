@@ -39,7 +39,7 @@ private:
         QString album{};
         bool operator==(const Identity&) const = default;
     };
-    void announce();
+    void announce_();
 
     bool enabled_{false};
     /// Waits for a run of skips to settle on a track

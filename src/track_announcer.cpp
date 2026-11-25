@@ -12,7 +12,7 @@ constexpr int SETTLE_MS = 1000;
 TrackAnnouncer::TrackAnnouncer(QObject* parent) : QObject(parent) {
     this->settle_.setSingleShot(true);
     this->settle_.setInterval(SETTLE_MS);
-    connect(&this->settle_, &QTimer::timeout, this, &TrackAnnouncer::announce);
+    connect(&this->settle_, &QTimer::timeout, this, &TrackAnnouncer::announce_);
 }
 
 void TrackAnnouncer::set_enabled(bool enabled) {
@@ -46,7 +46,7 @@ void TrackAnnouncer::update(bool playing, const Track& track, const QByteArray& 
     }
 }
 
-void TrackAnnouncer::announce() {
+void TrackAnnouncer::announce_() {
     this->announced_ = std::exchange(this->pending_, {});
     // Kept up to date while off, so that switching it on mid-track shows nothing
     if (this->enabled_) {

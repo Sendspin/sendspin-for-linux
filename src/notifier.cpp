@@ -118,7 +118,7 @@ void Notifier::invoked(const QString& key, const QString& activation_token) {
     }
 }
 
-void Notifier::send_to_portal(const Notice& notice) {
+void Notifier::send_to_portal_(const Notice& notice) {
     // No timeout to ask for: the desktop keeps a notification until it is removed, so a
     // passing one is removed from here, which also keeps it out of the list. Priority is only
     // a hint of which is which
@@ -162,31 +162,31 @@ void Notifier::remove_from_portal() {
 
 void Notifier::show(const QString& summary, const QString& body, bool persistent,
                     const QString& action) {
-    this->send({.summary = summary,
-                .body = body,
-                .persistent = persistent,
-                .action = action,
-                .click = tr("Settings")});
+    this->send_({.summary = summary,
+                 .body = body,
+                 .persistent = persistent,
+                 .action = action,
+                 .click = tr("Settings")});
 }
 
 void Notifier::show_track(const QString& summary, const QString& body, const QImage& cover) {
     // Not low urgency: GNOME shows no banner for that, only a line in its list
-    this->send({.summary = summary,
-                .body = body,
-                .click = tr("Open"),
-                .transient = true,
-                .image = cover.isNull() ? cover
-                                        : cover.scaled(IMAGE_PX, IMAGE_PX, Qt::KeepAspectRatio,
-                                                       Qt::SmoothTransformation)});
+    this->send_({.summary = summary,
+                 .body = body,
+                 .click = tr("Open"),
+                 .transient = true,
+                 .image = cover.isNull() ? cover
+                                         : cover.scaled(IMAGE_PX, IMAGE_PX, Qt::KeepAspectRatio,
+                                                        Qt::SmoothTransformation)});
 }
 
-void Notifier::send(const Notice& notice) {
+void Notifier::send_(const Notice& notice) {
     const QDBusConnection bus = QDBusConnection::sessionBus();
     if (!bus.isConnected()) {
         return;
     }
     if (this->portal_) {
-        this->send_to_portal(notice);
+        this->send_to_portal_(notice);
         return;
     }
     // "default" is the click on the notification itself; servers that show it use the label
@@ -221,12 +221,12 @@ void Notifier::send(const Notice& notice) {
                     this->id_ = reply.value();
                 } else if (this->id_ == 0) {
                     // Closed, or replaced, before its id was known
-                    this->close_notification(reply.value());
+                    this->close_notification_(reply.value());
                 }
             });
 }
 
-void Notifier::close_notification(quint32 id) {
+void Notifier::close_notification_(quint32 id) {
     QDBusMessage message = QDBusMessage::createMethodCall(this->service_, PATH, INTERFACE,
                                                           QStringLiteral("CloseNotification"));
     message << id;
@@ -240,7 +240,7 @@ void Notifier::close() {
     }
     ++this->generation_;
     if (this->id_ != 0) {
-        this->close_notification(this->id_);
+        this->close_notification_(this->id_);
         this->id_ = 0;
     }
 }
