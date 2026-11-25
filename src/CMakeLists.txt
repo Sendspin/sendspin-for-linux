@@ -32,6 +32,12 @@ target_link_libraries(sendspin_app PUBLIC
     PkgConfig::PIPEWIRE
     PkgConfig::AVAHI
 )
+# PUBLIC reaches the app and the tests, and nothing third-party
+if(SENDSPIN_SANITIZE)
+    target_compile_options(sendspin_app PUBLIC
+        -fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer)
+    target_link_options(sendspin_app PUBLIC -fsanitize=address,undefined)
+endif()
 
 add_executable(sendspin-for-linux main.cpp)
 target_compile_options(sendspin-for-linux PRIVATE -Wall -Wextra -Wpedantic)

@@ -40,6 +40,14 @@ ctest --test-dir build
 
 The first configure downloads the Sendspin libraries and their dependencies.
 
+The audio tests need a PipeWire daemon and skip without one. To run them anywhere, a container
+included, against a private headless daemon (needs `dbus-daemon`, `pipewire`, `wireplumber` and
+the `pw-play`, `pw-dump` and `wpctl` tools):
+
+```sh
+ci/start-pipewire.sh ctest --test-dir build
+```
+
 Keys and pairing records are stored as owner-only files under `$XDG_DATA_HOME/sendspin/`
 (`~/.local/share/sendspin/`).
 

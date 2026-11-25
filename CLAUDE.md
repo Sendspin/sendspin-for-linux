@@ -9,14 +9,27 @@ audio. The design is `docs/SPEC.md`.
 cmake -B build -G Ninja && cmake --build build && ctest --test-dir build
 ```
 
-CI builds in Fedora 44 and Debian 13 containers. Debian 13 is the floor: do not use Qt newer
-than 6.8 or PipeWire newer than 1.4.2 API without a fallback.
+`ctest` skips the audio tests unless a PipeWire daemon is running. `ci/start-pipewire.sh` runs a
+command against a private headless one, as CI does; it is safe on a desktop, and under it a
+missing daemon or tool fails those tests instead of skipping them:
+
+```sh
+ci/start-pipewire.sh ctest --test-dir build
+```
+
+`-DSENDSPIN_SANITIZE=ON` builds the app and its tests with ASan and UBSan.
+
+CI builds in Fedora 44, Debian 13 and Ubuntu 26.04 containers, runs the tests there against a
+headless PipeWire, repeats them under the sanitizers on Fedora, and checks formatting. Debian 13
+is the floor: do not use Qt newer than 6.8 or PipeWire newer than 1.4.2 API without a fallback.
 
 ## Conventions
 
 - **KISS.** No abstraction ahead of a second user of it. No options, layers or interfaces "for
   later".
 - **C++20.** Format with the repo's `.clang-format` (`clang-format -i src/*.cpp src/*.h src/*/*.cpp src/*/*.h`).
+  CI checks with clang-format 20.1.8 and other releases format differently; `pipx run
+  clang-format==20.1.8` gets that one anywhere.
 - **Naming** follows the Sendspin libraries: `PascalCase` types, `snake_case` functions and
   variables, `trailing_underscore_` members reached through `this->`. Qt signals, slots,
   properties and test slots use Qt's `camelCase`.
@@ -31,9 +44,10 @@ than 6.8 or PipeWire newer than 1.4.2 API without a fallback.
 
 - `src/` — the app. Everything except `main.cpp` is the `sendspin_app` library the tests link.
 - `src/audio/` — PipeWire. Its tests need a running daemon (and `pw-play`, `pw-dump`, `wpctl`) and
-  skip without one, as in CI.
+  skip without one.
 - `src/client/` — the Sendspin client and its roles. `src/mpris.*` shows what a server plays here;
   its bus test needs a session bus and skips without one.
+- `ci/` — `start-pipewire.sh` and the daemon config it loads: a null sink, no hardware.
 - `cmake/sendspin_libs.cmake` — the pinned Sendspin libraries. Both fetch the same third-party
   dependencies; the order of declarations there is what keeps them to one copy. Fix collisions
   there, never by forking a library.
