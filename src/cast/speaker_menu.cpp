@@ -226,6 +226,17 @@ Step next_step(const Facts& facts) {
     }
 }
 
+NameClick name_click(const Row& row) {
+    switch (row.status) {
+        case Status::IDENTITY_CHANGED:
+            return NameClick::ACCEPT_IDENTITY;
+        case Status::IN_USE_ELSEWHERE:
+            return NameClick::PLAY_ONLY_AND_DIAL;
+        default:
+            return NameClick::PLAY_ONLY;
+    }
+}
+
 Route route(const State& state) {
     // An empty group is what choosing a server leaves
     for (const std::string& id : state.group) {

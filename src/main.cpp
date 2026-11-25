@@ -21,7 +21,9 @@ int main(int argc, char** argv) {
     QApplication::setQuitOnLastWindowClosed(false);
 
     SingleInstance instance(QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation));
-    if (!instance.claim()) {
+    // Unset by Qt once the first window has used it
+    const QByteArray activation_token = qgetenv("XDG_ACTIVATION_TOKEN");
+    if (!instance.claim(activation_token)) {
         return 0;
     }
 

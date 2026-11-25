@@ -692,8 +692,8 @@ chooses); per-speaker volume (not in v1: the group's volume only, which the serv
 already sets); the sink's volume (PipeWire scales the captured audio, and it does not drive the
 speakers); reuse from sendspin-cpp-cli (copy its PipeWire sink and source now, a shared library
 later); offline builds (vendor the FetchContent dependencies); where the picker appears on
-Wayland (the compositor places it, no layer-shell in v1; beside the tray icon where the platform
-says where that is, centred otherwise).
+Wayland (the compositor places it, no layer-shell in v1; on X11 a click on the tray icon opens it
+at the pointer, kept clear of the panels, and it is centred otherwise).
 
 Still open:
 

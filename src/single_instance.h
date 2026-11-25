@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QByteArray>
 #include <QLocalServer>
 #include <QLockFile>
 #include <QObject>
@@ -15,15 +16,18 @@ public:
     explicit SingleInstance(const QString& dir, QObject* parent = nullptr);
 
     /// @brief Takes the instance lock, or pings the instance that holds it
+    /// @param activation_token This launch's XDG_ACTIVATION_TOKEN, handed to the instance so its
+    /// window may take the focus on Wayland; empty for none
     /// @return true when this process is the instance and should keep running
-    bool claim();
+    bool claim(const QByteArray& activation_token = {});
 
 signals:
     /// @brief Another launch found this instance running
-    void secondLaunch();
+    /// @param activationToken that launch's, empty when it had none
+    void secondLaunch(const QString& activationToken);
 
 private:
-    bool ping() const;
+    bool ping(const QByteArray& activation_token) const;
 
     QString socket_path_;
     QLockFile lock_;

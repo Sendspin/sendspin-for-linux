@@ -19,7 +19,7 @@ ColumnLayout {
         ItemDelegate {
             objectName: "server"
             Layout.fillWidth: true
-            enabled: row.picker.serverChoosable || row.picker.serverChosen
+            // Never disabled: a row that can't be chosen is still read, with what to do about it
             text: row.picker.serverName
             icon.name: "network-server-symbolic"
             icon.source: "qrc:/icons/server.svg"
@@ -29,8 +29,9 @@ ColumnLayout {
             Accessible.name: [row.picker.serverName,
                               row.picker.serverChosen ? qsTr("chosen") : "",
                               row.picker.serverHighlighted ? qsTr("playing") : "",
-                              row.picker.serverStatusText,
-                              row.picker.serverCaption].filter(part => part !== "").join(", ")
+                              row.picker.serverStatusText].filter(part => part !== "").join(", ")
+            // The caption carries the pairing code while one shows
+            Accessible.description: row.picker.serverCaption
         }
 
         Label {

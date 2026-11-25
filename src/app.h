@@ -11,6 +11,7 @@
 #include "picker/picker_window.h"
 
 #include <QAction>
+#include <QIcon>
 #include <QMenu>
 #include <QObject>
 #include <QSystemTrayIcon>
@@ -44,12 +45,13 @@ public:
 
     /// @brief The tray icon's name: the mark with its waves while Sendspin plays, alone otherwise
     static QString tray_icon_name(bool sendspin_plays);
-    /// @brief A pairing code as it is shown: "123-456"
-    static QString grouped_code(const QString& code);
+    /// @brief The icon of that name, as the tray takes it
+    static QIcon tray_icon(const QString& name);
 
 public slots:
     /// @brief Opens the picker: a launch, or a second one pinging this instance
-    void showPicker();
+    /// @param activationToken that launch's XDG activation token; empty for none
+    void showPicker(const QString& activationToken = {});
     /// @brief Opens the Settings window, once there is one
     void showSettings();
 

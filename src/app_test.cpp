@@ -1,5 +1,6 @@
 #include "app.h"
 
+#include <QDir>
 #include <QFile>
 #include <QSignalSpy>
 #include <QTemporaryDir>
@@ -42,9 +43,30 @@ private slots:
         }
     }
 
-    void pairingCodeIsGrouped() {
-        QCOMPARE(App::grouped_code("042735"), "042-735");
-        QCOMPARE(App::grouped_code("0427"), "0427");
+    // Installed where hicolor looks, the icon is found by name, which is what the tray hands the
+    // panel; otherwise it is the picture
+    void theTrayIconGoesByNameOnceInstalled() {
+        const QString name = App::tray_icon_name(true);
+        // Drawing the picture takes Qt's SVG plugin, which a build machine may lack
+        QCOMPARE(App::tray_icon(name).name(), "");
+
+        const QString hicolor = QStringLiteral("/usr/share/icons/hicolor/index.theme");
+        if (!QFile::exists(hicolor)) {
+            QSKIP("no hicolor icon theme on this machine");
+        }
+        const QTemporaryDir prefix;
+        const QString theme = prefix.path() + "/hicolor";
+        QVERIFY(QDir().mkpath(theme + "/symbolic/apps"));
+        QVERIFY(QFile::copy(hicolor, theme + "/index.theme"));
+        QVERIFY(QFile::copy(QStringLiteral(":/icons/%1.svg").arg(name),
+                            theme + "/symbolic/apps/" + name + ".svg"));
+        const QStringList paths = QIcon::themeSearchPaths();
+        const QString before = QIcon::themeName();
+        QIcon::setThemeSearchPaths({prefix.path()});
+        QIcon::setThemeName("hicolor");
+        QCOMPARE(App::tray_icon(name).name(), name);
+        QIcon::setThemeSearchPaths(paths);
+        QIcon::setThemeName(before);
     }
 
     // The tray icon, the launcher and a second launch all end here

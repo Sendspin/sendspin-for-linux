@@ -1,14 +1,12 @@
 #include "picker/picker_window.h"
 
+#include <QCursor>
 #include <QGuiApplication>
-#include <QLoggingCategory>
 #include <QQuickStyle>
 #include <QScreen>
 
 #include <algorithm>
 #include <utility>
-
-Q_LOGGING_CATEGORY(lc_picker, "sendspin.picker")
 
 namespace {
 
@@ -54,40 +52,48 @@ bool PickerWindow::load_() {
     return true;
 }
 
-void PickerWindow::show(const QRect& beside) {
+QPoint PickerWindow::beside(const QPoint& pointer, const QSize& size, const QRect& available) {
+    // Under a panel at the top, over one at the bottom
+    const bool above = pointer.y() > available.center().y();
+    const QPoint wanted(pointer.x() - (size.width() / 2),
+                        above ? pointer.y() - size.height() : pointer.y());
+    return {std::clamp(wanted.x(), available.left(),
+                       std::max(available.left(), available.right() + 1 - size.width())),
+            std::clamp(wanted.y(), available.top(),
+                       std::max(available.top(), available.bottom() + 1 - size.height()))};
+}
+
+void PickerWindow::show(Place place, const QString& activation_token) {
     if (!this->load_()) {
         return;
     }
-    const QScreen* screen = beside.isValid() ? QGuiApplication::screenAt(beside.center()) : nullptr;
+    const bool at_pointer =
+        place == Place::POINTER && QGuiApplication::platformName() == QLatin1String("xcb");
+    const QScreen* screen = at_pointer ? QGuiApplication::screenAt(QCursor::pos()) : nullptr;
     if (screen == nullptr) {
         screen = QGuiApplication::primaryScreen();
     }
     if (screen != nullptr) {
         const QRect area = screen->availableGeometry();
         const QSize size = this->window_->size();
-        QPoint at = area.center() - QPoint(size.width() / 2, size.height() / 2);
-        if (beside.isValid()) {
-            // Under a panel at the top, over one at the bottom
-            at.setX(beside.center().x() - (size.width() / 2));
-            at.setY(beside.center().y() < area.center().y() ? beside.bottom()
-                                                            : beside.top() - size.height());
-        }
-        at.setX(
-            std::clamp(at.x(), area.left(), std::max(area.left(), area.right() - size.width())));
-        at.setY(
-            std::clamp(at.y(), area.top(), std::max(area.top(), area.bottom() - size.height())));
         // Wayland ignores it
-        this->window_->setPosition(at);
+        this->window_->setPosition(at_pointer ? beside(QCursor::pos(), size, area)
+                                              : area.center() -
+                                                    QPoint(size.width() / 2, size.height() / 2));
+    }
+    if (!activation_token.isEmpty()) {
+        // Where Qt's Wayland plugin looks for the token when a window asks for the focus
+        qputenv("XDG_ACTIVATION_TOKEN", activation_token.toLatin1());
     }
     this->window_->show();
     this->window_->raise();
     this->window_->requestActivate();
 }
 
-void PickerWindow::toggle(const QRect& beside) {
+void PickerWindow::toggle(Place place) {
     if (this->window_ && this->window_->isVisible()) {
         this->window_->hide();
     } else if (!this->hidden_.isValid() || this->hidden_.elapsed() > REOPEN_GUARD_MS) {
-        this->show(beside);
+        this->show(place);
     }
 }

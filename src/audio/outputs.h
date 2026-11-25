@@ -68,8 +68,13 @@ public:
     /// @brief The system's default output is the Sendspin output
     bool own_is_default() const;
 
-    /// @brief Makes the Sendspin output the system's default, or hands the default back to
-    /// local(). The session manager carries it out, so own_is_default() follows later.
+    /// @brief The output the user chose as the default, which may be unplugged; empty for none
+    QByteArray configured_default() const;
+
+    /// @brief Makes the Sendspin output the user's choice of default, or puts back exactly the
+    /// choice it replaced, kept across a restart. The session manager carries it out, so
+    /// own_is_default() follows later.
+    /// @return false when it can't be done: no session manager, or no Sendspin output to choose
     bool set_own_default(bool own);
 
     ClockRates clock() const;
@@ -94,6 +99,8 @@ private:
     static void on_global_remove(void* data, uint32_t id);
     static void on_core_done(void* data, uint32_t id, int seq);
     static void on_core_error(void* data, uint32_t id, int seq, int res, const char* message);
+    /// Writes default.configured.audio.sink; empty clears it. Caller holds the loop lock.
+    bool configure_(const QByteArray& name);
     static int on_default(void* data, uint32_t subject, const char* key, const char* type,
                           const char* value);
     static int on_setting(void* data, uint32_t subject, const char* key, const char* type,
@@ -127,7 +134,8 @@ private:
     Metadata settings_metadata_;
     std::vector<OutputSink> sinks_;
     QByteArray default_sink_;
-    QByteArray last_default_;  ///< the last default that was not the Sendspin output
+    QByteArray configured_sink_;  ///< the user's choice, which the default follows while it exists
+    QByteArray last_default_;     ///< the last default that was not the Sendspin output
     ClockRates clock_;
     int sync_seq_{0};
     bool synced_{false};

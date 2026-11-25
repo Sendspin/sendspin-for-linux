@@ -5,10 +5,13 @@
 #include "cast/speaker_menu.h"
 #include "client/client.h"
 
+#include <QLoggingCategory>
 #include <QObject>
 #include <QString>
 #include <QStringList>
 #include <QTimer>
+
+Q_DECLARE_LOGGING_CATEGORY(lc_picker)
 
 /// @brief What the picker and the tray show, and what a click there does: the view over the cast
 /// engine's speakers, this PC's own output and the server (docs/SPEC.md, "The picker"). The rules
@@ -117,6 +120,8 @@ public:
     }
 
     static QString dot_text(Dot dot);
+    /// @brief A pairing code as it is shown: "123-456"
+    static QString grouped_code(const QString& code);
     static QString server_caption(const Server& server, const QString& pc_name);
     /// @param playing_on the speakers that play the PC's sound
     /// @param sending_to the server that takes it; empty for none

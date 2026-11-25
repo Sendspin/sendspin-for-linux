@@ -31,12 +31,9 @@ uint16_t free_port() {
 /// The app's side: everything the picker is a view over, none of it started, so there is no
 /// PipeWire, no server and no network unless a test starts them
 struct Rig {
-    Rig() {
-        // Each test starts from the first run's choices, and never touches the user's own
-        static const QTemporaryDir config;
-        QSettings::setPath(QSettings::NativeFormat, QSettings::UserScope, config.path());
-        QSettings(QStringLiteral("sendspin"), QStringLiteral("sendspin")).remove("picker");
-    }
+    /// @param server_chosen the choice kept from an earlier run: the server, rather than this
+    /// PC's own output
+    explicit Rig(bool server_chosen = false) : stored(server_chosen) {}
 
     /// Rows as the engine would publish them, each made by speaker_menu::row()
     void list(const std::vector<std::pair<QString, speaker_menu::Output>>& speakers) {
@@ -72,6 +69,20 @@ struct Rig {
         return nullptr;
     }
 
+    /// Before the picker, which reads them: each test starts from its own choices, and none
+    /// touches the user's
+    struct Stored {
+        explicit Stored(bool server_chosen) {
+            static const QTemporaryDir config;
+            QSettings::setPath(QSettings::NativeFormat, QSettings::UserScope, config.path());
+            QSettings settings(QStringLiteral("sendspin"), QStringLiteral("sendspin"));
+            settings.clear();
+            if (server_chosen) {
+                settings.setValue("picker/local", false);
+                settings.setValue("picker/server_chosen", true);
+            }
+        }
+    } stored;
     QTemporaryDir dir;
     ClientPersistence persistence{dir.path().toStdString()};
     Outputs outputs;
@@ -309,11 +320,13 @@ private slots:
         // A change from elsewhere shows
         rig.cast.setGroupVolume(40);
         QCOMPARE(slider->property("value").toInt(), 40);
-        // Moving it sets the group's
-        slider->setProperty("value", 65);
+        // Moving it, as a key or a drag does, sets the group's
+        QVERIFY(QMetaObject::invokeMethod(slider, "increase"));
         QVERIFY(QMetaObject::invokeMethod(slider, "moved"));
-        QCOMPARE(rig.cast.group_volume(), 65);
-        QCOMPARE(slider->property("value").toInt(), 65);
+        QCOMPARE(rig.cast.group_volume(), 41);
+        // And it still follows the group afterwards
+        rig.cast.setGroupVolume(20);
+        QCOMPARE(slider->property("value").toInt(), 20);
 
         QQuickItem* mute = rig.item("mute");
         rig.cast.setGroupMuted(true);
@@ -321,6 +334,8 @@ private slots:
         QVERIFY(QMetaObject::invokeMethod(mute, "toggle"));
         QVERIFY(QMetaObject::invokeMethod(mute, "toggled"));
         QVERIFY(!rig.cast.group_muted());
+        rig.cast.setGroupMuted(true);
+        QVERIFY(mute->property("checked").toBool());
     }
 
     // ==========================================================================
@@ -408,13 +423,72 @@ private slots:
         QCOMPARE(row->property("accessibleName").toString(), "Kitchen");
     }
 
-    void theSourceIsSilencedUnlessTheServerIsChosen() {
+    void thereIsNoServerToChooseUntilOneIsPaired() {
         Rig rig;
-        QCOMPARE(rig.picker.route(), speaker_menu::Route::DIRECT);
-        // Not paired with a server: there is none to choose
         rig.picker.chooseServer();
         QCOMPARE(rig.picker.route(), speaker_menu::Route::DIRECT);
         QVERIFY(!rig.picker.server_chosen());
+    }
+
+    void theSourceIsSilencedUnlessTheServerIsChosen() {
+        {
+            // Played directly
+            Rig rig;
+            QVERIFY(rig.client.source().silenced());
+        }
+        Rig rig(true);
+        QCOMPARE(rig.picker.route(), speaker_menu::Route::SERVER);
+        QVERIFY(rig.picker.server_chosen());
+        QVERIFY(!rig.client.source().silenced());
+        QCOMPARE(rig.picker.local_check(), Picker::Check::NoCheck);
+        // A speaker joins by its own button: the sound is the speakers' again
+        rig.list({{"Kitchen", added(Connection::CONNECTED, true)}});
+        QVERIFY(!rig.picker.server_chosen());
+        QVERIFY(rig.client.source().silenced());
+    }
+
+    // A speaker's own button is a choice too: the system's output follows it both ways, or the
+    // PC would play into a group that is gone. Against the private daemon only.
+    void theDefaultOutputFollowsASpeakersOwnButton() {
+        if (!qEnvironmentVariableIsSet("SENDSPIN_REQUIRE_PIPEWIRE_TESTS")) {
+            QSKIP("only against the private daemon of ci/start-pipewire.sh");
+        }
+        Rig rig;
+        QVERIFY(rig.output.start());
+        QVERIFY(rig.outputs.start());
+        QTRY_VERIFY(rig.outputs.local().has_value());
+        QVERIFY(!rig.outputs.own_is_default());
+
+        // It joins from direct: Sendspin takes the default
+        rig.list({{"Kitchen", added(Connection::CONNECTED, true)}});
+        QCOMPARE(rig.picker.route(), speaker_menu::Route::SPEAKERS);
+        QTRY_VERIFY(rig.outputs.own_is_default());
+        QCOMPARE(rig.picker.local_check(), Picker::Check::Filled);
+
+        // It leaves, with this PC's own output still ticked: the default goes back
+        rig.list({{"Kitchen", found(Connection::CONNECTED)}});
+        QCOMPARE(rig.picker.route(), speaker_menu::Route::DIRECT);
+        QTRY_VERIFY(!rig.outputs.own_is_default());
+    }
+
+    // A default the user set by hand while speakers play is left alone by the next tick
+    void aSecondSpeakerDoesNotTakeTheDefaultAgain() {
+        if (!qEnvironmentVariableIsSet("SENDSPIN_REQUIRE_PIPEWIRE_TESTS")) {
+            QSKIP("only against the private daemon of ci/start-pipewire.sh");
+        }
+        Rig rig;
+        QVERIFY(rig.output.start());
+        QVERIFY(rig.outputs.start());
+        QTRY_VERIFY(rig.outputs.local().has_value());
+        rig.list({{"Kitchen", added(Connection::CONNECTED, true)}});
+        QTRY_VERIFY(rig.outputs.own_is_default());
+
+        QVERIFY(rig.outputs.set_own_default(false));
+        QTRY_VERIFY(!rig.outputs.own_is_default());
+        rig.list({{"Kitchen", added(Connection::CONNECTED, true)},
+                  {"Office", added(Connection::CONNECTED, true)}});
+        QTest::qWait(300);
+        QVERIFY(!rig.outputs.own_is_default());
     }
 
     void theChoiceIsKept() {
@@ -444,6 +518,11 @@ private slots:
     // The tray: "UI"
     // ==========================================================================
 
+    void pairingCodeIsGrouped() {
+        QCOMPARE(Picker::grouped_code("042735"), "042-735");
+        QCOMPARE(Picker::grouped_code("0427"), "0427");
+    }
+
     void theStatusLine() {
         QCOMPARE(Picker::status_line({}, {}, {}), "Not in use");
         QCOMPARE(Picker::status_line({"Kitchen"}, {}, {}), "Playing on Kitchen");
@@ -466,6 +545,18 @@ private slots:
     // ==========================================================================
     // The window
     // ==========================================================================
+
+    // X11: at the pointer, and never under a panel or off the screen
+    void opensBesideThePointerClearOfThePanels() {
+        const QRect available(0, 30, 1920, 1050);  // a panel at the top
+        const QSize size(340, 400);
+        // A tray icon in a top panel: under it
+        QCOMPARE(PickerWindow::beside({1800, 15}, size, available), QPoint(1580, 30));
+        // In a bottom panel: over it
+        QCOMPARE(PickerWindow::beside({960, 1075}, size, {0, 0, 1920, 1050}), QPoint(790, 650));
+        // At the left edge
+        QCOMPARE(PickerWindow::beside({5, 15}, size, available), QPoint(0, 30));
+    }
 
     void togglingShowsAndHides() {
         Rig rig;

@@ -65,7 +65,7 @@ App::App(const std::filesystem::path& data_dir, QObject* parent)
     connect(&this->tray_, &QSystemTrayIcon::activated, this,
             [this](QSystemTrayIcon::ActivationReason reason) {
                 if (reason == QSystemTrayIcon::Trigger) {
-                    this->picker_window_.toggle(this->tray_.geometry());
+                    this->picker_window_.toggle(PickerWindow::Place::POINTER);
                 }
             });
     connect(&this->outputs_, &Outputs::targetChanged, this,
@@ -137,8 +137,10 @@ QString App::tray_icon_name(bool sendspin_plays) {
                           : QStringLiteral("sendspin-symbolic");
 }
 
-QString App::grouped_code(const QString& code) {
-    return code.size() == 6 ? code.first(3) + QLatin1Char('-') + code.last(3) : code;
+QIcon App::tray_icon(const QString& name) {
+    // Installed, the icon theme has it: the tray then gets its name, and the panel looks it up
+    // and draws it in its own colour. Uninstalled there is only the picture to hand over.
+    return QIcon::fromTheme(name, QIcon(QStringLiteral(":/icons/%1.svg").arg(name)));
 }
 
 void App::update_tray_() {
@@ -146,9 +148,7 @@ void App::update_tray_() {
     const QString name = tray_icon_name(this->picker_.sendspin_plays());
     if (name != this->tray_icon_) {
         this->tray_icon_ = name;
-        // Installed, the panel finds it by name and draws it in its own colour
-        this->tray_.setIcon(
-            QIcon::fromTheme(name, QIcon(QStringLiteral(":/icons/%1.svg").arg(name))));
+        this->tray_.setIcon(tray_icon(name));
     }
 }
 
@@ -163,7 +163,7 @@ void App::on_pairing_code_(const QString& code) {
     }
     this->notice_ = Notice::Code;
     const QString server_name = this->client_.server_name();
-    this->notifier_.show(tr("Pairing code: %1").arg(grouped_code(code)),
+    this->notifier_.show(tr("Pairing code: %1").arg(Picker::grouped_code(code)),
                          server_name.isEmpty()
                              ? tr("Enter it in the server to pair this PC.")
                              : tr("Enter it in %1 to pair this PC.").arg(server_name),
@@ -188,10 +188,8 @@ void App::show_result_(const QString& summary) {
     this->notifier_.show(summary);
 }
 
-void App::showPicker() {
-    // Where there is no tray icon to open beside, or it doesn't say where it is, the window is
-    // centred
-    this->picker_window_.show(this->tray_.geometry());
+void App::showPicker(const QString& activationToken) {
+    this->picker_window_.show(PickerWindow::Place::CENTRE, activationToken);
 }
 
 void App::showSettings() {

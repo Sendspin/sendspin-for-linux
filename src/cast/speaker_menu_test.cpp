@@ -467,6 +467,30 @@ private slots:
         QVERIFY(!sendspin_plays(true, Route::DIRECT, true, true));
     }
 
+    // ---- A click on a name ----
+
+    void aNamePlaysThereOnly() {
+        QCOMPARE(name_click(row({.in_group = true, .plays = true}, {})), NameClick::PLAY_ONLY);
+        QCOMPARE(name_click(row({}, {})), NameClick::PLAY_ONLY);
+        QCOMPARE(name_click(row({.in_group = true, .connection = Connection::UNAVAILABLE}, {})),
+                 NameClick::PLAY_ONLY);
+    }
+
+    // The library does not take back a speaker another server has: the click asks for it
+    void theNameOfASpeakerInUseElsewhereDialsItAgain() {
+        QCOMPARE(
+            name_click(row({.in_group = true, .connection = Connection::IN_USE_ELSEWHERE}, {})),
+            NameClick::PLAY_ONLY_AND_DIAL);
+        QCOMPARE(name_click(row({.connection = Connection::IN_USE_ELSEWHERE}, {})),
+                 NameClick::PLAY_ONLY_AND_DIAL);
+    }
+
+    void theNameOfAChangedIdentityAcceptsIt() {
+        QCOMPARE(
+            name_click(row({.in_group = true, .connection = Connection::IDENTITY_CHANGED}, {})),
+            NameClick::ACCEPT_IDENTITY);
+    }
+
     // ---- The dot ----
 
     void theDotIsBlueWhileSendspinPlays() {

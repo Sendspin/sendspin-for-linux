@@ -5,4 +5,4 @@ Comment=Play this PC's sound on Sendspin speakers
 Exec=sendspin-for-linux
 Icon=com.sendspin_audio.Sendspin
 Categories=AudioVideo;Audio;
-StartupNotify=false
+StartupNotify=true

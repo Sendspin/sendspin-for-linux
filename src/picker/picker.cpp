@@ -8,7 +8,7 @@
 #include <algorithm>
 #include <utility>
 
-Q_LOGGING_CATEGORY(lc_picker_state, "sendspin.picker")
+Q_LOGGING_CATEGORY(lc_picker, "sendspin.picker")
 
 using speaker_menu::Action;
 using speaker_menu::Route;
@@ -74,6 +74,8 @@ Picker::Picker(CastEngine& cast, Client& client, Outputs& outputs, QObject* pare
         }
     });
     this->timer_.start();
+    // What was chosen before this start is no change of route
+    this->route_ = speaker_menu::route(this->state_());
     this->refresh_();
 }
 
@@ -198,15 +200,16 @@ bool Picker::server_choosable() const {
     return server.paired && !server.chosen;
 }
 
+QString Picker::grouped_code(const QString& code) {
+    return code.size() == 6 ? code.first(3) + QLatin1Char('-') + code.last(3) : code;
+}
+
 QString Picker::server_caption(const Server& server, const QString& pc_name) {
     if (!server.connected) {
         return tr("It reconnects by itself when it's back on the network.");
     }
     if (!server.code.isEmpty()) {
-        const QString code = server.code.size() == 6
-                                 ? server.code.first(3) + QLatin1Char('-') + server.code.last(3)
-                                 : server.code;
-        return tr("Enter %1 in %2.").arg(code, server.name);
+        return tr("Enter %1 in %2.").arg(grouped_code(server.code), server.name);
     }
     if (!server.paired) {
         return tr("Pair this PC in %1, then enter the code that appears here.").arg(server.name);
@@ -274,20 +277,18 @@ void Picker::toggle(const QString& id) {
 void Picker::playOnly(const QString& id) {
     const auto& rows = this->cast_.speakers()->rows();
     const auto row = std::ranges::find(rows, id, &SpeakerRow::id);
-    if (row != rows.end() && row->row.status == speaker_menu::Status::IDENTITY_CHANGED) {
-        // Accepts the new identity, and leaves the group as it is
+    const speaker_menu::NameClick click =
+        row != rows.end() ? speaker_menu::name_click(row->row) : speaker_menu::NameClick::PLAY_ONLY;
+    if (click == speaker_menu::NameClick::ACCEPT_IDENTITY) {
         this->cast_.add(id);
         return;
     }
-    const bool was_in_group = row != rows.end() && row->in_group;
     const std::optional<speaker_menu::Plan> plan =
         speaker_menu::plan({Action::Kind::PLAY_ONLY, id.toStdString()}, this->state_());
     if (plan) {
         this->apply_(*plan);
     }
-    if (was_in_group) {
-        // Dialed again: how a speaker another server took, or one that was disconnected, comes
-        // back
+    if (click == speaker_menu::NameClick::PLAY_ONLY_AND_DIAL) {
         this->cast_.add(id);
     }
 }
@@ -318,14 +319,6 @@ void Picker::apply_(const speaker_menu::Plan& plan) {
     this->local_ticked_ = plan.group.contains(LOCAL);
     this->server_chosen_ = plan.route == Route::SERVER;
     this->save_();
-    // The user's own click is what moves the system's output, and only a click that takes the
-    // sound to Sendspin or back: a default set by hand since is left alone (docs/SPEC.md,
-    // "Sendspin or direct follows what's ticked")
-    const bool to_sendspin = plan.route != Route::DIRECT;
-    if (to_sendspin != (this->route_ != Route::DIRECT) &&
-        !this->outputs_.set_own_default(to_sendspin)) {
-        qCWarning(lc_picker_state, "the system's default output could not be changed");
-    }
     this->applying_ = false;
     this->refresh_();
 }
@@ -347,7 +340,16 @@ void Picker::refresh_() {
             return;
         }
     }
+    const bool was_sendspin = this->route_ != Route::DIRECT;
     this->route_ = speaker_menu::route(this->state_());
+    // The system's output follows the choice, made here or with a speaker's own button, and only
+    // when the sound moves to Sendspin or back: a default set by hand since is left alone
+    // (docs/SPEC.md, "Sendspin or direct follows what's ticked")
+    const bool is_sendspin = this->route_ != Route::DIRECT;
+    if (is_sendspin != was_sendspin && !this->outputs_.set_own_default(is_sendspin) &&
+        this->outputs_.connected()) {
+        qCWarning(lc_picker, "the system's default output could not be changed");
+    }
     // The server gets the PC's sound only while it is chosen
     this->client_.source().set_silenced(this->route_ != Route::SERVER);
     // Its own republished rows must not come back in here

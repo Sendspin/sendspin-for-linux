@@ -18,7 +18,8 @@ Window {
     minimumWidth: width
     maximumWidth: width
     title: qsTr("Sendspin")
-    flags: Qt.Dialog
+    // Not a window of its own in the taskbar
+    flags: Qt.Tool
     color: palette.window
 
     // Like a popup

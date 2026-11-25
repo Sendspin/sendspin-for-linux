@@ -3,6 +3,8 @@
 #include "audio/sendspin_output.h"
 #include "skip_unless_required.h"
 
+#include <QProcess>
+#include <QSettings>
 #include <QTest>
 
 namespace {
@@ -22,6 +24,14 @@ class OutputsTest : public QObject {
     Q_OBJECT
 
 private slots:
+    // The private daemon and the settings are every test's: none leaves a default behind
+    void cleanup() {
+        if (qEnvironmentVariableIsSet("SENDSPIN_REQUIRE_PIPEWIRE_TESTS")) {
+            QProcess::execute("pw-metadata", {"-d", "0", "default.configured.audio.sink"});
+            QSettings(QStringLiteral("sendspin"), QStringLiteral("sendspin")).remove("outputs");
+        }
+    }
+
     void followsTheDefault() {
         QCOMPARE(choose("speakers"), "speakers");
         QCOMPARE(choose("hdmi", {}, "speakers"), "hdmi");
@@ -98,14 +108,59 @@ private slots:
         QVERIFY(!local->description.isEmpty());
         QVERIFY(!outputs.own_is_default());
 
+        // The user's own choice of default is an output that is unplugged now
+        QCOMPARE(QProcess::execute("pw-metadata", {"0", "default.configured.audio.sink",
+                                                   R"({"name":"usb-dac"})", "Spa:String:JSON"}),
+                 0);
+        QTRY_COMPARE(outputs.configured_default(), "usb-dac");
+
         QVERIFY(outputs.set_own_default(true));
         QTRY_VERIFY(outputs.own_is_default());
         // This PC's own output is still the one it replaced
         QCOMPARE(outputs.local()->name, local->name);
 
+        // Handing it back puts the user's choice back, not whatever plays in its absence, and a
+        // restart in between doesn't lose it
+        Outputs restarted("sendspin-test-default");
+        QVERIFY(restarted.start());
+        QVERIFY(restarted.set_own_default(false));
+        QTRY_VERIFY(!outputs.own_is_default());
+        QTRY_COMPARE(outputs.configured_default(), "usb-dac");
+        QCOMPARE(outputs.local()->name, local->name);
+
+        // With nothing replaced there is nothing to put back
+        QVERIFY(outputs.set_own_default(false));
+        QCOMPARE(outputs.configured_default(), "usb-dac");
+    }
+
+    // The user never chose a default: there is none afterwards either
+    void givesBackNoChoiceWhereThereWasNone() {
+        if (!qEnvironmentVariableIsSet("SENDSPIN_REQUIRE_PIPEWIRE_TESTS")) {
+            QSKIP("only against the private daemon of ci/start-pipewire.sh");
+        }
+        SendspinOutput own(nullptr, "sendspin-test-default");
+        QVERIFY(own.start());
+        Outputs outputs("sendspin-test-default");
+        QVERIFY(outputs.start());
+        QTRY_VERIFY(outputs.local().has_value());
+        QCOMPARE(outputs.configured_default(), "");
+
+        QVERIFY(outputs.set_own_default(true));
+        QTRY_VERIFY(outputs.own_is_default());
         QVERIFY(outputs.set_own_default(false));
         QTRY_VERIFY(!outputs.own_is_default());
-        QCOMPARE(outputs.local()->name, local->name);
+        QTRY_COMPARE(outputs.configured_default(), "");
+    }
+
+    // Without the Sendspin output there is nothing to make the default
+    void neverMakesAMissingOutputTheDefault() {
+        if (!qEnvironmentVariableIsSet("SENDSPIN_REQUIRE_PIPEWIRE_TESTS")) {
+            QSKIP("only against the private daemon of ci/start-pipewire.sh");
+        }
+        Outputs outputs("sendspin-test-missing");
+        QVERIFY(outputs.start());
+        QVERIFY(!outputs.set_own_default(true));
+        QCOMPARE(outputs.configured_default(), "");
     }
 };
 

@@ -76,7 +76,7 @@ install(TARGETS sendspin-for-linux)
 install(FILES ${CMAKE_SOURCE_DIR}/data/com.sendspin_audio.Sendspin.desktop
     DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
 install(FILES ${SENDSPIN_ICONS}/sendspin-symbolic.svg ${SENDSPIN_ICONS}/sendspin-waves-symbolic.svg
-    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/symbolic/status)
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/symbolic/apps)
 install(FILES ${SENDSPIN_ICONS}/sendspin-symbolic.svg
     DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
     RENAME com.sendspin_audio.Sendspin.svg)
