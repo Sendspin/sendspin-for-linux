@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import Sendspin
 
 ColumnLayout {
     id: page
@@ -58,6 +59,29 @@ ColumnLayout {
         text: qsTr("Open at login")
         checked: page.settings.openAtLogin
         onToggled: page.settings.openAtLogin = checked
+    }
+
+    Switch {
+        text: qsTr("Check for updates")
+        checked: page.settings.checkForUpdates
+        onToggled: page.settings.checkForUpdates = checked
+    }
+    Label {
+        Layout.fillWidth: true
+        wrapMode: Text.WordWrap
+        opacity: 0.7
+        text: page.settings.updateStatus || qsTr("Asks GitHub for a newer release, once a day.")
+    }
+    Button {
+        visible: page.settings.updateAction !== SettingsModel.None
+        text: page.settings.updateAction === SettingsModel.Install
+              ? qsTr("Install update") : qsTr("Open the release's page")
+        onClicked: {
+            if (page.settings.updateAction === SettingsModel.Install)
+                page.settings.installUpdate()
+            else
+                Qt.openUrlExternally(page.settings.updatePage)
+        }
     }
 
     Item { Layout.fillHeight: true }

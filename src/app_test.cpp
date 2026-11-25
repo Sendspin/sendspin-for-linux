@@ -1,8 +1,11 @@
 #include "app.h"
 
+#include "update_test_server.h"
+
 #include <QDir>
 #include <QFile>
 #include <QScopeGuard>
+#include <QSettings>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
@@ -33,7 +36,7 @@ private slots:
         QStringList labels;
         QList<bool> enabled;
         for (const QAction* action : app.menu()->actions()) {
-            if (!action->isSeparator()) {
+            if (!action->isSeparator() && action->isVisible()) {
                 labels << action->text();
                 enabled << action->isEnabled();
             }
@@ -135,6 +138,33 @@ private slots:
         }
         QVERIFY(app.settings_window() != nullptr);
         QVERIFY(app.settings_window()->isVisible());
+    }
+
+    // Between the status and Settings, and only while there is one
+    void theTrayShowsANewerRelease() {
+        const ReleaseServer server;
+        qputenv("SENDSPIN_UPDATE_URL", server.url().toString().toUtf8());
+        QCoreApplication::setApplicationVersion("1.0.0");
+        const auto restore = qScopeGuard([] {
+            qunsetenv("SENDSPIN_UPDATE_URL");
+            QCoreApplication::setApplicationVersion({});
+            QSettings(QStringLiteral("sendspin"), QStringLiteral("sendspin")).remove("updates");
+        });
+        const QTemporaryDir dir;
+        App app(dir.path().toStdString());
+        QAction* update = app.menu()->actions().at(2);
+        QVERIFY(!update->isVisible());
+        QTRY_VERIFY(update->isVisible());
+        QCOMPARE(update->text(), "Sendspin 9.0.0 is available…");
+        QCOMPARE(app.menu()->actions().at(3)->text(), "Settings…");
+
+        // It leads to the switch and the button
+        update->trigger();
+        QVERIFY(app.settings_window() != nullptr);
+        QCOMPARE(app.settings_window()->property("section").toInt(), 0);
+
+        app.settings()->setCheckForUpdates(false);
+        QVERIFY(!update->isVisible());
     }
 
     // The tray icon, the launcher and a second launch all end here

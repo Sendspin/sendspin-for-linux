@@ -37,13 +37,13 @@ jobs:
             install: >-
               dnf -y install cmake ninja-build gcc-c++ git patch pkgconf-pkg-config xz
               qt6-qtbase-devel qt6-qtdeclarative-devel pipewire-devel avahi-devel openssl-devel
-              dbus-daemon pipewire pipewire-utils wireplumber
+              dbus-daemon pipewire pipewire-utils wireplumber gnupg2
           - name: Fedora 44 (ASan + UBSan)
             image: registry.fedoraproject.org/fedora:44
             install: >-
               dnf -y install cmake ninja-build gcc-c++ git patch pkgconf-pkg-config xz
               qt6-qtbase-devel qt6-qtdeclarative-devel pipewire-devel avahi-devel openssl-devel
-              dbus-daemon pipewire pipewire-utils wireplumber libasan libubsan
+              dbus-daemon pipewire pipewire-utils wireplumber gnupg2 libasan libubsan
             configure: -DSENDSPIN_SANITIZE=ON
           # The floor: the oldest Qt and PipeWire we support
           - name: Debian 13
@@ -52,14 +52,14 @@ jobs:
               apt-get update && apt-get install -y --no-install-recommends
               ca-certificates cmake ninja-build g++ git patch pkg-config xz-utils
               qt6-base-dev qt6-declarative-dev libpipewire-0.3-dev libavahi-client-dev libssl-dev
-              dbus-daemon pipewire pipewire-bin wireplumber
+              dbus-daemon pipewire pipewire-bin wireplumber gpgv
           - name: Ubuntu 26.04
             image: ubuntu:26.04
             install: >-
               apt-get update && apt-get install -y --no-install-recommends
               ca-certificates cmake ninja-build g++ git patch pkg-config xz-utils
               qt6-base-dev qt6-declarative-dev libpipewire-0.3-dev libavahi-client-dev libssl-dev
-              dbus-daemon pipewire pipewire-bin wireplumber
+              dbus-daemon pipewire pipewire-bin wireplumber gpgv
     steps:
       - name: Install dependencies
         run: ${{ matrix.install }}

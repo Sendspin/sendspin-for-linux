@@ -1,0 +1,95 @@
+#!/bin/sh
+# Verifies a release's package against the signing key this machine already trusts, and installs
+# it. The app runs `verify` as the user, to refuse a bad download before anyone is asked for a
+# password, and `install` through pkexec. Both work on a private copy, so what is installed is
+# what was verified, whatever happens to the download in between.
+#
+#     install-update verify|install <package> <SHA256SUMS> <SHA256SUMS.asc>
+#
+# The key is the one this package installed, the package repositories' own; none is ever
+# downloaded. Needs gpgv, and to install, apt-get or dnf.
+set -eu
+umask 077
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+export LC_ALL=C
+
+fail() {
+    echo "install-update: $*" >&2
+    exit 1
+}
+
+[ $# -eq 4 ] || fail "usage: $0 verify|install <package> <SHA256SUMS> <SHA256SUMS.asc>"
+mode=$1
+package=$2
+sums=$3
+signature=$4
+installed=sendspin-for-linux
+
+key=/usr/share/sendspin-for-linux/sendspin.asc
+case "$mode" in
+    # Tests have a key of their own. Never as root: pkexec passes no environment on, and this
+    # holds if something else does
+    verify) key=${SENDSPIN_UPDATE_KEY:-$key} ;;
+    install) ;;
+    *) fail "unknown mode $mode" ;;
+esac
+[ -s "$key" ] || fail "no signing key at $key"
+
+# The name is looked up in SHA256SUMS, so nothing but a release file's name
+name=${package##*/}
+case "$name" in
+    *[!A-Za-z0-9._-]*) fail "not a release's file name: $name" ;;
+    "$installed"-*.deb) kind=deb ;;
+    "$installed"-*.rpm) kind=rpm ;;
+    *) fail "not a package of $installed: $name" ;;
+esac
+
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+# A file, and no more of it than a release's could be
+take() {
+    [ -f "$1" ] || fail "not a file: $1"
+    head -c "$(($3 + 1))" -- "$1" >"$work/$2"
+    [ "$(stat -c %s "$work/$2")" -le "$3" ] || fail "$1 is larger than a release's"
+}
+take "$package" "package.$kind" 268435456
+take "$sums" SHA256SUMS 1048576
+take "$signature" SHA256SUMS.asc 1048576
+
+# gpgv takes a keyring of bare packets: the armor's base64, without its headers and checksum
+tr -d '\r' <"$key" | sed -e '/^-----/d' -e '/^[A-Za-z]*: /d' -e '/^=/d' -e '/^[[:space:]]*$/d' |
+    base64 -d >"$work/key.gpg" || fail "$key is not an armored key"
+GNUPGHOME=$work gpgv --quiet --keyring "$work/key.gpg" "$work/SHA256SUMS.asc" "$work/SHA256SUMS" ||
+    fail "SHA256SUMS is not signed with this machine's Sendspin key"
+sum=$(sha256sum "$work/package.$kind" | cut -d' ' -f1)
+grep -qxF "$sum  $name" "$work/SHA256SUMS" || fail "$name is not the file in SHA256SUMS"
+
+[ "$mode" = install ] || exit 0
+
+# The private copies are made; what the package manager writes is for everyone to read
+umask 022
+# Built against this release's libraries, and no other's
+. /etc/os-release
+case "$name" in
+    "$installed"-*-"$ID$VERSION_ID"-*) ;;
+    *) fail "$name is not for $ID$VERSION_ID" ;;
+esac
+# A signed release stays signed: an older one is not an update
+case "$kind" in
+    deb)
+        [ "$(dpkg-deb -f "$work/package.deb" Package)" = "$installed" ] || fail "not $installed"
+        new=$(dpkg-deb -f "$work/package.deb" Version)
+        old=$(dpkg-query -W -f '${Version}' "$installed")
+        dpkg --compare-versions "$new" gt "$old" || fail "$new is not newer than $old"
+        DEBIAN_FRONTEND=noninteractive apt-get install -y "$work/package.deb"
+        ;;
+    rpm)
+        [ "$(rpm -qp --qf '%{NAME}' "$work/package.rpm" 2>/dev/null)" = "$installed" ] ||
+            fail "not $installed"
+        new=$(rpm -qp --qf '%{EVR}' "$work/package.rpm" 2>/dev/null)
+        # Upgrades only, and does nothing, successfully, when it is not one
+        dnf -y upgrade "$work/package.rpm"
+        old=$(rpm -q --qf '%{EVR}' "$installed")
+        [ "$old" = "$new" ] || fail "$new is not newer than $old"
+        ;;
+esac

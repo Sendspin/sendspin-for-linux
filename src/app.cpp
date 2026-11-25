@@ -6,6 +6,7 @@
 #include <QApplication>
 #include <QIcon>
 #include <QLoggingCategory>
+#include <QProcess>
 #include <QQuickImageProvider>
 #include <QQuickStyle>
 #include <QSettings>
@@ -62,6 +63,7 @@ QString art_dir() {
 
 App::App(const std::filesystem::path& data_dir, QObject* parent)
     : QObject(parent),
+      program_(QCoreApplication::applicationFilePath()),
       client_persistence_(data_dir),
       client_({.name = SettingsModel::stored_device_name(),
                .port = Client::free_port(),
@@ -76,13 +78,20 @@ App::App(const std::filesystem::path& data_dir, QObject* parent)
       picker_(cast_, client_, outputs_),
       picker_window_(picker_, cast_),
       paired_servers_(data_dir),
-      settings_(client_, cast_, outputs_, mpris_, paired_servers_) {
+      // No version, in a test: no checks
+      updates_(QVersionNumber::fromString(QCoreApplication::applicationVersion()),
+               UpdateChecker::releases_url()),
+      installer_(UpdateInstaller::this_system()),
+      settings_(client_, cast_, outputs_, mpris_, paired_servers_, updates_, installer_) {
     qCInfo(lc_app, "PipeWire %s", pw_get_library_version());
     this->mpris_.set_enabled(SettingsModel::stored_media_controls());
 
     this->status_ = this->menu_.addAction(QString());
     this->status_->setEnabled(false);
     this->menu_.addSeparator();
+    this->update_ =
+        this->menu_.addAction(QString(), this, [this] { this->show_settings_(Section::ThisPc); });
+    this->update_->setVisible(false);
     this->menu_.addAction(tr("Settings…"), this, &App::showSettings);
     this->menu_.addAction(tr("Quit"), qApp, &QCoreApplication::quit);
     this->update_tray_();
@@ -125,6 +134,10 @@ App::App(const std::filesystem::path& data_dir, QObject* parent)
     });
     connect(&this->client_, &Client::pairingEnded, this,
             [this] { this->show_result_(tr("Pairing ended")); });
+
+    connect(&this->settings_, &SettingsModel::updateChanged, this, &App::show_update_);
+    connect(&this->installer_, &UpdateInstaller::installed, this, &App::restart_);
+    this->updates_.start();
 
     // Both get every block. Which of the two the sound goes to is the picker's choice: the cast
     // takes it while a speaker is added, and the picker silences the source unless the server is
@@ -192,6 +205,31 @@ void App::update_tray_() {
         this->tray_icon_ = name;
         this->tray_.setIcon(tray_icon(name));
     }
+}
+
+void App::show_update_() {
+    const std::optional<Release> release = this->updates_.update();
+    this->update_->setVisible(release.has_value());
+    if (!release) {
+        return;
+    }
+    // Who installs it is the package manager's to say, and only matters once there is one
+    this->installer_.probe();
+    const bool under_way = this->installer_.state() != UpdateInstaller::State::IDLE;
+    this->update_->setText(under_way
+                               ? this->settings_.update_status()
+                               : tr("Sendspin %1 is available…").arg(release->version.toString()));
+}
+
+void App::restart_() {
+    // The new one waits for this one to go: while it runs, a launch only opens its picker
+    QProcess::startDetached(
+        QStringLiteral("/bin/sh"),
+        {QStringLiteral("-c"),
+         QStringLiteral(
+             "while kill -0 \"$1\" 2>/dev/null; do sleep 0.2; done; exec \"$0\" --background"),
+         this->program_, QString::number(QCoreApplication::applicationPid())});
+    QCoreApplication::quit();
 }
 
 void App::on_pairing_code_(const QString& code) {

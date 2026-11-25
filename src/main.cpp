@@ -27,7 +27,7 @@ int main(int argc, char** argv) {
         check = check || arg == "--check";
     }
     // Before QApplication: the headless mode needs no display
-    if (const std::optional<int> code = run_headless(argc, argv)) {
+    if (const std::optional<int> code = run_headless(argc, argv, SENDSPIN_VERSION)) {
         return *code;
     }
 

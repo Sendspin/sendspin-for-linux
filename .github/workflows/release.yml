@@ -1,5 +1,6 @@
-# A version tag builds the artifacts and attaches them to a draft release. Publishing the draft
-# is a person's step.
+# A version tag builds the artifacts and attaches them to a draft release, then signs their
+# checksums once the package-signing environment's reviewer lets it. Publishing the draft is a
+# person's step, after that.
 name: Release
 
 on:
@@ -88,7 +89,75 @@ jobs:
               exit 1
             fi
             gh release upload "$GITHUB_REF_NAME" --clobber -- *
+            # The earlier run's signature is of the earlier files
+            gh release delete-asset "$GITHUB_REF_NAME" SHA256SUMS.asc --yes 2>/dev/null || true
           else
             gh release create "$GITHUB_REF_NAME" --verify-tag --draft --generate-notes \
               --title "Sendspin for Linux $VERSION" -- *
           fi
+      # To the job that signs it by the run, not by the draft, which anyone who may write to
+      # the repository can change
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sums
+          path: dist/SHA256SUMS
+          if-no-files-found: error
+
+  # What the app verifies an update with (docs/SPEC.md, "Updates"): the package repositories'
+  # key over SHA256SUMS, and so over every file of the release
+  sign:
+    name: Sign the checksums
+    needs: release
+    runs-on: ubuntu-latest
+    # Holds the key, behind a reviewer
+    environment: package-signing
+    permissions:
+      contents: write
+      # gh run download
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      # No action runs beside the key: the checksums and the packaged public key come by gh
+      - name: Sign SHA256SUMS and add the signature to the draft
+        env:
+          REPO_GPG_PRIVATE_KEY: ${{ secrets.REPO_GPG_PRIVATE_KEY }}
+          REPO_GPG_PASSPHRASE: ${{ secrets.REPO_GPG_PASSPHRASE }}
+        run: |
+          published() {
+            [ "$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft)" != true ]
+          }
+          refuse() {
+            echo "::error::$GITHUB_REF_NAME is already published. A release's files don't change: tag a new version."
+            exit 1
+          }
+          ! published || refuse
+          # An artifact uploaded seconds ago can be missing from the run's list
+          for try in 1 2 3 4 5 6; do
+            gh run download "$GITHUB_RUN_ID" --name sums && break
+            sleep 10
+          done
+          [ -s SHA256SUMS ] || { echo "::error::no SHA256SUMS from this run"; exit 1; }
+          gh api "repos/$GH_REPO/contents/data/sendspin.asc?ref=$GITHUB_SHA" \
+            -H "Accept: application/vnd.github.raw" >packaged.asc
+
+          # The key lives only here, and goes with it
+          GNUPGHOME=$(mktemp -d)
+          export GNUPGHOME
+          trap 'gpgconf --kill gpg-agent 2>/dev/null || true; rm -rf "$GNUPGHOME"' EXIT
+          printf '%s' "$REPO_GPG_PASSPHRASE" >"$GNUPGHOME/passphrase"
+          printf '%s\n' "$REPO_GPG_PRIVATE_KEY" | gpg --batch --quiet --import
+          gpg --batch --pinentry-mode loopback --passphrase-file "$GNUPGHOME/passphrase" \
+            --armor --detach-sign --output SHA256SUMS.asc SHA256SUMS
+
+          # As an installed app will: against the key its package carries, data/sendspin.asc.
+          # A signature that key does not verify would only ever be refused
+          gpg --batch --dearmor <packaged.asc >"$GNUPGHOME/packaged.gpg"
+          if ! gpgv --keyring "$GNUPGHOME/packaged.gpg" SHA256SUMS.asc SHA256SUMS; then
+            echo "::error::data/sendspin.asc is not the public half of the signing key"
+            exit 1
+          fi
+          # Since this job started, somebody may have published it
+          ! published || refuse
+          gh release upload "$GITHUB_REF_NAME" --clobber SHA256SUMS.asc

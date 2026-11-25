@@ -42,11 +42,16 @@ their `SHA256SUMS`.
    prints the key's fingerprint, which should be:
 
    ```
-   (not created yet: the fingerprint goes here with the first release)
+   85FF 9044 844F D44C 8BE6  98B9 C117 75C2 E4CA 1288
    ```
 
+   It is the same key for apt and for dnf, and the one every package carries as
+   `/usr/share/sendspin-for-linux/sendspin.asc`, which Sendspin verifies its own
+   [updates](#updates) with.
+
    Or, and on Arch for now,
-   download a release's package and install it with its dependencies, with no updates:
+   download a release's package and install it with its dependencies. Nothing but Sendspin
+   itself updates it then (see [Updates](#updates)):
 
    ```sh
    sudo apt install ./sendspin-for-linux-*-debian13-amd64.deb     # Debian 13
@@ -77,8 +82,23 @@ their `SHA256SUMS`.
    sudo cmake --install build
    ```
 
-There is no updater yet, and the Arch package is not in the AUR or a repository yet: there, a new
-release is a new download.
+The Arch package is not in the AUR or a repository yet: there, a new release is a new download.
+
+## Updates
+
+Once a day Sendspin asks GitHub whether there is a newer release, and says so in Settings and in
+the tray menu. **Check for updates** in Settings turns that off. It sends nothing but the
+request.
+
+- Installed from the package repository, or as the Flatpak: the system's updates bring the new
+  version, and Sendspin only tells you of it.
+- Installed from a downloaded `.deb` or `.rpm`: **Install update** in Settings downloads the new
+  package, verifies it, asks for an administrator's password and installs it, then restarts
+  Sendspin. `sendspin-for-linux --update` does the same from a terminal.
+
+  It verifies the download against the signing key that came with the package you installed,
+  `/usr/share/sendspin-for-linux/sendspin.asc`, and never fetches one. It is the package
+  repositories' key, with the fingerprint above.
 
 ## Settings and files
 
@@ -103,6 +123,10 @@ output=alsa_output.usb-Example_DAC-00.analog-stereo
 [mpris]
 ; false keeps what a server plays here out of the desktop's media controls
 enabled=true
+
+[updates]
+; false never asks GitHub for a newer release
+check=true
 ```
 
 Open at login starts the app with `--background`: the tray alone, no picker. A package installs
@@ -211,8 +235,13 @@ CI builds all of them on every change, builds the tarball with no network, and i
 starts each package in a clean container. To release, set `project(VERSION)` in
 `CMakeLists.txt` and push the tag `v<version>`: the Release workflow attaches the tarball, the
 packages, the Flatpak bundle, the manifest Flathub builds from and `SHA256SUMS` to a draft
-release, which a person publishes. [flatpak/FLATHUB.md](flatpak/FLATHUB.md) has the Flathub
-side: submitting the app, and what each release needs there.
+release. Its last job signs `SHA256SUMS` with the repositories' key, once the
+`package-signing` environment's reviewer approves it: that signature is what an installed app
+verifies an update with, so publish the draft after it is there. The job fails if `data/sendspin.asc`, the public key the packages
+carry, does not verify what it signed. CI has each package update
+itself to a later build in a clean container (`ci/update-test.sh`).
+[flatpak/FLATHUB.md](flatpak/FLATHUB.md) has the Flathub side: submitting the app, and what each
+release needs there.
 
 Publishing the release runs the Package repositories workflow: `scripts/package-repos.sh` builds
 apt and dnf repositories from the packages of every published release, signs them, and the
@@ -238,14 +267,16 @@ Once, by a maintainer:
    gpg --armor --export-secret-subkeys '<subkey fingerprint>!'
    ```
 
-   Put the primary key's fingerprint in this README's install section. Keep the primary key and
+   Put the primary key's fingerprint in this README's install section and in docs/SPEC.md's
+   "Updates", and the public key (`gpg --armor --export`) in `data/sendspin.asc`: the packages
+   install it, and an installed app verifies its updates with that file alone. Keep the primary key and
    the passphrase somewhere safe: machines that installed from the repositories trust this key,
    and a new one means setting each of them up again.
 2. Create the environment `package-signing`, with a required reviewer and its deployment
    branches and tags limited to `main` and `v*`. Add the export there as the secret
    `REPO_GPG_PRIVATE_KEY` and the passphrase as `REPO_GPG_PASSPHRASE`: environment secrets, not
-   repository secrets, so no other workflow can read them. Each publish then waits for the
-   reviewer.
+   repository secrets, so only the jobs that name the environment can read them: this one, and
+   the Release workflow's, which signs a draft's `SHA256SUMS`. Each then waits for the reviewer.
 3. Set the Pages source to **GitHub Actions**. Publishing a release runs on its tag, and the
    `github-pages` environment allows only the default branch at first: add `v*` to its
    deployment branches and tags.

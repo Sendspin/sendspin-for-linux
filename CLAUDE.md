@@ -73,6 +73,12 @@ than 1.4.2 API without a fallback.
 - `src/settings_model.*` — what the Settings window shows and changes; `src/qml/` is the window,
   one file per section, with no logic of its own. `app_test` loads it and fails on anything the
   QML engine warns of.
+- `src/update_checker.*` asks GitHub for the latest release, once a day; `src/update_installer.*`
+  downloads its package and has `data/install-update` verify and, through pkexec, install it.
+  That script is all that runs as root, and verifies again there: keep every check in it.
+  `data/sendspin.asc` is the key it trusts, installed with the package: the release's public key.
+  `update_test_server.h` is the tests' release and machine, `ci/update-test.sh` the real thing
+  in a container. docs/SPEC.md, "Updates".
 - `third_party/` — vendored sources, listed in its `README.md`. Not formatted, not edited.
   `third_party/fetched/` exists only in a release's source tarball (`scripts/vendor.sh`): what
   FetchContent would download, which the build then uses instead. `NOTICES.md` lists it; update

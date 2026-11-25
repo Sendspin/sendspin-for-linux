@@ -23,9 +23,12 @@ finish-args:
   - --filesystem=xdg-run/pipewire-0
   - --talk-name=org.kde.StatusNotifierWatcher
   - --system-talk-name=org.freedesktop.Avahi
-# The packages' autostart entry: nothing reads /app/etc
+# The packages' autostart entry, and their updater, which Flatpak is here: nothing reads them
 cleanup:
   - /etc
+  - /libexec
+  - /share/polkit-1
+  - /share/sendspin-for-linux
 modules:
   - name: sendspin-for-linux
     buildsystem: cmake-ninja

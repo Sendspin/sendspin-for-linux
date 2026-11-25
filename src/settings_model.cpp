@@ -70,14 +70,19 @@ bool SettingsModel::stored_media_controls() {
 }
 
 SettingsModel::SettingsModel(Client& client, CastEngine& cast, Outputs& outputs, Mpris& mpris,
-                             PairedServers& servers, QObject* parent)
+                             PairedServers& servers, UpdateChecker& updates,
+                             UpdateInstaller& installer, QObject* parent)
     : QObject(parent),
       client_(client),
       cast_(cast),
       outputs_(outputs),
       mpris_(mpris),
       servers_(servers),
+      updates_(updates),
+      installer_(installer),
       running_name_(client.name()) {
+    connect(&updates, &UpdateChecker::changed, this, &SettingsModel::updateChanged);
+    connect(&installer, &UpdateInstaller::changed, this, &SettingsModel::updateChanged);
     connect(&outputs, &Outputs::changed, this, &SettingsModel::outputsChanged);
 
     const SpeakerModel* speakers = cast.speakers();
@@ -425,4 +430,78 @@ void SettingsModel::setMediaControls(bool enabled) {
     store().setValue(KEY_MPRIS, enabled);
     this->mpris_.set_enabled(enabled);
     emit this->mediaControlsChanged();
+}
+
+bool SettingsModel::check_for_updates() const {
+    return this->updates_.enabled();
+}
+
+void SettingsModel::setCheckForUpdates(bool check) {
+    this->updates_.set_enabled(check);
+}
+
+QString SettingsModel::update_status() const {
+    using State = UpdateInstaller::State;
+    using Failure = UpdateInstaller::Failure;
+    const std::optional<Release> release = this->updates_.update();
+    if (!release) {
+        return {};
+    }
+    const QString version = release->version.toString();
+    switch (this->installer_.state()) {
+        case State::DOWNLOADING:
+            return tr("Downloading Sendspin %1… %2%").arg(version).arg(this->installer_.percent());
+        case State::VERIFYING:
+            return tr("Checking the download…");
+        case State::INSTALLING:
+            return tr("Installing Sendspin %1…").arg(version);
+        case State::INSTALLED:
+            return tr("Sendspin %1 is installed. Restarting…").arg(version);
+        case State::FAILED:
+            switch (this->installer_.failure()) {
+                case Failure::DOWNLOAD:
+                    return tr("Sendspin %1 could not be downloaded.").arg(version);
+                case Failure::SIGNATURE:
+                    return tr("The download of Sendspin %1 isn't signed by Sendspin's key, so "
+                              "it was not installed.")
+                        .arg(version);
+                default:
+                    return tr("Sendspin %1 could not be installed.").arg(version);
+            }
+        case State::IDLE:
+            break;
+    }
+    if (this->installer_.sandboxed()) {
+        return tr("Sendspin %1 is available. Flatpak installs it.").arg(version);
+    }
+    if (this->installer_.origin() == update::Origin::REPOSITORY) {
+        return tr("Sendspin %1 is available. Your system's updates install it.").arg(version);
+    }
+    return tr("Sendspin %1 is available.").arg(version);
+}
+
+SettingsModel::UpdateAction SettingsModel::update_action() const {
+    const std::optional<Release> release = this->updates_.update();
+    if (!release || this->installer_.busy() ||
+        this->installer_.state() == UpdateInstaller::State::INSTALLED ||
+        !this->installer_.probed()) {
+        return UpdateAction::None;
+    }
+    if (this->installer_.can_install(*release)) {
+        return UpdateAction::Install;
+    }
+    // The system's own updates need no page
+    return this->installer_.origin() == update::Origin::REPOSITORY ? UpdateAction::None
+                                                                   : UpdateAction::Open;
+}
+
+QUrl SettingsModel::update_page() const {
+    const std::optional<Release> release = this->updates_.update();
+    return release ? release->page : QUrl();
+}
+
+void SettingsModel::installUpdate() {
+    if (const std::optional<Release> release = this->updates_.update()) {
+        this->installer_.install(*release);
+    }
 }
