@@ -137,12 +137,17 @@ private slots:
         QCOMPARE(changed.count(), 1);
         QVERIFY(!checker.update().has_value());
         QVERIFY(!conf().contains("updates/latest"));
-        conf().setValue("updates/last_check", 0);
         UpdateChecker next(OLDER, server.url());
         QSignalSpy next_checked(&next, &UpdateChecker::checked);
         next.start();
         QVERIFY(!next_checked.wait(300));
         QCOMPARE(server.checks, 1);
+
+        // On again within the day: it asks, having forgotten the answer
+        checker.set_enabled(true);
+        QVERIFY(checked.wait());
+        QCOMPARE(server.checks, 2);
+        QVERIFY(checker.update().has_value());
     }
 
     void theSameOrAnOlderReleaseIsNoUpdate_data() {

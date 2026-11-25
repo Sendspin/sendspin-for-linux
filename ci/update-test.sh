@@ -2,7 +2,8 @@
 # A clean machine with the package installed from a downloaded file, and the signing key set up
 # as the README says, takes itself to a later version: `sendspin-for-linux --update` against a
 # stand-in for the release on GitHub, signed with a key made here. And leaves alone a download
-# the key did not sign, and one that is changed after the app verified it. As root; needs
+# the key did not sign, one that is changed after the app verified it, and a signed package
+# that is older than the installed one. As root; needs
 # python3 to serve the release, gpg to sign it, and gpgv.
 #
 #     ci/update-test.sh <package> <later package> <version> <later version>
@@ -108,3 +109,15 @@ update || fail "the update failed"
 [ "$(installed)" = "$later" ] || fail "version $(installed) after the update, expected $later"
 [ "$("$package" --version)" = "$later" ] || fail "the app is not the later one"
 update || fail "the newest version found something to do"
+
+# A signed release whose package is an older one: what runs as root goes by the package, not by
+# what the release calls it
+older=$(echo "$name" | sed "s/-$later-/-1000.0.0-/")
+mkdir "$work/older"
+cp "$old" "$work/older/$older"
+(cd "$work/older" && sha256sum -- * >SHA256SUMS)
+gpg_ci --armor --detach-sign --output "$work/older/SHA256SUMS.asc" "$work/older/SHA256SUMS"
+sed -e "s/v$later/v1000.0.0/" -e "s/$name/$older/g" "$work/good/latest" >"$work/older/latest"
+ln -sfn older "$work/now"
+! update || fail "took an older package for an update"
+[ "$(installed)" = "$later" ] || fail "version $(installed) after an older package was offered"

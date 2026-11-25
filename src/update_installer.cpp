@@ -205,21 +205,25 @@ void UpdateInstaller::fetch_(const QUrl& url, const QString& name, bool is_packa
     auto* file = new QFile(this->dir_->filePath(name), reply);
     const bool opened = file->open(QIODevice::WriteOnly);
     ++this->fetching_;
+    const int attempt = this->attempt_;
     connect(reply, &QNetworkReply::readyRead, this,
             [reply, file] { file->write(reply->readAll()); });
     if (is_package) {
-        connect(reply, &QNetworkReply::downloadProgress, this, [this](qint64 got, qint64 total) {
-            const int percent = total > 0 ? static_cast<int>(got * 100 / total) : 0;
-            if (percent != this->percent_ && this->state_ == State::DOWNLOADING) {
-                this->percent_ = percent;
-                emit this->changed();
-            }
-        });
+        connect(reply, &QNetworkReply::downloadProgress, this,
+                [this, attempt](qint64 got, qint64 total) {
+                    const int percent = total > 0 ? static_cast<int>(got * 100 / total) : 0;
+                    if (attempt == this->attempt_ && percent != this->percent_ &&
+                        this->state_ == State::DOWNLOADING) {
+                        this->percent_ = percent;
+                        emit this->changed();
+                    }
+                });
     }
-    const int attempt = this->attempt_;
     connect(reply, &QNetworkReply::finished, this, [this, reply, file, opened, name, attempt] {
         file->write(reply->readAll());
-        const bool ok = opened && reply->error() == QNetworkReply::NoError && file->flush();
+        // A write that failed shows in the file's own error, a full disk for one
+        const bool ok = opened && reply->error() == QNetworkReply::NoError && file->flush() &&
+                        file->error() == QFileDevice::NoError;
         file->close();
         reply->deleteLater();
         if (attempt != this->attempt_ || this->state_ != State::DOWNLOADING) {
@@ -251,6 +255,12 @@ void UpdateInstaller::run_(const QString& program, const QStringList& arguments)
 void UpdateInstaller::on_helper_finished_(int code, QProcess::ExitStatus status) {
     const bool ok = status == QProcess::NormalExit && code == 0;
     if (this->state_ == State::VERIFYING) {
+        if (status != QProcess::NormalExit) {
+            // It never ran: nothing is known about the download
+            qCWarning(lc_update_install, "the download could not be verified");
+            this->set_state_(State::FAILED, Failure::INSTALL);
+            return;
+        }
         if (!ok) {
             qCWarning(lc_update_install, "the download did not verify, and is not installed");
             this->set_state_(State::FAILED, Failure::SIGNATURE);

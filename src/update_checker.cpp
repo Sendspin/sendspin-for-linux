@@ -158,7 +158,9 @@ void UpdateChecker::set_enabled(bool enabled) {
             this->reply_->deleteLater();
             this->reply_.clear();
         }
+        // Both, so that switching it on again asks
         settings.remove(KEY_LATEST);
+        settings.remove(KEY_LAST);
         this->latest_.reset();
     }
     emit this->changed();

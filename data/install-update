@@ -63,6 +63,8 @@ grep -qxF "$sum  $name" "$work/SHA256SUMS" || fail "$name is not the file in SHA
 
 [ "$mode" = install ] || exit 0
 
+# The private copies are made; what the package manager writes is for everyone to read
+umask 022
 # A signed release stays signed: an older one is not an update
 case "$kind" in
     deb)
