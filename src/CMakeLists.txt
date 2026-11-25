@@ -80,6 +80,8 @@ target_compile_options(sendspin-for-linux PRIVATE -Wall -Wextra -Wpedantic)
 target_compile_definitions(sendspin-for-linux PRIVATE SENDSPIN_VERSION="${PROJECT_VERSION}")
 target_link_libraries(sendspin-for-linux PRIVATE sendspin_app)
 
+# The package's name, not the project's
+set(CMAKE_INSTALL_DOCDIR share/doc/sendspin-for-linux CACHE PATH "")
 include(GNUInstallDirs)
 install(TARGETS sendspin-for-linux)
 install(FILES ${CMAKE_SOURCE_DIR}/data/com.sendspin_audio.Sendspin.desktop
@@ -98,6 +100,27 @@ configure_file(${CMAKE_SOURCE_DIR}/data/com.sendspin_audio.Sendspin.metainfo.xml
     com.sendspin_audio.Sendspin.metainfo.xml @ONLY)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/com.sendspin_audio.Sendspin.metainfo.xml
     DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo)
+# The binary carries what was fetched, and each license asks to go where it goes. Their sources
+# are a release tarball's, or this build's own downloads.
+install(FILES ${CMAKE_SOURCE_DIR}/LICENSE ${CMAKE_SOURCE_DIR}/NOTICES.md
+    DESTINATION ${CMAKE_INSTALL_DOCDIR})
+file(GLOB _fetched ${CMAKE_SOURCE_DIR}/third_party/fetched/* ${FETCHCONTENT_BASE_DIR}/*-src)
+foreach(_source ${_fetched})
+    get_filename_component(_name ${_source} NAME)
+    string(REGEX REPLACE "-src$" "" _name ${_name})
+    set(_patterns)
+    # Their own, and those of what they vendor in turn: lib/opus, third_party/micro-resampler
+    foreach(_depth "" "*/" "*/*/")
+        list(APPEND _patterns ${_source}/${_depth}LICENSE* ${_source}/${_depth}COPYING*
+            ${_source}/${_depth}NOTICE*)
+    endforeach()
+    file(GLOB _notices LIST_DIRECTORIES false RELATIVE ${_source} ${_patterns})
+    foreach(_notice ${_notices})
+        get_filename_component(_dir ${_notice} DIRECTORY)
+        install(FILES ${_source}/${_notice}
+            DESTINATION ${CMAKE_INSTALL_DOCDIR}/third_party/${_name}/${_dir})
+    endforeach()
+endforeach()
 
 if(BUILD_TESTING)
     find_package(Qt6 6.8 REQUIRED COMPONENTS Test)

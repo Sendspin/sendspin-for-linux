@@ -65,7 +65,7 @@ jobs:
             generator: DEB
             install: >-
               apt-get update && apt-get install -y --no-install-recommends
-              ca-certificates cmake ninja-build g++ pkg-config xz-utils file dpkg-dev
+              ca-certificates cmake ninja-build g++ patch pkg-config xz-utils file dpkg-dev
               qt6-base-dev qt6-declarative-dev libpipewire-0.3-dev libavahi-client-dev libssl-dev
               appstream desktop-file-utils
           - name: Ubuntu 26.04
@@ -74,7 +74,7 @@ jobs:
             generator: DEB
             install: >-
               apt-get update && apt-get install -y --no-install-recommends
-              ca-certificates cmake ninja-build g++ pkg-config xz-utils file dpkg-dev
+              ca-certificates cmake ninja-build g++ patch pkg-config xz-utils file dpkg-dev
               qt6-base-dev qt6-declarative-dev libpipewire-0.3-dev libavahi-client-dev libssl-dev
               appstream desktop-file-utils
           - name: Fedora 44
@@ -82,7 +82,7 @@ jobs:
             image: registry.fedoraproject.org/fedora:44
             generator: RPM
             install: >-
-              dnf -y install cmake ninja-build gcc-c++ pkgconf-pkg-config xz rpm-build
+              dnf -y install cmake ninja-build gcc-c++ patch pkgconf-pkg-config xz rpm-build
               qt6-qtbase-devel qt6-qtdeclarative-devel pipewire-devel avahi-devel openssl-devel
               appstream desktop-file-utils
     steps:
@@ -131,19 +131,29 @@ jobs:
           - name: Debian 13
             tag: debian13
             image: debian:13
+            # The image's dpkg leaves out /usr/share/doc, where the licenses go
             install: >-
+              rm -f /etc/dpkg/dpkg.cfg.d/excludes &&
               apt-get update && apt-get install -y --no-install-recommends
               ./*.deb dbus-daemon pipewire pipewire-bin wireplumber
+            conffiles: dpkg-query -W -f '${Conffiles}' sendspin-for-linux
           - name: Ubuntu 26.04
             tag: ubuntu26.04
             image: ubuntu:26.04
+            # The image's dpkg leaves out /usr/share/doc, where the licenses go
             install: >-
+              rm -f /etc/dpkg/dpkg.cfg.d/excludes &&
               apt-get update && apt-get install -y --no-install-recommends
               ./*.deb dbus-daemon pipewire pipewire-bin wireplumber
+            conffiles: dpkg-query -W -f '${Conffiles}' sendspin-for-linux
           - name: Fedora 44
             tag: fedora44
             image: registry.fedoraproject.org/fedora:44
-            install: dnf -y install ./*.rpm dbus-daemon pipewire pipewire-utils wireplumber
+            # The image's dnf leaves out documentation, where the licenses go
+            install: >-
+              dnf -y --setopt=tsflags= install
+              ./*.rpm dbus-daemon pipewire pipewire-utils wireplumber
+            conffiles: rpm -qc sendspin-for-linux
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -151,6 +161,9 @@ jobs:
           name: package-${{ matrix.tag }}
       - name: Install the package
         run: ${{ matrix.install }}
+      # An upgrade keeps an admin's edit of it
+      - name: The autostart entry is a configuration file
+        run: ${{ matrix.conffiles }} | grep /etc/xdg/autostart/com.sendspin_audio.Sendspin.desktop
       - name: Start it
         run: ci/start-pipewire.sh ci/smoke-test.sh "${{ needs.source.outputs.version }}"
 
@@ -172,6 +185,8 @@ jobs:
           tar -xf sendspin-for-linux-*.tar.xz --strip-components=1
           flatpak-builder --user --install-deps-from=flathub --repo=repo build-flatpak \
             flatpak/com.sendspin_audio.Sendspin.yml
+          licenses=build-flatpak/files/share/licenses/com.sendspin_audio.Sendspin
+          test -s $licenses/LICENSE -a -s $licenses/NOTICES.md -a -s $licenses/third_party/micro_opus/lib/opus/COPYING
       - name: Bundle
         env:
           VERSION: ${{ needs.source.outputs.version }}

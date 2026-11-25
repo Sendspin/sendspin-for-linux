@@ -9,10 +9,14 @@ set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Play this PC's sound on Sendspin speakers
 set(CPACK_PACKAGE_DESCRIPTION
     "A tray app that plays what this PC plays on Sendspin speakers, in sync, and joins Music Assistant as a player and as an input.")
 set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/Sendspin/sendspin-for-linux")
-set(CPACK_RESOURCE_FILE_LICENSE ${CMAKE_SOURCE_DIR}/LICENSE)
 set(CPACK_STRIP_FILES ON)
 # /etc/xdg/autostart is outside the prefix
 set(CPACK_SET_DESTDIR ON)
+# A configuration file to both: an upgrade keeps an admin's edit, a Hidden=true for one
+set(SENDSPIN_AUTOSTART_ENTRY /etc/xdg/autostart/com.sendspin_audio.Sendspin.desktop)
+file(WRITE ${CMAKE_BINARY_DIR}/conffiles "${SENDSPIN_AUTOSTART_ENTRY}\n")
+set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA ${CMAKE_BINARY_DIR}/conffiles)
+set(CPACK_RPM_USER_FILELIST "%config(noreplace) ${SENDSPIN_AUTOSTART_ENTRY}")
 
 # What no linked library names: the QML modules the windows import, the SVG plugin that draws the
 # icons, and the platform plugins. The daemons are a desktop's own, so only recommended.

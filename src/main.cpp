@@ -4,6 +4,8 @@
 #include "single_instance.h"
 
 #include <QApplication>
+#include <QIcon>
+#include <QImageReader>
 #include <QStandardPaths>
 
 #include <cstdio>
@@ -12,6 +14,9 @@
 int main(int argc, char** argv) {
     // Only the tray: how a login starts it
     bool background = false;
+    // What a package's smoke test starts (ci/smoke-test.sh): both windows, and an SVG through
+    // each plugin the icons need, which nothing else reports missing
+    bool check = false;
     for (int i = 1; i < argc; ++i) {
         const std::string_view arg(argv[i]);
         if (arg == "--version") {
@@ -19,6 +24,7 @@ int main(int argc, char** argv) {
             return 0;
         }
         background = background || arg == "--background";
+        check = check || arg == "--check";
     }
     // Before QApplication: the headless mode needs no display
     if (const std::optional<int> code = run_headless(argc, argv)) {
@@ -47,6 +53,14 @@ int main(int argc, char** argv) {
     // Without a tray (stock GNOME) the launcher is the only way in
     if (!background) {
         app.showPicker();
+    }
+    if (check) {
+        app.showSettings();
+        if (!QImageReader::supportedImageFormats().contains("svg") ||
+            QIcon(QStringLiteral(":/icons/sendspin-symbolic.svg")).pixmap(16).isNull()) {
+            std::fputs("check: Qt's SVG plugins are missing\n", stderr);
+            return 1;
+        }
     }
     return QApplication::exec();
 }
