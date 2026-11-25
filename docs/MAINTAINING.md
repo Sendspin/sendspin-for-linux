@@ -60,7 +60,7 @@ Once, by a maintainer:
    gpg --armor --export-secret-subkeys '<subkey fingerprint>!'
    ```
 
-   Put the primary key's fingerprint in the README's "Check the key" and in SPEC.md's
+   Put the primary key's fingerprint in the README's install steps, twice, and in SPEC.md's
    "Updates", and the public key (`gpg --armor --export`) in `data/sendspin.asc`: the packages
    install it, and an installed app verifies its updates with that file alone. Keep the primary
    key and the passphrase somewhere safe: machines that installed from the repositories trust

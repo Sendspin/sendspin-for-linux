@@ -30,12 +30,14 @@ serve() {
     ln -sfn "$1" "$served/now"
 }
 
-# Runs the README's block marked "repo-setup: <name>" against this site, up to its last line,
-# which has to be the install given: the test installs an old version first instead
+# Runs the README's blocks marked "repo-setup: <name>" against this site, up to their last
+# line, which has to be the install given: the test installs an old version first instead.
+# The key check between them is not marked: it needs gpg, and refresh() tests the key below
 readme_setup() {
     block=$(awk -v marker="<!-- repo-setup: $1 -->" '
+        { sub(/^ +/, "") }
         $0 == marker { found = 1; next }
-        found && /^```/ { if (inside) exit; inside = 1; next }
+        found && /^```/ { if (inside) found = 0; inside = !inside; next }
         inside { print }' "$(dirname "$0")/../README.md")
     [ "$(printf '%s\n' "$block" | tail -n 1)" = "$2" ] ||
         fail "the README's $1 block does not end with: $2"

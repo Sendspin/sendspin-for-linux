@@ -21,46 +21,73 @@ can play to this PC too, and take this PC's sound as an input for anything it co
 
 ## Install
 
+The packages come from a signed repository, so the system's updates bring new versions. Three
+steps: get the repository's key, check it, then add the repository and install.
+
 ### Debian 13 and Ubuntu 26.04
 
-<!-- repo-setup: apt -->
-```sh
-sudo wget -O /etc/apt/keyrings/sendspin.asc https://sendspin.github.io/sendspin-for-linux/sendspin.asc
-. /etc/os-release && echo "deb [signed-by=/etc/apt/keyrings/sendspin.asc] https://sendspin.github.io/sendspin-for-linux/apt $ID$VERSION_ID main" | sudo tee /etc/apt/sources.list.d/sendspin.list
-sudo apt update
-sudo apt install sendspin-for-linux
-```
+1. Download the key:
 
-On a distribution built on one of them, write `debian13` or `ubuntu26.04` in place of
-`$ID$VERSION_ID`.
+   <!-- repo-setup: apt -->
+   ```sh
+   sudo wget -O /etc/apt/keyrings/sendspin.asc https://sendspin.github.io/sendspin-for-linux/sendspin.asc
+   ```
 
-### Fedora 44
+2. Check that it is ours, before anything is installed with it:
 
-<!-- repo-setup: dnf -->
-```sh
-sudo curl -fsSLo /etc/pki/rpm-gpg/RPM-GPG-KEY-sendspin https://sendspin.github.io/sendspin-for-linux/sendspin.asc
-sudo curl -fsSLo /etc/yum.repos.d/sendspin.repo https://sendspin.github.io/sendspin-for-linux/rpm/sendspin.repo
-sudo dnf install sendspin-for-linux
-```
+   ```sh
+   gpg --show-keys /etc/apt/keyrings/sendspin.asc
+   ```
+
+   It should print this fingerprint. If it doesn't, stop here.
+
+   ```
+   85FF 9044 844F D44C 8BE6  98B9 C117 75C2 E4CA 1288
+   ```
+
+3. Add the repository and install:
+
+   <!-- repo-setup: apt -->
+   ```sh
+   . /etc/os-release && echo "deb [signed-by=/etc/apt/keyrings/sendspin.asc] https://sendspin.github.io/sendspin-for-linux/apt $ID$VERSION_ID main" | sudo tee /etc/apt/sources.list.d/sendspin.list
+   sudo apt update
+   sudo apt install sendspin-for-linux
+   ```
+
+   On a distribution built on one of them, write `debian13` or `ubuntu26.04` in place of
+   `$ID$VERSION_ID`.
+
+### Fedora 44 and newer
+
+1. Download the key:
+
+   <!-- repo-setup: dnf -->
+   ```sh
+   sudo curl -fsSLo /etc/pki/rpm-gpg/RPM-GPG-KEY-sendspin https://sendspin.github.io/sendspin-for-linux/sendspin.asc
+   ```
+
+2. Check that it is ours, before anything is installed with it:
+
+   ```sh
+   gpg --show-keys /etc/pki/rpm-gpg/RPM-GPG-KEY-sendspin
+   ```
+
+   It should print this fingerprint. If it doesn't, stop here.
+
+   ```
+   85FF 9044 844F D44C 8BE6  98B9 C117 75C2 E4CA 1288
+   ```
+
+3. Add the repository and install:
+
+   <!-- repo-setup: dnf -->
+   ```sh
+   sudo curl -fsSLo /etc/yum.repos.d/sendspin.repo https://sendspin.github.io/sendspin-for-linux/rpm/sendspin.repo
+   sudo dnf install sendspin-for-linux
+   ```
 
 That's it: Sendspin is in your launcher, starts with your session from now on, and new versions
-arrive with the system's updates.
-
-### Check the key
-
-The first line of either block downloads the key the repository is signed with, and from then on
-your system takes nothing that key did not sign. To check it before you install:
-
-```sh
-gpg --show-keys /etc/apt/keyrings/sendspin.asc           # Debian and Ubuntu
-gpg --show-keys /etc/pki/rpm-gpg/RPM-GPG-KEY-sendspin    # Fedora
-```
-
-It should print this fingerprint:
-
-```
-85FF 9044 844F D44C 8BE6  98B9 C117 75C2 E4CA 1288
-```
+arrive with the system's updates. From here on your system takes nothing that key did not sign.
 
 ### Arch Linux
 
