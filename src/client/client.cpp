@@ -47,7 +47,8 @@ Client::Client(const Config& config, sendspin::SendspinPersistenceProvider* pers
       client_(library_config(config)),
       source_(this->client_),
       player_(this->client_,
-              config.player_formats.empty() ? player_formats({}, {}) : config.player_formats),
+              config.player_formats.empty() ? player_formats({}, {}) : config.player_formats,
+              config.player_volume, config.player_muted),
       now_playing_(this->client_) {
     this->client_.set_listener(this);
     this->client_.set_network_provider(this);

@@ -519,6 +519,9 @@ Two controls, independent of each other:
   (`state.restore-props=false`): the player's is the one that holds. A new stream is silent until
   it has its volume, as PipeWire creates it at full volume; one that never takes it stays silent
   unless full volume is what was asked.
+- The app keeps the player's volume and mute (`player/volume`, `player/muted`) and starts the
+  player with them, at 100 and unmuted the first time. The library starts at 0 and keeps
+  neither, and a server shows what the player reports instead of setting its own.
 - Transport commands go through the controller role and act on the group. Offer only what
   `supported_commands` lists.
 

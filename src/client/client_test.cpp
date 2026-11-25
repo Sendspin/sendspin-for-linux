@@ -33,6 +33,12 @@ public:
         return this->*field;
     }
 
+    /// What an earlier connection reported
+    void forget_signal() {
+        const std::lock_guard lock(this->mutex_);
+        this->source_signal.reset();
+    }
+
     bool connected{false};
     bool paired_session{false};
     int code_requests{0};
@@ -119,6 +125,25 @@ QtMessageHandler previous_handler = nullptr;
 void capture_message(QtMsgType type, const QMessageLogContext& context, const QString& message) {
     qt_log += message.toUtf8() + '\n';
     previous_handler(type, context, message);
+}
+
+/// The Pairing PSK a token carries (pairing.md "Pairing Token"): "SP:0", then the base32 of the
+/// client's key and the PSK, 32 bytes each, with every '2' written as '9'
+QByteArray psk_of(const QString& token) {
+    constexpr QByteArrayView ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+    QByteArray payload;
+    uint32_t bits = 0;
+    int count = 0;
+    for (const QChar c : token.mid(4)) {
+        bits =
+            (bits << 5) | static_cast<uint32_t>(ALPHABET.indexOf(c == u'9' ? '2' : c.toLatin1()));
+        count += 5;
+        if (count >= 8) {
+            count -= 8;
+            payload += static_cast<char>(bits >> count);
+        }
+    }
+    return payload.mid(32, 32);
 }
 
 /// 10 ms of a tone, or of silence, stamped now, as the Sendspin output delivers it
@@ -321,11 +346,17 @@ private slots:
         QCOMPARE(client.client_id(), this->client_id_);
         QCOMPARE(client.pairing_token(), this->token_);
 
+        this->events_.forget_signal();
         this->dial();
         QTRY_VERIFY(client.is_paired());
         QTRY_COMPARE(client.state(), Client::State::Connected);
         QTRY_VERIFY(this->events_.get(&ServerEvents::paired_session));
         QCOMPARE(codes.size(), 0);
+        // No sound yet is said, not left out
+        QTRY_COMPARE(this->events_.get(&ServerEvents::source_signal),
+                     std::optional(server::SourceSignal::ABSENT));
+        // A player that was never set starts at full volume, not the library's 0
+        QTRY_COMPARE(client.now_playing().volume(), 100);
 
         // Streaming is checked on this session and not right after pairing: there the server
         // starts the source without declaring `playback`, which roles/source/v1.md forbids and
@@ -425,14 +456,21 @@ private slots:
     void playsWhatTheServerSendsAndControlsItsGroup() {
         QVERIFY(!this->client_id_.isEmpty());
         ClientPersistence persistence(this->data_dir());
-        Client client(this->config_, &persistence);
+        Client::Config config = this->config_;
+        config.player_volume = 70;
+        config.player_muted = true;
+        Client client(config, &persistence);
         QSignalSpy streaming(&client.player(), &Player::streamingChanged);
+        QSignalSpy volumes(&client.player(), &Player::volumeChanged);
         QVERIFY(client.start());
         this->dial();
         QTRY_VERIFY(client.is_paired());
         QTRY_COMPARE(client.state(), Client::State::Connected);
         const auto group = this->server_.default_group();
         QVERIFY(group.has_value());
+        // The player starts where the last run left it, and the server hears of it
+        QTRY_COMPARE(client.now_playing().volume(), 70);
+        QCOMPARE(volumes.size(), 0);
 
         // What the group is on, and what may be done about it
         QVERIFY(this->server_.set_controller_caps(
@@ -488,14 +526,22 @@ private slots:
 
         // The server sets the player's volume: the stream's, by the spec's curve
         PlaybackStream& stream = client.player().stream();
+        // It started muted, as the last run left it
+        QVERIFY(stream.muted());
         QVERIFY(this->server_.set_group_volume(*group, 25));
         QTRY_COMPARE(stream.gain(), 0.125F);
         QTRY_COMPARE(now_playing.volume(), 25);
+        QVERIFY(this->server_.set_group_mute(*group, false));
+        QTRY_VERIFY(!stream.muted());
         QVERIFY(this->server_.set_group_mute(*group, true));
         QTRY_VERIFY(stream.muted());
         // The OS mixer moves the stream's: the player's, which the server hears of
         emit stream.gainChanged(volume_to_amplitude(64));
         QTRY_COMPARE(now_playing.volume(), 64);
+        // Each is signalled, to be kept for the next run
+        QTRY_COMPARE(volumes.last(), (QVariantList{64, true}));
+        QVERIFY(volumes.contains(QVariantList{25, true}));
+        QVERIFY(volumes.contains(QVariantList{25, false}));
 
         // Commands act on the group, and only those it offers are sent
         now_playing.send({.command = NowPlaying::Command::PREVIOUS});
@@ -525,6 +571,16 @@ private slots:
         QVERIFY(!log.contains(this->token_.toLatin1()));
         // The token's secret half alone, however it is wrapped
         QVERIFY(!log.contains(this->token_.last(40).toLatin1()));
+        // The library names its Pairing PSK by an id, a hash of it. The PSK itself is in no line.
+        QVERIFY(log.contains("Pairing PSK: "));
+        const QByteArray psk = psk_of(this->token_);
+        QCOMPARE(psk.size(), 32);
+        const auto unpadded = QByteArray::OmitTrailingEquals;
+        for (const QByteArray& form :
+             {psk, psk.toHex(), psk.toHex().toUpper(), psk.toBase64(), psk.toBase64(unpadded),
+              psk.toBase64(QByteArray::Base64UrlEncoding | unpadded)}) {
+            QVERIFY(!log.contains(form));
+        }
     }
 };
 

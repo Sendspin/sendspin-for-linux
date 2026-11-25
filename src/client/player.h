@@ -18,8 +18,9 @@ class Player : public QObject, private sendspin::PlayerRoleListener {
 public:
     /// @brief Adds the role to client. Before client.start(); client outlives this.
     /// @param formats What is advertised, the preferred one first
+    /// @param volume, muted What the player starts at: the library keeps neither and starts at 0
     Player(sendspin::SendspinClient& client,
-           std::vector<sendspin::AudioSupportedFormatObject> formats);
+           std::vector<sendspin::AudioSupportedFormatObject> formats, uint8_t volume, bool muted);
 
     PlaybackStream& stream() {
         return this->stream_;
@@ -37,6 +38,8 @@ public:
 
 signals:
     void streamingChanged(bool streaming);
+    /// @brief The server or the OS mixer moved the player's volume or mute: what to keep
+    void volumeChanged(int volume, bool muted);
 
 private:
     size_t on_audio_output(std::span<const uint8_t> pcm, const sendspin::AudioFormat& format,
@@ -50,4 +53,6 @@ private:
     PlaybackStream stream_;
     bool started_{false};    ///< written in the library's callbacks
     bool streaming_{false};  ///< what was last signalled
+    uint8_t volume_;         ///< what was last signalled
+    bool muted_;             ///< what was last signalled
 };
