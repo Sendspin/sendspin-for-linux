@@ -12,7 +12,7 @@ here, and it can play to this PC and take this PC's sound as an input.
 
 ## Install
 
-Fedora 44, Ubuntu 26.04 and Debian 13, or newer, with PipeWire. Each
+Fedora 44, Ubuntu 26.04 and Debian 13, or newer, and Arch Linux, with PipeWire. Each
 [release](https://github.com/Sendspin/sendspin-for-linux/releases) carries the files below and
 their `SHA256SUMS`.
 
@@ -22,6 +22,7 @@ their `SHA256SUMS`.
    sudo apt install ./sendspin-for-linux-*-debian13-amd64.deb     # Debian 13
    sudo apt install ./sendspin-for-linux-*-ubuntu26.04-amd64.deb  # Ubuntu 26.04
    sudo dnf install ./sendspin-for-linux-*-fedora44-x86_64.rpm    # Fedora 44
+   sudo pacman -U ./sendspin-for-linux-*-archlinux-x86_64.pkg.tar.zst  # Arch Linux
    ```
 
    Sendspin then starts with your session, in the tray. **Open at login** in Settings switches
@@ -46,7 +47,8 @@ their `SHA256SUMS`.
    sudo cmake --install build
    ```
 
-There is no package repository, AUR package or updater yet: a new release is a new download.
+There is no package repository or updater yet, and the Arch package is not in the AUR yet: a
+new release is a new download.
 
 ## Settings and files
 
@@ -165,8 +167,9 @@ starts its stream before it declares playback, which those clients ignore. See "
 
 `scripts/vendor.sh` makes the source tarball: the tree at `HEAD` with what the build would
 download in `third_party/fetched/`. A tree that has that directory builds offline. The packages
-are CPack's, built from the tarball on the release they are for, and the Flatpak is
-`flatpak/com.sendspin_audio.Sendspin.yml`, built inside the tarball:
+are CPack's, built from the tarball on the release they are for, Arch's is `makepkg`'s from
+`arch/PKGBUILD`, and the Flatpak is `flatpak/com.sendspin_audio.Sendspin.yml`, built inside the
+tarball:
 
 ```sh
 scripts/vendor.sh dist
@@ -178,3 +181,14 @@ CI builds all of them on every change, builds the tarball with no network, and i
 starts each package in a clean container. To release, set `project(VERSION)` in
 `CMakeLists.txt` and push the tag `v<version>`: the Release workflow attaches the tarball, the
 packages, the Flatpak bundle and `SHA256SUMS` to a draft release, which a person publishes.
+
+`arch/PKGBUILD` is the AUR's: it downloads a published release's tarball and checks its sha256,
+which only exists once the release does. So set `pkgver` with `project(VERSION)`, and after
+publishing, on Arch:
+
+```sh
+cd arch && updpkgsums && makepkg --printsrcinfo >.SRCINFO
+```
+
+Commit both, and copy them to the AUR repository, which needs a maintainer's account. CI builds
+the PKGBUILD against the tarball it has just made instead, with that tarball's sum.
