@@ -141,9 +141,16 @@ ScrollView {
             onToggled: page.settings.mediaControls = checked
         }
         Switch {
+            objectName: "trackNotifications"
             text: qsTr("Show a notification when a track starts playing here")
             checked: page.settings.trackNotifications
             onToggled: page.settings.trackNotifications = checked
+        }
+        Label {
+            Layout.fillWidth: true
+            wrapMode: Text.WordWrap
+            opacity: 0.7
+            text: qsTr("With its title, artist and cover, when a server starts playing to this PC and when the track changes.")
         }
     }
 }

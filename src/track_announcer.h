@@ -10,7 +10,8 @@
 
 /// @brief Says when a track a server plays to this PC is worth a notification: when playing
 /// starts, and when the track changes while it plays. Not on a pause, a resume or a seek, and
-/// once for a run of skips.
+/// once for a run of skips. The cover is only ever the track's own: one that arrives after its
+/// track was announced is announced once more, with it.
 class TrackAnnouncer : public QObject {
     Q_OBJECT
 
@@ -27,8 +28,8 @@ public:
     static QString body(const Track& track);
 
 signals:
-    /// A track to show
-    /// @param cover null for none
+    /// A track to show, or the one just shown again with its cover
+    /// @param cover null for none, or for one not known to be this track's
     void announced(const QString& title, const QString& body, const QImage& cover);
 
 private:
@@ -40,12 +41,20 @@ private:
         bool operator==(const Identity&) const = default;
     };
     void announce_();
+    /// The cover as an image; null unless it is the track's own
+    QImage cover_() const;
 
     bool enabled_{false};
     /// Waits for a run of skips to settle on a track
     QTimer settle_{this};
+    /// While it runs, the track just announced without a cover is announced again when its
+    /// cover comes: later the notification has gone, and would come back
+    QTimer cover_wait_{this};
     Track track_;
     QByteArray artwork_;
+    /// The cover came with this track or after it, or with an earlier track of its album: one
+    /// left over from another album is not shown beside this title
+    bool artwork_is_the_tracks_{false};
     /// The track the timer waits on; empty for none
     Identity pending_;
     /// The last track that was due, shown or not: a resume of it is no news

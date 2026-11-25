@@ -594,6 +594,12 @@ Two controls, independent of each other:
 - The title is the summary, `Artist — Album` the body, the cover the picture: scaled to 256
   pixels and sent as the `image-data` hint, so it needs neither MPRIS switched on nor a file
   that outlives the track. A track with no title shows nothing.
+- The cover is only ever the track's own. A server sends a track before its cover, so the one
+  at hand when a track is due may be the last track's: it is shown only if it arrived with the
+  track or after it, or the track is of the same album as the one before. Otherwise the
+  notification has no picture, and if the cover arrives within five seconds, while that track is
+  still the latest, the notification is replaced once with the cover added. Later than that the
+  notification has gone, and is not brought back.
 - One notification, which the next track replaces, apart from the pairing notification and its
   id. `transient`, so it does not pile up in the desktop's list, and gone at the desktop's own
   timeout. Normal urgency, not low: GNOME shows no banner for low urgency, only a line in its

@@ -51,6 +51,13 @@ public:
     SettingsModel* settings() {
         return &this->settings_;
     }
+    TrackAnnouncer* announcer() {
+        return &this->announcer_;
+    }
+    /// @brief What shows the track a server plays here
+    Notifier* track_notifier() {
+        return &this->track_notifier_;
+    }
     /// @brief The Settings window; nullptr until it was first shown
     QQuickWindow* settings_window() const;
 
