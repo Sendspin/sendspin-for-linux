@@ -19,9 +19,13 @@ ci/start-pipewire.sh ctest --test-dir build
 
 `-DSENDSPIN_SANITIZE=ON` builds the app and its tests with ASan and UBSan.
 
+`tests/interop/run.sh` runs the built app against other implementations, under the same private
+PipeWire: see `tests/interop/` below.
+
 CI builds in Fedora 44, Debian 13 and Ubuntu 26.04 containers, runs the tests there against a
-headless PipeWire, repeats them under the sanitizers on Fedora, and checks formatting. Debian 13
-is the floor: do not use Qt newer than 6.8 or PipeWire newer than 1.4.2 API without a fallback.
+headless PipeWire, repeats them under the sanitizers on Fedora, runs the interop tests on Fedora,
+and checks formatting. Debian 13 is the floor: do not use Qt newer than 6.8 or PipeWire newer
+than 1.4.2 API without a fallback.
 
 ## Conventions
 
@@ -57,6 +61,12 @@ is the floor: do not use Qt newer than 6.8 or PipeWire newer than 1.4.2 API with
 - `src/client/` — the Sendspin client and its roles. `src/mpris.*` shows what a server plays here;
   its bus test needs a session bus and skips without one.
 - `ci/` — `start-pipewire.sh` and the daemon config it loads: a null sink, no hardware.
+- `tests/interop/` — the app end to end, in Python on pytest, run by `uv`: `test_cast.py` casts to
+  a real sendspin-cpp-cli player, `test_music_assistant.py` is a server on aiosendspin that pairs
+  with the app's client, takes its source and plays to it. Both versions are pinned there
+  (`run.sh`; `requirements.in`, locked with hashes in `requirements.txt`). No mDNS and no system
+  bus: each side is given the other's loopback URL. A test
+  that fails for a known upstream bug is a strict `xfail` naming the issue.
 - `cmake/sendspin_libs.cmake` — the pinned Sendspin libraries. Both fetch the same third-party
   dependencies; the order of declarations there is what keeps them to one copy. Fix collisions
   there, never by forking a library.
