@@ -71,3 +71,26 @@ jobs:
       # Verbose, so the log shows the audio tests ran rather than skipped
       - name: Test
         run: ci/start-pipewire.sh ctest --test-dir build --output-on-failure --verbose
+
+  interop:
+    name: Interop
+    runs-on: ubuntu-latest
+    container: registry.fedoraproject.org/fedora:44
+    timeout-minutes: 30
+    steps:
+      # The build's packages, then uv for the tests and the libraries the player release links
+      - name: Install dependencies
+        run: >-
+          dnf -y install cmake ninja-build gcc-c++ git patch pkgconf-pkg-config xz
+          qt6-qtbase-devel qt6-qtdeclarative-devel pipewire-devel avahi-devel openssl-devel
+          dbus-daemon pipewire pipewire-utils wireplumber
+          uv portaudio avahi-compat-libdns_sd
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -B build -G Ninja -DBUILD_TESTING=OFF
+      - name: Build
+        run: cmake --build build
+      # The app against sendspin-cpp-cli and aiosendspin, both pinned in tests/interop
+      - name: Test
+        timeout-minutes: 10
+        run: tests/interop/run.sh

@@ -3,6 +3,7 @@
 #include "cast/test_peer.h"
 
 #include <QElapsedTimer>
+#include <QScopeGuard>
 #include <QSettings>
 #include <QSignalSpy>
 #include <QTcpServer>
@@ -432,6 +433,23 @@ private slots:
         settings.sync();
         CastEngine again(this->app_dir_->path().toStdString(), output);
         QCOMPARE(again.group_volume(), 100);
+    }
+
+    void theServerStartsWithoutASystemBus() {
+        // Where avahi is reached: with no bus there, discovery can't start at all
+        const QByteArray bus = qgetenv("DBUS_SYSTEM_BUS_ADDRESS");
+        qputenv("DBUS_SYSTEM_BUS_ADDRESS", "unix:path=/nonexistent");
+        const auto restore = qScopeGuard([&bus] {
+            if (bus.isNull()) {
+                qunsetenv("DBUS_SYSTEM_BUS_ADDRESS");
+            } else {
+                qputenv("DBUS_SYSTEM_BUS_ADDRESS", bus);
+            }
+        });
+
+        Rig rig(this->app_dir_->path(), this->port_);
+        QVERIFY(rig.engine->start(0, true));
+        QVERIFY(rig.engine->port() != 0);
     }
 
     void theAddedSpeakersAndTheVolumeAreKeptAcrossRestarts() {

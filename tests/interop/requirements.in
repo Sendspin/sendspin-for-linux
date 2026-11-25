@@ -1,0 +1,4 @@
+aiosendspin[server]==11.0.0
+dbus-fast==5.2.0
+numpy
+pytest==9.2.0

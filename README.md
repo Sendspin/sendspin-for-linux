@@ -49,6 +49,21 @@ the `pw-play`, `pw-dump` and `wpctl` tools):
 ci/start-pipewire.sh ctest --test-dir build
 ```
 
+The interop tests run the built app against other implementations, on loopback under the same
+private daemon: casting to a [sendspin-cpp-cli](https://github.com/Sendspin/sendspin-cpp-cli)
+player, and as Music Assistant sees it, with a server scripted on
+[aiosendspin](https://github.com/Sendspin/aiosendspin) that pairs by the code, takes the PC as a
+source and plays to it. They need `uv` and `curl` as well, and the libraries the player release
+links (Fedora: `portaudio` and `avahi-compat-libdns_sd`):
+
+```sh
+tests/interop/run.sh
+```
+
+The player is downloaded once, an x86_64 release pinned in `run.sh`; `SENDSPIN_CLI` names another.
+Two of the cast tests are expected to fail until the silent-speaker problem below is fixed
+upstream, and fail the run when they start passing.
+
 ## Casting to speakers
 
 Until the picker exists, the speakers are chosen from the command line. Each of these runs the
