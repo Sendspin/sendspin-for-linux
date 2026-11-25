@@ -221,6 +221,65 @@ jobs:
       - name: Start it
         run: ci/start-pipewire.sh ci/smoke-test.sh "${{ needs.source.outputs.version }}"
 
+  # What the release publishes to Pages, signed with a key made here
+  repositories:
+    name: Package repositories
+    needs: package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: package-*
+          path: packages
+          merge-multiple: true
+      - name: Install the tools
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends apt-utils createrepo-c gnupg rpm
+      - name: Build the repositories
+        run: ci/repo-fixture.sh packages repositories http://127.0.0.1:8000
+      # Not package-*: the release takes those
+      - uses: actions/upload-artifact@v4
+        with:
+          name: test-repositories
+          path: repositories
+          if-no-files-found: error
+          retention-days: 1
+
+  repository-install:
+    name: Install from the repository, ${{ matrix.name }}
+    needs: [source, repositories]
+    runs-on: ubuntu-latest
+    container: ${{ matrix.image }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Debian 13
+            image: debian:13
+            install: >-
+              apt-get update && apt-get install -y --no-install-recommends
+              ca-certificates wget python3
+          - name: Ubuntu 26.04
+            image: ubuntu:26.04
+            install: >-
+              apt-get update && apt-get install -y --no-install-recommends
+              ca-certificates wget python3
+          - name: Fedora 44
+            image: registry.fedoraproject.org/fedora:44
+            install: dnf -y install python3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: test-repositories
+          path: repositories
+      - name: Install what the test needs
+        run: ${{ matrix.install }}
+      - name: Set the repository up, install and upgrade
+        run: >-
+          ci/repo-test.sh repositories/site repositories/site-other-key
+          "${{ needs.source.outputs.version }}"
+
   flatpak:
     name: Flatpak
     needs: source

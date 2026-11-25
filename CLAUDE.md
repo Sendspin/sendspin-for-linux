@@ -82,6 +82,12 @@ than 1.4.2 API without a fallback.
 - `.github/workflows/packages.yml` — builds the tarball offline, the packages (Arch's by
   `makepkg`) and the Flatpak, and starts each package in a clean container (`ci/smoke-test.sh`, which runs the app with
   `--check`: both windows and an SVG, or it exits); `ci.yml` and `release.yml` both call it. The version is `project(VERSION)` alone; a tag `v<version>` drafts a release.
+- `scripts/package-repos.sh` — signed apt and dnf repositories from a directory of release
+  packages; it names no package, so another project's can go through it. `repositories.yml`
+  runs it over every published release and deploys to GitHub Pages. `packages.yml` runs it with
+  a throwaway key (`ci/repo-fixture.sh`) and installs from the result in clean containers
+  (`ci/repo-test.sh`). The README's setup lines and `repo-test.sh` say the same thing: change
+  them together.
 - `ci/` — `start-pipewire.sh` and the daemon config it loads: a null sink, no hardware.
 - `tests/interop/` — the app end to end, in Python on pytest, run by `uv`: `test_cast.py` casts to
   a real sendspin-cpp-cli player, `test_music_assistant.py` is a server on aiosendspin that pairs

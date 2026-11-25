@@ -16,7 +16,37 @@ Fedora 44, Ubuntu 26.04 and Debian 13, or newer, and Arch Linux, with PipeWire. 
 [release](https://github.com/Sendspin/sendspin-for-linux/releases) carries the files below and
 their `SHA256SUMS`.
 
-1. **Distro packages.** Download the one for your release and install it with its dependencies:
+1. **Distro packages**, from the package repository, so the system's updates bring new versions.
+
+   Debian 13 and Ubuntu 26.04:
+
+   ```sh
+   sudo wget -O /etc/apt/keyrings/sendspin.asc https://sendspin.github.io/sendspin-for-linux/sendspin.asc
+   . /etc/os-release && echo "deb [signed-by=/etc/apt/keyrings/sendspin.asc] https://sendspin.github.io/sendspin-for-linux/apt $ID$VERSION_ID main" | sudo tee /etc/apt/sources.list.d/sendspin.list
+   sudo apt update && sudo apt install sendspin-for-linux
+   ```
+
+   On a distribution built on one of them, write `debian13` or `ubuntu26.04` in place of
+   `$ID$VERSION_ID`.
+
+   Fedora 44:
+
+   ```sh
+   sudo curl -fsSLo /etc/pki/rpm-gpg/RPM-GPG-KEY-sendspin https://sendspin.github.io/sendspin-for-linux/sendspin.asc
+   sudo curl -fsSLo /etc/yum.repos.d/sendspin.repo https://sendspin.github.io/sendspin-for-linux/rpm/sendspin.repo
+   sudo dnf install sendspin-for-linux
+   ```
+
+   The repositories are signed with the key the first line downloads, and from then on the
+   system takes nothing that key did not sign. Before installing, `gpg --show-keys` on that file
+   prints the key's fingerprint, which should be:
+
+   ```
+   (not created yet: the fingerprint goes here with the first release)
+   ```
+
+   Or, and on Arch for now,
+   download a release's package and install it with its dependencies, with no updates:
 
    ```sh
    sudo apt install ./sendspin-for-linux-*-debian13-amd64.deb     # Debian 13
@@ -47,8 +77,8 @@ their `SHA256SUMS`.
    sudo cmake --install build
    ```
 
-There is no package repository or updater yet, and the Arch package is not in the AUR yet: a
-new release is a new download.
+There is no updater yet, and the Arch package is not in the AUR or a repository yet: there, a new
+release is a new download.
 
 ## Settings and files
 
@@ -181,6 +211,44 @@ CI builds all of them on every change, builds the tarball with no network, and i
 starts each package in a clean container. To release, set `project(VERSION)` in
 `CMakeLists.txt` and push the tag `v<version>`: the Release workflow attaches the tarball, the
 packages, the Flatpak bundle and `SHA256SUMS` to a draft release, which a person publishes.
+
+Publishing the release runs the Package repositories workflow: `scripts/package-repos.sh` builds
+apt and dnf repositories from the packages of every published release, signs them, and the
+workflow puts them on GitHub Pages. It can be run by hand too, after a release is deleted or the
+key is replaced. CI builds the same repositories with a key of its own on every change, and
+installs and upgrades from them in clean containers (`ci/repo-fixture.sh`, `ci/repo-test.sh`).
+
+The script takes any package named `<name>-<version>-<distro>-<arch>.deb` or `.rpm`, so another
+project's packages are published by downloading them into the same directory.
+
+Only what the Release workflow built is signed: each package has to match its release's
+`SHA256SUMS` and carry that workflow's build attestation, or the run fails.
+
+Once, by a maintainer:
+
+1. Create the signing key on a machine you trust: a primary key that only certifies and stays
+   there, and a signing subkey, which alone goes to GitHub. Give it a passphrase.
+
+   ```sh
+   gpg --quick-generate-key "Sendspin packages" rsa4096 cert never
+   gpg --quick-add-key <primary fingerprint> rsa4096 sign never
+   gpg --list-keys --with-subkey-fingerprints "Sendspin packages"
+   gpg --armor --export-secret-subkeys '<subkey fingerprint>!'
+   ```
+
+   Put the primary key's fingerprint in this README's install section. Keep the primary key and
+   the passphrase somewhere safe: machines that installed from the repositories trust this key,
+   and a new one means setting each of them up again.
+2. Create the environment `package-signing`, with a required reviewer and its deployment
+   branches and tags limited to `main` and `v*`. Add the export there as the secret
+   `REPO_GPG_PRIVATE_KEY` and the passphrase as `REPO_GPG_PASSPHRASE`: environment secrets, not
+   repository secrets, so no other workflow can read them. Each publish then waits for the
+   reviewer.
+3. Set the Pages source to **GitHub Actions**. Publishing a release runs on its tag, and the
+   `github-pages` environment allows only the default branch at first: add `v*` to its
+   deployment branches and tags.
+4. Add a ruleset that restricts who can create `v*` tags, and turn on immutable releases, so a
+   published release's files cannot be replaced before they are signed.
 
 `arch/PKGBUILD` is the AUR's: it downloads a published release's tarball and checks its sha256,
 which only exists once the release does. So set `pkgver` with `project(VERSION)`, and after
