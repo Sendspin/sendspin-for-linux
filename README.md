@@ -57,7 +57,7 @@ steps: get the repository's key, check it, then add the repository and install.
    On a distribution built on one of them, write `debian13` or `ubuntu26.04` in place of
    `$ID$VERSION_ID`.
 
-### Fedora 44 and newer
+### Fedora 44 and 45
 
 1. Download the key:
 
@@ -121,6 +121,7 @@ each file's checksum:
 sudo apt install ./sendspin-for-linux-*-debian13-amd64.deb     # Debian 13
 sudo apt install ./sendspin-for-linux-*-ubuntu26.04-amd64.deb  # Ubuntu 26.04
 sudo dnf install ./sendspin-for-linux-*-fedora44-x86_64.rpm    # Fedora 44
+sudo dnf install ./sendspin-for-linux-*-fedora45-x86_64.rpm    # Fedora 45
 ```
 
 Installed this way, Sendspin updates itself: see [Updates](#updates).

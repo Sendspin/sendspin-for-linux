@@ -43,6 +43,12 @@ with.
 The script takes any package named `<name>-<version>-<distro>-<arch>.deb` or `.rpm`, so another
 project's packages are published by downloading them into the same directory.
 
+A machine asks for the repository of its own release, `apt/dists/debian13` or `rpm/fedora45`, so
+a release of a distribution has packages only once it is built for: a new Fedora needs an entry
+beside the last one in each matrix of `packages.yml` and in `ci.yml`, its `.rpm` in the files
+`release.yml` expects, and its name in the README. Its repository appears with the next release
+published after that.
+
 Only what the Release workflow built is signed: each package has to match its release's
 `SHA256SUMS` and carry that workflow's build attestation, or the run fails.
 

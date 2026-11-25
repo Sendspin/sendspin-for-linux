@@ -1,7 +1,7 @@
 #!/bin/sh
 # Signed apt and dnf repositories, as a directory to serve at <base URL>, from release packages
 # named <name>-<version>-<distro>-<arch>.deb or .rpm. <distro> is ID and VERSION_ID of the
-# release's /etc/os-release (debian13, ubuntu26.04, fedora44): an apt suite, or a dnf
+# release's /etc/os-release (debian13, ubuntu26.04, fedora45): an apt suite, or a dnf
 # repository at rpm/fedora$releasever. Any package named that way goes in; all versions stay.
 #
 #     REPO_GPG_PRIVATE_KEY=... REPO_GPG_PASSPHRASE=... \

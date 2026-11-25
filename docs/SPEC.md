@@ -775,7 +775,8 @@ Listed in this order in the README and on the website:
    [backlog#52](https://github.com/Sendspin/backlog/issues/52) for `sendspin-cli`; solve it once.
    - The repositories hold every published release, rebuilt from the releases each time one is
      published. One apt suite per release (`debian13`, `ubuntu26.04`) and one dnf repository
-     (`fedora44`), since the packages are built against each release's own libraries.
+     per Fedora release (`fedora44`, `fedora45`), since the packages are built against each
+     release's own libraries.
    - Signed with one key, whose signing subkey is in an environment's secrets: apt's
      `InRelease`, and for dnf both the index and the packages. The public key is published
      beside them, and a machine keeps its own copy: neither apt nor dnf takes a key from the

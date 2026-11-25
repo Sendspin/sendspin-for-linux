@@ -86,6 +86,14 @@ jobs:
               dnf -y install cmake ninja-build gcc-c++ patch pkgconf-pkg-config xz rpm-build
               qt6-qtbase-devel qt6-qtdeclarative-devel pipewire-devel avahi-devel openssl-devel
               appstream desktop-file-utils
+          - name: Fedora 45
+            tag: fedora45
+            image: registry.fedoraproject.org/fedora:45
+            generator: RPM
+            install: >-
+              dnf -y install cmake ninja-build gcc-c++ patch pkgconf-pkg-config xz rpm-build
+              qt6-qtbase-devel qt6-qtdeclarative-devel pipewire-devel avahi-devel openssl-devel
+              appstream desktop-file-utils
     steps:
       - name: Install dependencies
         run: ${{ matrix.install }}
@@ -222,6 +230,14 @@ jobs:
               dnf -y --setopt=tsflags= install
               ./*.rpm dbus-daemon pipewire pipewire-utils wireplumber
             conffiles: rpm -qc sendspin-for-linux
+          - name: Fedora 45
+            tag: fedora45
+            image: registry.fedoraproject.org/fedora:45
+            # The image's dnf leaves out documentation, where the licenses go
+            install: >-
+              dnf -y --setopt=tsflags= install
+              ./*.rpm dbus-daemon pipewire pipewire-utils wireplumber
+            conffiles: rpm -qc sendspin-for-linux
           - name: Arch Linux
             tag: archlinux
             image: archlinux
@@ -289,6 +305,9 @@ jobs:
           - name: Fedora 44
             image: registry.fedoraproject.org/fedora:44
             install: dnf -y install python3
+          - name: Fedora 45
+            image: registry.fedoraproject.org/fedora:45
+            install: dnf -y install python3
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -327,6 +346,10 @@ jobs:
           - name: Fedora 44
             tag: fedora44
             image: registry.fedoraproject.org/fedora:44
+            install: dnf -y install python3 gnupg2
+          - name: Fedora 45
+            tag: fedora45
+            image: registry.fedoraproject.org/fedora:45
             install: dnf -y install python3 gnupg2
     steps:
       - uses: actions/checkout@v4
