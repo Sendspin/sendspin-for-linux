@@ -4,6 +4,7 @@
 
 #include <QByteArray>
 #include <QObject>
+#include <QString>
 #include <QTimer>
 
 #include <pipewire/pipewire.h>
@@ -15,8 +16,9 @@
 /// @brief An output device in the graph: a node with media.class Audio/Sink
 struct OutputSink {
     uint32_t id{0};
-    QByteArray name;  ///< node.name
-    int priority{0};  ///< priority.session
+    QByteArray name;        ///< node.name
+    int priority{0};        ///< priority.session
+    QString description{};  ///< node.description, what the desktop calls it
 
     bool operator==(const OutputSink&) const = default;
 };
@@ -54,6 +56,11 @@ public:
         return this->target_;
     }
 
+    /// @brief The outputs Settings offers, the best first: every one but the Sendspin output
+    const std::vector<OutputSink>& choices() const {
+        return this->choices_;
+    }
+
     ClockRates clock() const;
 
     /// @brief Asks an output what it plays. Waits for the answer, briefly; empty without one.
@@ -61,6 +68,7 @@ public:
 
 signals:
     void targetChanged();
+    void choicesChanged();
 
 private:
     struct Metadata {
@@ -93,6 +101,7 @@ private:
     const QByteArray own_sink_;
     QByteArray chosen_;
     std::optional<QByteArray> target_;
+    std::vector<OutputSink> choices_;
     QTimer retry_;
 
     pw_thread_loop* loop_{nullptr};

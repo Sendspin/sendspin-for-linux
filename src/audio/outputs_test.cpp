@@ -72,6 +72,12 @@ private slots:
         // Whatever else there is, the target is never that one
         QVERIFY(outputs.target() != std::optional<QByteArray>("sendspin-test-outputs"));
 
+        // Settings never offers it
+        for (const OutputSink& choice : outputs.choices()) {
+            QVERIFY(choice.name != "sendspin-test-outputs");
+            QVERIFY(!choice.description.isEmpty());
+        }
+
         // As the only choice left it is still refused
         outputs.set_chosen("sendspin-test-outputs");
         QVERIFY(outputs.target() != std::optional<QByteArray>("sendspin-test-outputs"));

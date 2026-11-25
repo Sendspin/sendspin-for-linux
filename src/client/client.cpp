@@ -21,10 +21,11 @@ sendspin::SendspinClientConfig library_config(const Client::Config& config) {
     result.name = config.name.toStdString();
     result.product_name = "Sendspin for Linux";
     result.server_port = config.port;
-    // The code is shown on screen and typed into the server. No QR code: the person pairing
-    // sits at this PC. Offering a dynamic code rules out a static one.
+    // The code is shown on screen. The server picks the format: digits to type into it, or a QR
+    // code when whoever pairs can scan one. Offering a dynamic code rules out a static one.
     result.pairing_code_out_channels = {sendspin::SendspinPairingCodeChannel::DISPLAY};
-    result.pairing_code_formats = {sendspin::SendspinPairingCodeFormat::DIGITS};
+    result.pairing_code_formats = {sendspin::SendspinPairingCodeFormat::DIGITS,
+                                   sendspin::SendspinPairingCodeFormat::QR_CODE};
     return result;
 }
 
@@ -115,6 +116,10 @@ void Client::allow_pairing() {
     this->sync_();
 }
 
+void Client::set_unpaired_access(bool enabled) {
+    this->client_.set_unpaired_access_enabled(enabled);
+}
+
 void Client::tick_() {
     this->client_.loop();
     this->source_.poll();
@@ -137,6 +142,12 @@ void Client::sync_() {
             // The name trails the connection by a tick
             server_name = this->server_name_;
         }
+    }
+
+    if (!server_name.isEmpty()) {
+        this->pairing_name_ = server_name;
+    } else if (!connected && !this->pairing_ && !this->paired_event_) {
+        this->pairing_name_.clear();
     }
 
     // A pairing a server abandons by dropping the connection reports no end
@@ -174,7 +185,7 @@ void Client::sync_() {
         emit this->pairingApprovalNeededChanged(this->approval_needed_);
     }
     if (std::exchange(this->paired_event_, false)) {
-        emit this->paired(this->server_name_);
+        emit this->paired(this->pairing_name_, this->paired_id_);
     }
     if (std::exchange(this->ended_event_, false)) {
         emit this->pairingEnded();
@@ -186,7 +197,9 @@ void Client::on_pairing_attempt(std::string_view /*server_id*/) {
     this->pairing_connected_ = false;
 }
 
-void Client::on_paired(std::string_view /*server_id*/) {
+void Client::on_paired(std::string_view server_id) {
+    this->paired_id_ =
+        QString::fromUtf8(server_id.data(), static_cast<qsizetype>(server_id.size()));
     this->pairing_ = false;
     this->paired_event_ = true;
 }
@@ -198,9 +211,8 @@ void Client::on_pairing_aborted(std::string_view /*server_id*/,
     this->ended_event_ = true;
 }
 
-void Client::on_pairing_code(std::string_view code,
-                             sendspin::SendspinPairingCodeFormat /*format*/) {
-    // Only DIGITS is offered
+void Client::on_pairing_code(std::string_view code, sendspin::SendspinPairingCodeFormat format) {
+    this->code_is_qr_ = format == sendspin::SendspinPairingCodeFormat::QR_CODE;
     this->code_ = QString::fromLatin1(code.data(), static_cast<qsizetype>(code.size()));
 }
 

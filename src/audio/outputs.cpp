@@ -277,10 +277,18 @@ void Outputs::changed_() {
 
 void Outputs::update_target_() {
     std::optional<QByteArray> target;
+    std::vector<OutputSink> choices;
     if (this->loop_ != nullptr) {
         const LoopLock lock(this->loop_);
         target = choose_target(this->sinks_, this->default_sink_, this->chosen_, this->own_sink_,
                                this->last_default_);
+        choices = this->sinks_;
+    }
+    std::erase_if(choices, [this](const auto& sink) { return sink.name == this->own_sink_; });
+    std::ranges::stable_sort(choices, std::ranges::greater{}, &OutputSink::priority);
+    if (choices != this->choices_) {
+        this->choices_ = std::move(choices);
+        emit this->choicesChanged();
     }
     if (target != this->target_) {
         this->target_ = target;
@@ -361,7 +369,9 @@ void Outputs::on_global(void* data, uint32_t id, uint32_t /*permissions*/, const
         return;
     }
     const char* priority = spa_dict_lookup(props, PW_KEY_PRIORITY_SESSION);
-    self->sinks_.push_back({id, name, priority != nullptr ? std::atoi(priority) : 0});
+    const char* description = spa_dict_lookup(props, PW_KEY_NODE_DESCRIPTION);
+    self->sinks_.push_back({id, name, priority != nullptr ? std::atoi(priority) : 0,
+                            QString::fromUtf8(description != nullptr ? description : name)});
     self->changed_();
 }
 
