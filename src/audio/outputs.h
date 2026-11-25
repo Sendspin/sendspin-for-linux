@@ -4,6 +4,7 @@
 
 #include <QByteArray>
 #include <QObject>
+#include <QString>
 #include <QTimer>
 
 #include <pipewire/pipewire.h>
@@ -15,8 +16,9 @@
 /// @brief An output device in the graph: a node with media.class Audio/Sink
 struct OutputSink {
     uint32_t id{0};
-    QByteArray name;  ///< node.name
-    int priority{0};  ///< priority.session
+    QByteArray name;        ///< node.name
+    int priority{0};        ///< priority.session
+    QString description{};  ///< node.description: the name the desktop shows
 
     bool operator==(const OutputSink&) const = default;
 };
@@ -54,6 +56,27 @@ public:
         return this->target_;
     }
 
+    /// @brief The graph is listed; false while PipeWire can't be reached
+    bool connected() const {
+        return this->loop_ != nullptr;
+    }
+
+    /// @brief This PC's own output: the one the system uses, or used last before the Sendspin
+    /// output; when that's gone, the best other one. nullopt when there is none.
+    std::optional<OutputSink> local() const;
+
+    /// @brief The system's default output is the Sendspin output
+    bool own_is_default() const;
+
+    /// @brief The output the user chose as the default, which may be unplugged; empty for none
+    QByteArray configured_default() const;
+
+    /// @brief Makes the Sendspin output the user's choice of default, or puts back exactly the
+    /// choice it replaced, kept across a restart. The session manager carries it out, so
+    /// own_is_default() follows later.
+    /// @return false when it can't be done: no session manager, or no Sendspin output to choose
+    bool set_own_default(bool own);
+
     ClockRates clock() const;
 
     /// @brief Asks an output what it plays. Waits for the answer, briefly; empty without one.
@@ -61,6 +84,8 @@ public:
 
 signals:
     void targetChanged();
+    /// The outputs, the default or connected() may have changed
+    void changed();
 
 private:
     struct Metadata {
@@ -74,6 +99,8 @@ private:
     static void on_global_remove(void* data, uint32_t id);
     static void on_core_done(void* data, uint32_t id, int seq);
     static void on_core_error(void* data, uint32_t id, int seq, int res, const char* message);
+    /// Writes default.configured.audio.sink; empty clears it. Caller holds the loop lock.
+    bool configure_(const QByteArray& name);
     static int on_default(void* data, uint32_t subject, const char* key, const char* type,
                           const char* value);
     static int on_setting(void* data, uint32_t subject, const char* key, const char* type,
@@ -107,7 +134,8 @@ private:
     Metadata settings_metadata_;
     std::vector<OutputSink> sinks_;
     QByteArray default_sink_;
-    QByteArray last_default_;  ///< the last default that was not the Sendspin output
+    QByteArray configured_sink_;  ///< the user's choice, which the default follows while it exists
+    QByteArray last_default_;     ///< the last default that was not the Sendspin output
     ClockRates clock_;
     int sync_seq_{0};
     bool synced_{false};

@@ -97,6 +97,9 @@ public:
         return this->discovery_available_;
     }
 
+    /// @brief False while what plays can't be joined (a server): the rows have no check
+    void set_plays_groupable(bool groupable);
+
     /// @brief Where the Sendspin output's blocks go: CastFeed::take(), on the realtime thread
     CastFeed& feed() {
         return this->feed_;
@@ -220,6 +223,7 @@ private:
     std::optional<int> volume_;
     bool muted_{false};
     bool playing_{false};
+    bool plays_groupable_{true};
     bool discovery_available_{true};
     int64_t latency_ns_{0};
 };

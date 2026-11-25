@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- Plasma colours what carries this class; GTK recolours a -symbolic icon by itself -->
+  <style type="text/css" id="current-color-scheme">.ColorScheme-Text { color: #808080; }</style>
+  <path class="ColorScheme-Text" fill="currentColor" fill-rule="evenodd" d="M6 4a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm0 2.800a1.200 1.200 0 1 1 0 2.400 1.200 1.200 0 0 1 0-2.400z"/>
+  <path class="ColorScheme-Text" fill="none" stroke="currentColor" stroke-width="1.500" stroke-linecap="round" d="M11.600 5.200a4.400 4.400 0 0 1 0 5.600M13.600 3.200a7.200 7.200 0 0 1 0 9.600"/>
+</svg>
