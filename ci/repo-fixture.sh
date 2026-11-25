@@ -49,7 +49,7 @@ EOF
     mv "$work"/rpmbuild/RPMS/*/*.rpm "$work/packages/$old"
 done
 
-# As the README has the release's key: a passphrase, and only the signing subkey leaves the
+# As docs/MAINTAINING.md has the release's key: a passphrase, and only the signing subkey leaves the
 # machine that made it
 passphrase=throwaway
 gpg_ci() {
