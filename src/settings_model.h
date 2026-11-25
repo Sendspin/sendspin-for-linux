@@ -155,6 +155,10 @@ public slots:
     bool pairByToken(const QString& token);
 
     void allowPairing();
+    /// @brief Puts the digits a pairing server asks for on the clipboard: the six alone, as the
+    /// server's field takes them
+    /// @return false when no digits are showing; a QR code's token is never copied
+    bool copyPairingCode();
     /// @brief Puts this PC's pairing token on the clipboard, and nowhere else
     bool copyPairingToken();
 
@@ -166,6 +170,8 @@ signals:
     void updateChanged();
     void speakerCountsChanged();
     void pairingChanged();
+    /// copyPairingCode() copied it, whoever asked
+    void pairingCodeCopied();
     void serverChanged();
     void pairedServersChanged();
     void unpairedAccessChanged();
