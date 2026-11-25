@@ -179,6 +179,8 @@ private:
         bool listed{false};
         speaker_menu::Facts facts;
         bool has_player{false};
+        /// In the cast group with a player, where the group's volume and mute reach it
+        bool plays{false};
         bool can_pair{false};
         sendspin::server::PairingOffers offers;
         /// Why it isn't connected, from how it left or how the dial failed
@@ -207,6 +209,7 @@ private:
     void refresh_local_();
     void publish_rows_();
     void release_cast_();
+    void send_group_levels_();
 
     void on_connected_(const sendspin::server::ClientInfo& info);
     void on_disconnected_(const sendspin::server::ClientInfo& info,
@@ -247,6 +250,8 @@ private:
     bool cast_exists_{false};
     /// When a group asked for and never listed is given up: its first member didn't move
     int64_t cast_deadline_ns_{0};
+    /// A speaker joined the cast group: until this passes its volume and mute are sent again
+    int64_t levels_until_ns_{0};
 
     /// Unset until the user sets one, so adding a speaker leaves its volume alone
     std::optional<int> volume_;

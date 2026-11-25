@@ -179,6 +179,16 @@ def test_a_removed_player_is_out_of_the_group(cast, tone):
     assert "client_id=" not in cast.settings.read_text()
 
 
+def test_a_player_added_anew_gets_the_kept_volume_and_mute(cast):
+    cast.stop_app()
+    settings = cast.settings.read_text()
+    assert "group_volume=35" in settings and "group_muted=true" in settings
+    cast.settings.write_text(settings.replace("group_volume=35", "group_volume=45"))
+    cast.start_app("--add", NAME)
+    cast.app.wait_for(TICKED, 20)
+    cast.expect_status(connected="1", player_volume="45", player_muted="1")
+
+
 def test_this_pc_plays_along_beside_the_player(cast):
     # Its own output here is the private daemon's null sink
     cast.stop_app()

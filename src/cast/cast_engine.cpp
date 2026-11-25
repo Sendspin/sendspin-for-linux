@@ -37,8 +37,6 @@ constexpr int64_t STEP_NS = 2'000'000'000;
 /// A latency change smaller than this isn't worth telling the graph
 constexpr int64_t LATENCY_STEP_NS = 1'000'000;
 const char* const PLAYER_ROLE = "player@v1";
-/// How often an output that was late is tried again: its delay may have come down
-constexpr int64_t LOCAL_RETRY_NS = 10'000'000'000;
 /// How often its timing is logged while it plays
 constexpr int64_t LOCAL_LOG_NS = 5'000'000'000;
 
@@ -570,6 +568,9 @@ void CastEngine::refresh_() {
     this->take_steps_(now_ns);
     this->update_input_(now_ns);
     this->update_local_(now_ns);
+    if (now_ns < this->levels_until_ns_) {
+        this->send_group_levels_();
+    }
     this->publish_rows_();
 }
 
@@ -609,6 +610,29 @@ void CastEngine::sync_clients_() {
             speaker.cant_play = false;
         }
         speaker.facts.in_cast = this->cast_group_ && speaker.group == this->cast_group_;
+    }
+
+    // The library sets a group's volume and mute on the players active in it at that moment,
+    // and does not say when one that joins has become so: they are sent again for a while
+    for (Speaker& speaker : this->speakers_) {
+        const bool plays = speaker.facts.in_cast && speaker.has_player;
+        if (plays && !speaker.plays) {
+            this->levels_until_ns_ = raw_now_ns() + STEP_NS;
+        }
+        speaker.plays = plays;
+    }
+}
+
+void CastEngine::send_group_levels_() {
+    if (!this->cast_group_) {
+        return;
+    }
+    if (this->volume_) {
+        (void)this->server_->set_group_volume(*this->cast_group_,
+                                              static_cast<uint32_t>(*this->volume_));
+    }
+    if (this->muted_) {
+        (void)this->server_->set_group_mute(*this->cast_group_, true);
     }
 }
 
@@ -699,13 +723,7 @@ void CastEngine::update_input_(int64_t now_ns) {
             this->server_->open_input(*this->cast_group_, options);
         if (opened.result == sendspin::server::OpenInputResult::OK) {
             this->feed_.attach(std::move(opened.input));
-            if (this->volume_) {
-                (void)this->server_->set_group_volume(*this->cast_group_,
-                                                      static_cast<uint32_t>(*this->volume_));
-            }
-            if (this->muted_) {
-                (void)this->server_->set_group_mute(*this->cast_group_, true);
-            }
+            this->send_group_levels_();
         } else {
             qCWarning(lc_cast, "the group's input did not open: %d",
                       static_cast<int>(opened.result));
@@ -751,19 +769,15 @@ void CastEngine::update_local_(int64_t now_ns) {
                       "buffer %lld ms",
                       static_cast<long long>(delay_ns / 1'000'000),
                       static_cast<long long>(this->latency_ns_ / 1'000'000));
-            this->local_late_since_ns_ = now_ns;
-        }
-        if (late && now_ns - this->local_late_since_ns_ >= LOCAL_RETRY_NS) {
-            // Out, nothing measures its delay. A stream that is still late plays nothing: what
-            // is late is dropped.
-            this->local_late_since_ns_ = now_ns;
-            this->play_along_.forget_delay();
         }
         this->local_late_ = late;
         local = late ? Local::NOTHING : Local::GROUP;
     }
 
-    const bool active = local != Local::NOTHING && this->feed_.has_sound(now_ns);
+    // Late, its stream stays open and plays nothing: it goes on measuring the delay, so the
+    // output is back once that fits, and is not opened and closed to find out
+    const bool active =
+        (local != Local::NOTHING || this->local_late_) && this->feed_.has_sound(now_ns);
     float gain = 1.0F;
     if (local == Local::GROUP) {
         // The group's volume and mute, like the speakers; alone, the desktop's own is all
