@@ -2,15 +2,18 @@
 
 #include "app_id.h"
 #include "autostart.h"
+#include "pairing_clipboard.h"
 
 #include <QApplication>
 #include <QIcon>
 #include <QLoggingCategory>
 #include <QProcess>
 #include <QQuickImageProvider>
+#include <QQuickItem>
 #include <QQuickStyle>
 #include <QSettings>
 #include <QStandardPaths>
+#include <QTimer>
 
 #include <pipewire/pipewire.h>
 
@@ -24,6 +27,8 @@ namespace {
 // The player's own, kept as a server sets them; the rest are SettingsModel's
 constexpr const char* SETTING_VOLUME = "player/volume";  ///< 0-100; 100 unless set
 constexpr const char* SETTING_MUTED = "player/muted";
+/// How long a Wayland compositor has to refuse a copy before the notification speaks of it
+constexpr int COPY_SETTLES_MS = 250;
 
 QSettings conf() {
     return QSettings(QStringLiteral("sendspin"), QStringLiteral("sendspin"));
@@ -120,9 +125,7 @@ App::App(const std::filesystem::path& data_dir, QObject* parent)
     connect(&this->client_, &Client::pairingApprovalNeededChanged, this,
             &App::on_pairing_approval_needed_);
     // Every notification is about a server pairing
-    connect(&this->notifier_, &Notifier::clicked, this, [this](const QString& activationToken) {
-        this->show_settings_(Section::MusicAssistant, activationToken);
-    });
+    connect(&this->notifier_, &Notifier::clicked, this, &App::showPairing);
     connect(&this->notifier_, &Notifier::actionInvoked, this, [this] {
         if (this->notice_ == Notice::Approval) {
             this->client_.allow_pairing();
@@ -232,7 +235,22 @@ void App::restart_() {
     QCoreApplication::quit();
 }
 
+QString App::code_notice_body(const QString& server_name, bool copied) {
+    if (copied) {
+        return server_name.isEmpty()
+                   ? tr("It is on the clipboard: paste it in the server to pair this PC.")
+                   : tr("It is on the clipboard: paste it in %1 to pair this PC.").arg(server_name);
+    }
+    return server_name.isEmpty()
+               ? tr("Enter it in the server to pair this PC. Click to copy it from Settings.")
+               : tr("Enter it in %1 to pair this PC. Click to copy it from Settings.")
+                     .arg(server_name);
+}
+
 void App::on_pairing_code_(const QString& code) {
+    // The one before, unless something else was copied since
+    pairing_clipboard::clear(this->code_);
+    this->code_.clear();
     if (code.isEmpty()) {
         // The result may already have taken the code's place
         if (this->notice_ == Notice::Code) {
@@ -254,11 +272,18 @@ void App::on_pairing_code_(const QString& code) {
             true);
         return;
     }
-    this->notifier_.show(tr("Pairing code: %1").arg(Picker::grouped_code(code)),
-                         server_name.isEmpty()
-                             ? tr("Enter it in the server to pair this PC.")
-                             : tr("Enter it in %1 to pair this PC.").arg(server_name),
-                         true);
+    this->code_ = code;
+    pairing_clipboard::copy(code);
+    // X11 and Plasma take a copy from the background; GNOME's Wayland refuses one, a moment
+    // later. The notification says which it was.
+    QTimer::singleShot(COPY_SETTLES_MS, this, [this, code, server_name] {
+        // Gone, or a result is showing in its place
+        if (this->code_ != code || this->notice_ != Notice::Code) {
+            return;
+        }
+        this->notifier_.show(tr("Pairing code: %1").arg(Picker::grouped_code(code)),
+                             code_notice_body(server_name, pairing_clipboard::holds(code)), true);
+    });
 }
 
 void App::on_pairing_approval_needed_(bool needed) {
@@ -292,6 +317,16 @@ QQuickWindow* App::settings_window() const {
 
 void App::showSettings() {
     this->show_settings_(Section::Current);
+}
+
+void App::showPairing(const QString& activationToken) {
+    this->show_settings_(Section::MusicAssistant, activationToken);
+    const QQuickWindow* window = this->settings_window();
+    auto* copy = window != nullptr ? window->findChild<QQuickItem*>("copyCode") : nullptr;
+    if (copy != nullptr && copy->isVisible()) {
+        // As the Tab key would, so the focus shows
+        copy->forceActiveFocus(Qt::TabFocusReason);
+    }
 }
 
 void App::show_settings_(Section section, const QString& activation_token) {

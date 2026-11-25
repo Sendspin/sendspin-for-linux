@@ -26,10 +26,49 @@ ScrollView {
             visible: page.settings.pairingCode.length > 0
             spacing: 4
 
-            Label {
-                text: page.settings.pairingCode
-                font.pointSize: 28
-                font.family: "monospace"
+            RowLayout {
+                spacing: 12
+
+                // Selectable, so the digits can also be taken by hand
+                TextEdit {
+                    readOnly: true
+                    selectByMouse: true
+                    activeFocusOnTab: false
+                    textFormat: TextEdit.PlainText
+                    text: page.settings.pairingCode
+                    color: palette.windowText
+                    selectionColor: palette.highlight
+                    selectedTextColor: palette.highlightedText
+                    font.pointSize: 28
+                    font.family: "monospace"
+                    Accessible.role: Accessible.StaticText
+                    Accessible.name: qsTr("Pairing code: %1").arg(text)
+                }
+                Button {
+                    objectName: "copyCode"
+                    text: qsTr("Copy")
+                    Accessible.name: qsTr("Copy the pairing code")
+                    onClicked: page.settings.copyPairingCode()
+                }
+                Label {
+                    id: codeCopied
+
+                    Accessible.role: Accessible.AlertMessage
+                    Accessible.name: text
+                }
+                Timer {
+                    id: codeCopiedTimer
+                    interval: 3000
+                    onTriggered: codeCopied.text = ""
+                }
+                Connections {
+                    target: page.settings
+
+                    function onPairingCodeCopied() {
+                        codeCopied.text = qsTr("Copied")
+                        codeCopiedTimer.restart()
+                    }
+                }
             }
             Label { text: qsTr("Enter this code in the server to pair this PC.") }
         }
