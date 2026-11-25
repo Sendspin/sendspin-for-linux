@@ -96,6 +96,7 @@ std::optional<int> run_headless(int argc, char** argv) {
     }
     if (!engine.start()) {
         err << "The server did not start.\n";
+        output.stop();
         return 1;
     }
 
@@ -137,5 +138,8 @@ std::optional<int> run_headless(int argc, char** argv) {
         std::signal(SIGINT, on_signal);
         std::signal(SIGTERM, on_signal);
     }
-    return QCoreApplication::exec();
+    const int code = QCoreApplication::exec();
+    // The capture thread writes into the engine, which goes first
+    output.stop();
+    return code;
 }

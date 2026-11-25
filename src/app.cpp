@@ -101,12 +101,13 @@ void App::start() {
     if (!this->output_.start(&error)) {
         qCWarning(lc_app, "no Sendspin output: %s", qUtf8Printable(error));
     }
+    // First: its client_id comes with its start
+    this->client_.start();
     // Our server never connects to our own client
-    this->cast_.set_own_client_port(this->client_.port());
+    this->cast_.set_own_client(this->client_.port(), this->client_.client_id().toStdString());
     if (!this->cast_.start()) {
         qCWarning(lc_app, "casting to speakers is unavailable");
     }
-    this->client_.start();
 }
 
 std::vector<sendspin::AudioSupportedFormatObject> App::probe_formats_() {

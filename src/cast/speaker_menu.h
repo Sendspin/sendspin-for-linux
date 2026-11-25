@@ -147,6 +147,9 @@ enum class Step : uint8_t {
     NONE,
     /// approve(PLAYBACK): adding a speaker lets it play unpaired
     APPROVE,
+    /// begin_pairing(): adding a speaker that only plays for paired servers pairs it. Once per
+    /// connection; what the user cancels is not asked for again.
+    PAIR,
     MOVE_TO_CAST,
     /// Out of the cast group, into the server's own group, which never plays
     MOVE_TO_LOBBY,

@@ -67,7 +67,8 @@ CastFeed::State CastFeed::poll(int64_t now_ns) {
     if (this->closed_.load() || this->input_->state() == InputState::CLOSED) {
         return State::CLOSED;
     }
-    const bool latched = this->stop_latched_.exchange(false);
+    const bool latched =
+        this->stop_latched_.exchange(false) || this->input_->state() == InputState::STOP_LATCHED;
     if (latched || (this->streaming_.load() && !this->has_sound(now_ns))) {
         // A block with sound that arrives right now either starts the next run or loses its
         // first samples to this stop; the poll after it sees the run it left open

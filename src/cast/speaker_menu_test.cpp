@@ -335,13 +335,15 @@ private slots:
                  Step::MOVE_TO_CAST);
     }
 
-    // Pairing is the user's to start, and to finish
-    void anAddedSpeakerThatNeedsPairingWaitsForIt() {
-        QCOMPARE(next_step({.ticked = true, .connected = true}), Step::NONE);
+    // Whether it was connected when it was added or connects later
+    void addingASpeakerThatNeedsPairingPairsIt() {
+        QCOMPARE(next_step({.ticked = true, .connected = true}), Step::PAIR);
         QCOMPARE(
             next_step(
                 {.ticked = true, .connected = true, .paired = true, .credential_mismatch = true}),
-            Step::NONE);
+            Step::PAIR);
+        // Not one nobody added
+        QCOMPARE(next_step({.connected = true}), Step::NONE);
     }
 
     void anAddedSpeakerThatIsntConnectedWaitsForItsConnection() {

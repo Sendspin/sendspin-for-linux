@@ -222,8 +222,7 @@ Step next_step(const Facts& facts) {
         case Connection::WAITING:
             return Step::APPROVE;
         default:
-            // Pairing is the user's to start
-            return Step::NONE;
+            return Step::PAIR;
     }
 }
 

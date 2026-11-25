@@ -67,6 +67,11 @@ public:
         return QString::fromStdString(this->client_.client_id());
     }
 
+    /// As its own button would: client/leave
+    void leave() {
+        this->client_.leave();
+    }
+
     // An audio device with a short buffer: it takes audio no faster than it plays it, and says
     // when each block will have played. Sync task thread.
     size_t on_audio_output(std::span<const uint8_t> pcm, const sendspin::AudioFormat& format,
@@ -203,10 +208,10 @@ struct Rig {
 // The pinned sendspin-server-cpp (f217a96) sends a run's stream/start ahead of the
 // server/activate that declares `playback`, and the pinned sendspin-cpp (v0.10.0) ignores a
 // stream/start that comes without it, as the spec now asks. Until a server that orders them the
-// other way is pinned, the speaker in these tests gets no stream; every check up to this one
-// still holds. An unexpected pass fails the test: take this out then.
+// other way is pinned, the speaker in these tests gets no stream. This marks the one check after
+// it; the test goes on. An unexpected pass fails the test: take the mark out then.
 #define EXPECT_STREAM_IGNORED() \
-    QEXPECT_FAIL("", "sendspin-server-cpp sends stream/start before it declares playback", Abort)
+    QEXPECT_FAIL("", "sendspin-server-cpp sends stream/start before it declares playback", Continue)
 
 // The engine against a real sendspin-cpp player on the loopback interface.
 class CastEngineTest : public QObject {
@@ -295,15 +300,81 @@ private slots:
 
         rig.play(1500);
         EXPECT_STREAM_IGNORED();
-        QTRY_VERIFY(peer.loud_samples.load() > 0);
+        QTRY_VERIFY_WITH_TIMEOUT(peer.loud_samples.load() > 0, 2000);
+        EXPECT_STREAM_IGNORED();
         QCOMPARE(peer.streams_started, 1);
 
         rig.engine->remove(peer.id());
-        QTRY_COMPARE(peer.streams_ended, 1);
+        EXPECT_STREAM_IGNORED();
+        QTRY_COMPARE_WITH_TIMEOUT(peer.streams_ended, 1, 2000);
+        // Whatever it heard before, it hears nothing more and no stream opens
+        QTRY_COMPARE(rig.check(peer.id()), Check::EMPTY);
+        QTest::qWait(700);
         const uint64_t heard = peer.loud_samples.load();
-        rig.play(500);
+        const int started = peer.streams_started;
+        rig.play(700);
         QCOMPARE(peer.loud_samples.load(), heard);
-        QCOMPARE(peer.streams_started, 1);
+        QCOMPARE(peer.streams_started, started);
+        QVERIFY(!rig.engine->playing());
+    }
+
+    // The move asked for first lands after the second choice and must not undo it
+    void aQuickRemoveAndAddAgainLeavesTheSpeakerAdded() {
+        Peer peer(this->speaker_dir_->path(), this->port_, true);
+        Rig rig(this->app_dir_->path(), this->port_);
+        QVERIFY(rig.engine->start(0, false));
+        QTRY_VERIFY(rig.row(peer.id()) != nullptr);
+        rig.engine->add(peer.id());
+        QTRY_COMPARE(rig.check(peer.id()), Check::FILLED);
+
+        rig.engine->remove(peer.id());
+        rig.engine->add(peer.id());
+        QTest::qWait(1000);
+        QVERIFY(rig.row(peer.id())->in_group);
+        QTRY_COMPARE(rig.check(peer.id()), Check::FILLED);
+        QTest::qWait(1000);
+        QVERIFY(rig.row(peer.id())->in_group);
+    }
+
+    void aQuickAddAndRemoveAgainLeavesTheSpeakerOut() {
+        Peer peer(this->speaker_dir_->path(), this->port_, true);
+        Rig rig(this->app_dir_->path(), this->port_);
+        QVERIFY(rig.engine->start(0, false));
+        QTRY_VERIFY(rig.row(peer.id()) != nullptr);
+
+        rig.engine->add(peer.id());
+        rig.engine->remove(peer.id());
+        QTest::qWait(1000);
+        QVERIFY(!rig.row(peer.id())->in_group);
+        // Its approval, which was the tick, is taken back and it stays out
+        QTest::qWait(3000);
+        QVERIFY(!rig.row(peer.id())->in_group);
+        QCOMPARE(rig.check(peer.id()), Check::EMPTY);
+        QVERIFY(rig.engine->feed().input() == nullptr);
+    }
+
+    // The last member's client/leave makes the server stop the group; the feed acknowledges it,
+    // and the next sound plays again
+    void aStopByTheServerIsAcknowledgedAndSoundPlaysAgain() {
+        Peer peer(this->speaker_dir_->path(), this->port_, true);
+        Rig rig(this->app_dir_->path(), this->port_);
+        QVERIFY(rig.engine->start(0, false));
+        QTRY_VERIFY(rig.row(peer.id()) != nullptr);
+        rig.engine->add(peer.id());
+        QTRY_COMPARE(rig.check(peer.id()), Check::FILLED);
+        QTRY_VERIFY(rig.engine->feed().input() != nullptr);
+        rig.play(500);
+        QVERIFY(rig.engine->feed().streaming());
+
+        peer.leave();
+        // Well inside the 3 s the idle rule would take
+        QTRY_VERIFY_WITH_TIMEOUT(!rig.engine->feed().streaming(), 1500);
+        QTRY_COMPARE(rig.engine->feed().input()->state(), sendspin::server::InputState::OPEN);
+
+        const uint64_t written = rig.engine->feed().written_frames();
+        rig.play(300);
+        QVERIFY(rig.engine->feed().streaming());
+        QVERIFY(rig.engine->feed().written_frames() > written);
     }
 
     void idleSilenceEndsTheStreamAndSoundRestartsIt() {
@@ -334,7 +405,9 @@ private slots:
         // What the speaker saw of it: two streams, with an end between them
         EXPECT_STREAM_IGNORED();
         QCOMPARE(peer.streams_started, 2);
+        EXPECT_STREAM_IGNORED();
         QVERIFY(peer.streams_ended >= 1);
+        EXPECT_STREAM_IGNORED();
         QVERIFY(peer.loud_samples.load() > 0);
     }
 
@@ -410,6 +483,62 @@ private slots:
         QTRY_COMPARE(rig.check(impostor.id()), Check::FILLED);
         QCOMPARE(rig.status(impostor.id()), Status::NONE);
         QVERIFY(rig.row(id) == nullptr);
+    }
+
+    // Added while it was away, it is paired when it connects, as one added while connected is
+    void anAddedSpeakerThatNeedsPairingIsPairedWhenItConnectsLater() {
+        auto peer = std::make_unique<Peer>(this->speaker_dir_->path(), this->port_, false);
+        const QString id = peer->id();
+        Rig rig(this->app_dir_->path(), this->port_);
+        QVERIFY(rig.engine->start(0, false));
+        QSignalSpy code_needed(rig.engine.get(), &CastEngine::pairingCodeNeeded);
+        QTRY_COMPARE(rig.status(id), Status::NEEDS_PAIRING);
+        rig.engine->add(id);
+        QTRY_COMPARE(code_needed.count(), 1);
+        // Asked once per connection, not on every look at it
+        QTest::qWait(700);
+        QCOMPARE(code_needed.count(), 1);
+
+        peer.reset();
+        QTRY_COMPARE(rig.status(id), Status::UNAVAILABLE);
+        peer = std::make_unique<Peer>(this->speaker_dir_->path(), this->port_, false);
+        QTRY_COMPARE_WITH_TIMEOUT(code_needed.count(), 2, 30000);
+        QCOMPARE(code_needed.last().at(0).toString(), id);
+    }
+
+    // Loop guard 3, whatever way it got to the server
+    void thisAppsOwnClientIsNeverListed() {
+        Peer own(this->speaker_dir_->path(), this->port_, true);
+        Rig rig(this->app_dir_->path(), this->port_);
+        rig.engine->set_own_client(this->port_, own.id().toStdString());
+        QVERIFY(rig.engine->start(0, false));
+        QTest::qWait(1500);
+        QCOMPARE(rig.engine->speakers()->rowCount(), 0);
+    }
+
+    void settingsThatMakeNoSenseAreLeftOut() {
+        {
+            QSettings settings(this->app_dir_->path() + "/cast.ini", QSettings::IniFormat);
+            settings.setValue("group_volume", "loud");
+            settings.beginWriteArray("added");
+            for (int i = 0; i < 3; i++) {
+                settings.setArrayIndex(i);
+                settings.setValue("client_id", i == 2 ? "other" : "same");
+                settings.setValue("name", "Kitchen");
+            }
+            settings.endArray();
+        }
+        SendspinOutput output;
+        CastEngine engine(this->app_dir_->path().toStdString(), output);
+        // Not 0, which would silence the speakers when the group is made
+        QCOMPARE(engine.group_volume(), 100);
+        QCOMPARE(engine.speakers()->rowCount(), 2);
+
+        QSettings settings(this->app_dir_->path() + "/cast.ini", QSettings::IniFormat);
+        settings.setValue("group_volume", 250);
+        settings.sync();
+        CastEngine again(this->app_dir_->path().toStdString(), output);
+        QCOMPARE(again.group_volume(), 100);
     }
 
     void theAddedSpeakersAndTheVolumeAreKeptAcrossRestarts() {

@@ -20,6 +20,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 /// @brief Whether a browsed instance is this app's own Sendspin client: its port, at one of this
@@ -56,10 +57,12 @@ public:
                QObject* parent = nullptr);
     ~CastEngine() override;
 
-    /// @brief The port this app's own Sendspin client listens on, so browsing leaves it alone.
-    /// Before start().
-    void set_own_client_port(uint16_t port) {
+    /// @brief This app's own Sendspin client, which the server never dials, approves, pairs or
+    /// lists. Before start().
+    /// @param port where it listens, which is how browsing knows its instance
+    void set_own_client(uint16_t port, std::string client_id) {
         this->own_client_port_ = port;
+        this->own_client_id_ = std::move(client_id);
     }
 
     /// @brief Starts the server. A taken port is replaced by one the system picks.
@@ -160,6 +163,8 @@ private:
         /// A step is under way; until this passes or its group changes, none follows, and a
         /// change of group is ours rather than the speaker's own
         int64_t busy_until_ns{0};
+        /// Pairing was started for this connection; it is not started twice
+        bool pairing_asked{false};
         /// "Identity changed": the added speaker this unknown one presents itself as
         QString presents_as;
 
@@ -196,6 +201,7 @@ private:
     ServerPersistence persistence_;
     QSettings settings_;
     uint16_t own_client_port_{0};
+    std::string own_client_id_;
     std::unique_ptr<Listener> listener_;
     std::unique_ptr<sendspin::server::SendspinServer> server_;
     CastFeed feed_;

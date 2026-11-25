@@ -285,7 +285,7 @@ void CastEngine::add(const QString& id) {
     }
     this->set_ticked_(*speaker, true);
     speaker->left_as.reset();
-    speaker->busy_until_ns = 0;
+    speaker->pairing_asked = false;
     if (!speaker->facts.connected) {
         // Dials for playback, which may take it from another server: the user asked for it
         const bool dialing = speaker->client_id.empty()
@@ -294,13 +294,9 @@ void CastEngine::add(const QString& id) {
         if (!dialing) {
             qCInfo(lc_cast, "%s can't be dialed now", qUtf8Printable(speaker->name));
         }
-    } else {
-        const Connection connection = speaker_menu::connection(speaker->facts);
-        if (connection == Connection::NEEDS_PAIRING ||
-            connection == Connection::NEEDS_PAIRING_AGAIN) {
-            this->pair(id);
-        }
     }
+    // A step still under way keeps its window: the move it asked for must not be read as the
+    // speaker's own when it lands
     this->refresh_();
 }
 
@@ -317,7 +313,6 @@ void CastEngine::remove(const QString& id) {
         }
     }
     this->set_ticked_(*speaker, false);
-    speaker->busy_until_ns = 0;
     const std::optional<GroupId> lobby = this->server_->default_group();
     if (!speaker->facts.connected && !speaker->client_id.empty() && this->cast_exists_ && lobby) {
         // Gives up the place the library keeps for it in the cast group while it is away
@@ -411,6 +406,7 @@ void CastEngine::on_disconnected_(const ClientInfo& info, const ClientDisconnect
         speaker->group.reset();
         speaker->busy_until_ns = 0;
         speaker->cant_play = false;
+        speaker->pairing_asked = false;
         // A speaker reached by its URL can't announce that it's back, and the library stops
         // dialing one that said goodbye. Gone for a while is not a wish to be left alone.
         if (speaker->left_as == Connection::UNAVAILABLE &&
@@ -523,6 +519,10 @@ void CastEngine::sync_clients_() {
         speaker.facts.connected = false;
     }
     for (const ClientInfo& info : this->server_->clients()) {
+        // Never our own client, however it got here
+        if (!this->own_client_id_.empty() && info.client_id == this->own_client_id_) {
+            continue;
+        }
         Speaker& speaker = this->speaker_for_(info);
         speaker.listed = true;
         if (!info.name.empty()) {
@@ -562,7 +562,8 @@ void CastEngine::detect_identity_changes_() {
         // A client_id the app hasn't seen, under an added speaker's name or URL
         const auto it = std::ranges::find_if(this->speakers_, [&speaker](const Speaker& added) {
             return added.facts.ticked && !added.facts.connected &&
-                   ((!added.url.empty() && added.url == speaker.url) || added.name == speaker.name);
+                   ((!added.url.empty() && added.url == speaker.url) ||
+                    (!added.name.isEmpty() && added.name == speaker.name));
         });
         if (it != this->speakers_.end()) {
             speaker.presents_as = it->key();
@@ -600,6 +601,14 @@ void CastEngine::take_steps_(int64_t now_ns) {
                 break;
             case Step::REVOKE:
                 taken = this->server_->revoke_approval(speaker.client_id);
+                break;
+            case Step::PAIR:
+                // No busy window: the pairing takes as long as the user does
+                taken = false;
+                if (!speaker.pairing_asked) {
+                    speaker.pairing_asked = true;
+                    (void)this->pair(speaker.key());
+                }
                 break;
             case Step::NONE:
                 taken = false;
@@ -785,9 +794,11 @@ void CastEngine::set_discovery_available_(bool available) {
 // ==============================================================================
 
 void CastEngine::load_settings_() {
-    if (this->settings_.contains("group_volume")) {
-        this->volume_ = std::clamp(this->settings_.value("group_volume").toInt(), 0,
-                                   static_cast<int>(sendspin::server::MAX_VOLUME));
+    // A value that isn't a volume is no volume: read as 0 it would silence the speakers
+    bool ok = false;
+    const int volume = this->settings_.value("group_volume").toInt(&ok);
+    if (ok && volume >= 0 && volume <= static_cast<int>(sendspin::server::MAX_VOLUME)) {
+        this->volume_ = volume;
     }
     this->muted_ = this->settings_.value("group_muted", false).toBool();
 
@@ -800,7 +811,7 @@ void CastEngine::load_settings_() {
         // A speaker keeps the name from its hello while it's away
         speaker.name = this->settings_.value("name").toString();
         speaker.facts.ticked = true;
-        if (!speaker.client_id.empty()) {
+        if (!speaker.client_id.empty() && this->find_client_(speaker.client_id) == nullptr) {
             this->speakers_.push_back(std::move(speaker));
         }
     }
