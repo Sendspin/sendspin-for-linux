@@ -1,9 +1,21 @@
-# Sendspin for Linux
+<p align="center">
+  <img src="data/icons/hicolor/256x256/apps/com.sendspin_audio.Sendspin.png" width="128" height="128" alt="App icon: Sendspin's mark in cream on a coral tile">
+</p>
 
-Play this PC's sound on your [Sendspin](https://www.sendspin-audio.com/) speakers: wireless,
-lossless and in sync. Sendspin for Linux adds an output named **Sendspin** to your sound
+<h1 align="center">Sendspin for Linux</h1>
+
+<p align="center">Your PC's sound on every speaker: lossless, in sync and open source, using <a href="https://www.sendspin-audio.com/">Sendspin</a>.</p>
+
+<p align="center">
+  <a href="https://github.com/Sendspin/sendspin-for-linux/releases"><img src="https://img.shields.io/github/v/release/Sendspin/sendspin-for-linux" alt="GitHub Release"></a>
+</p>
+
+Play this PC's sound on your Sendspin speakers: wireless, lossless and in sync. Sendspin for
+Linux adds an output named **Sendspin** to your sound
 settings and a small tray app to pick the speakers it plays on. If you run Music Assistant, it
 can play to this PC too, and take this PC's sound as an input for anything it controls.
+
+[![A project from the Open Home Foundation](https://www.openhomefoundation.org/badges/ohf-project.png)](https://www.openhomefoundation.org/)
 
 <img src="data/screenshots/picker.png" width="340" alt="The picker: the Sendspin row with the group's volume slider, this PC's output, and the Sendspin speakers on the network, each with a round check to tick.">
 
@@ -277,6 +289,10 @@ To remove your settings and pairings as well:
 rm -rf ~/.config/sendspin ~/.local/share/sendspin ~/.config/autostart/com.sendspin_audio.Sendspin.desktop
 ```
 
----
+## Developing
 
 Building it, or working on it? See [docs/DEVELOPING.md](docs/DEVELOPING.md).
+
+## License
+
+[Apache 2.0](LICENSE)
