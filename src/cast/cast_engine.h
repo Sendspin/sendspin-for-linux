@@ -102,6 +102,9 @@ public:
         return this->discovery_available_;
     }
 
+    /// @brief False while what plays can't be joined (a server): the rows have no check
+    void set_plays_groupable(bool groupable);
+
     /// @brief Where the Sendspin output's blocks go: CastFeed::take(), on the realtime thread
     CastFeed& feed() {
         return this->feed_;
@@ -133,8 +136,8 @@ public slots:
     void setGroupVolume(int volume);
     void setGroupMuted(bool muted);
 
-    /// @brief Puts this PC's own output in the group or takes it out. The engine does not keep
-    /// the choice: in the group until told otherwise.
+    /// @brief Puts this PC's own output in the group or takes it out. The picker keeps the
+    /// choice: in the group until told otherwise.
     void setLocalInGroup(bool in_group);
 
     /// @brief Starts pairing by the best method the speaker offers: the dynamic code, the static
@@ -201,6 +204,7 @@ private:
     void take_steps_(int64_t now_ns);
     void update_input_(int64_t now_ns);
     void update_local_(int64_t now_ns);
+    void refresh_local_();
     void publish_rows_();
     void release_cast_();
 
@@ -248,6 +252,7 @@ private:
     std::optional<int> volume_;
     bool muted_{false};
     bool playing_{false};
+    bool plays_groupable_{true};
     bool discovery_available_{true};
     int64_t latency_ns_{0};
 

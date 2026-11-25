@@ -197,6 +197,19 @@ struct Action {
     std::string id;
 };
 
+/// @brief What clicking a row's name does
+enum class NameClick : uint8_t {
+    /// Play there only
+    PLAY_ONLY,
+    /// Play there only, and dial it again: another server took it, and the library doesn't take
+    /// it back by itself
+    PLAY_ONLY_AND_DIAL,
+    /// "Identity changed": accept the new identity; the group stays as it is
+    ACCEPT_IDENTITY,
+};
+
+NameClick name_click(const Row& row);
+
 /// @brief What a choice leads to
 struct Plan {
     std::set<std::string> group;

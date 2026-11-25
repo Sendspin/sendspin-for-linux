@@ -337,6 +337,13 @@ void CastEngine::remove(const QString& id) {
     this->refresh_();
 }
 
+void CastEngine::set_plays_groupable(bool groupable) {
+    if (this->plays_groupable_ != groupable) {
+        this->plays_groupable_ = groupable;
+        this->publish_rows_();
+    }
+}
+
 void CastEngine::setGroupVolume(int volume) {
     volume = std::clamp(volume, 0, static_cast<int>(sendspin::server::MAX_VOLUME));
     if (this->volume_ == volume) {
@@ -365,7 +372,7 @@ void CastEngine::setGroupMuted(bool muted) {
 void CastEngine::setLocalInGroup(bool in_group) {
     if (this->local_in_group_ != in_group) {
         this->local_in_group_ = in_group;
-        this->refresh_();
+        this->refresh_local_();
         emit this->localChanged();
     }
 }
@@ -376,8 +383,15 @@ void CastEngine::set_local_target(const std::optional<QByteArray>& target) {
     if (this->play_along_.target() != before) {
         // Another output, another delay
         this->local_late_ = false;
-        this->refresh_();
+        this->refresh_local_();
         emit this->localChanged();
+    }
+}
+
+void CastEngine::refresh_local_() {
+    // Not refresh_(): the speakers' rows have not changed, and are not published again
+    if (this->server_) {
+        this->update_local_(raw_now_ns());
     }
 }
 
@@ -386,7 +400,7 @@ speaker_menu::Output CastEngine::local_output() const {
     output.is_local = true;
     output.in_group = this->local_in_group_;
     output.is_discovered = this->play_along_.target().has_value();
-    output.plays = this->local_plays_;
+    output.plays = output.in_group && output.is_discovered && !this->local_late_;
     output.connection = this->local_late_ ? Connection::CANT_PLAY : Connection::CONNECTED;
     return output;
 }
@@ -821,7 +835,9 @@ void CastEngine::publish_rows_() {
         row.plays = output.plays;
         row.paired = speaker.facts.paired;
         row.can_pair = speaker.can_pair;
-        row.row = speaker_menu::row(output, {.plays_groupable = true, .group_count = added});
+        row.can_play = speaker_menu::can_play(output);
+        row.row = speaker_menu::row(
+            output, {.plays_groupable = this->plays_groupable_, .group_count = added});
         rows.push_back(std::move(row));
     }
     std::ranges::sort(rows, [](const SpeakerRow& a, const SpeakerRow& b) {

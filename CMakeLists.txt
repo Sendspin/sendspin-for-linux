@@ -16,9 +16,8 @@ if(NOT _multi_config AND NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "Build type" FORCE)
 endif()
 
-# Floors are Debian 13's versions. Qml and Quick are not linked yet; requiring them here
-# keeps every build environment ready for the Settings window.
-find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Widgets Network Qml Quick DBus)
+# Floors are Debian 13's versions
+find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Widgets Network Qml Quick QuickControls2 DBus)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(PIPEWIRE REQUIRED IMPORTED_TARGET libpipewire-0.3>=1.4.2)
 # The client's own mDNS advertisement; the server library brings its own avahi use

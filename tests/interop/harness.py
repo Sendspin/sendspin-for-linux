@@ -43,6 +43,8 @@ def private_env(home: Path) -> dict[str, str]:
         "XDG_CONFIG_HOME": str(home / "config"),
         "XDG_STATE_HOME": str(home / "state"),
         "QT_QPA_PLATFORM": "offscreen",
+        # The picker opens at launch, and there is no GPU to draw it with
+        "QT_QUICK_BACKEND": "software",
         # Fedora's Qt logs to the journal when stderr is no terminal
         "QT_FORCE_STDERR_LOGGING": "1",
         # No system bus, so no avahi: on a desktop the app would advertise itself and dial the

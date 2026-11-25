@@ -15,17 +15,19 @@ SingleInstance::SingleInstance(const QString& dir, QObject* parent)
     this->lock_.setStaleLockTime(0);
     this->server_.setSocketOptions(QLocalServer::UserAccessOption);
     connect(&this->server_, &QLocalServer::newConnection, this, [this] {
-        // The connection is the whole message
+        // The message is whatever was written before the other end closed: its token, or nothing
         while (QLocalSocket* socket = this->server_.nextPendingConnection()) {
-            socket->deleteLater();
-            emit this->secondLaunch();
+            connect(socket, &QLocalSocket::disconnected, this, [this, socket] {
+                emit this->secondLaunch(QString::fromLatin1(socket->readAll()));
+                socket->deleteLater();
+            });
         }
     });
 }
 
-bool SingleInstance::claim() {
+bool SingleInstance::claim(const QByteArray& activation_token) {
     if (!this->lock_.tryLock()) {
-        if (!this->ping()) {
+        if (!this->ping(activation_token)) {
             qCWarning(lc_instance, "another instance holds the lock but does not answer");
         }
         return false;
@@ -39,13 +41,17 @@ bool SingleInstance::claim() {
     return true;
 }
 
-bool SingleInstance::ping() const {
+bool SingleInstance::ping(const QByteArray& activation_token) const {
     // The instance takes the lock a moment before it listens
     for (int attempt = 0; attempt < 20; ++attempt) {
         QLocalSocket socket;
         socket.connectToServer(this->socket_path_);
         if (socket.waitForConnected(100)) {
-            return true;
+            socket.write(activation_token);
+            socket.disconnectFromServer();
+            // Until it is sent: this process exits next
+            return socket.state() == QLocalSocket::UnconnectedState ||
+                   socket.waitForDisconnected(1000);
         }
         QThread::msleep(100);
     }

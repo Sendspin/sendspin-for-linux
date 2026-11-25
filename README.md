@@ -80,7 +80,7 @@ The speakers added are remembered in `~/.local/share/sendspin/cast.ini`, and the
 them when it starts normally too. Adding a speaker that another server is playing to takes it
 from that server.
 
-Started normally, the app plays along on this PC's own output whenever a speaker is added: the
+With this PC's output ticked in the picker beside a speaker, the app plays along on it: the
 system's default output, or the one that was the default before the Sendspin output. With
 `QT_LOGGING_RULES=sendspin.cast.info=true` it logs every 5 s how far off the group's time it
 plays. An output whose delay is longer than the speakers' buffer, as Bluetooth's can be, cannot
