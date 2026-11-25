@@ -37,16 +37,35 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      # gh run download
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      VERSION: ${{ needs.packages.outputs.version }}
     steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: dist
-          merge-multiple: true
+      # An artifact uploaded seconds ago can be missing from the run's list, and a release short
+      # of a file would still look done: ask again until all of them are there
+      - name: Download the artifacts
+        run: |
+          expected="sendspin-for-linux-$VERSION-debian13-amd64.deb
+          sendspin-for-linux-$VERSION-fedora44-x86_64.rpm
+          sendspin-for-linux-$VERSION-ubuntu26.04-amd64.deb
+          sendspin-for-linux-$VERSION-x86_64.flatpak
+          sendspin-for-linux-$VERSION.tar.xz"
+          for try in 1 2 3 4 5 6; do
+            gh run download "$GITHUB_RUN_ID" --dir "try$try"
+            actual=$(find "try$try" -type f -printf '%f\n' | LC_ALL=C sort)
+            [ "$actual" != "$expected" ] || break
+            sleep 10
+          done
+          if [ "$actual" != "$expected" ]; then
+            echo "::error::the artifacts are not the release's files"
+            echo "$actual"
+            exit 1
+          fi
+          mkdir dist && find "try$try" -type f -exec mv {} dist/ \;
       - name: Create the draft
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          VERSION: ${{ needs.packages.outputs.version }}
         run: |
           cd dist
           sha256sum -- * >SHA256SUMS
