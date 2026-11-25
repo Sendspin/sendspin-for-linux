@@ -1,13 +1,21 @@
 #include "notifier.h"
 
+#include "autostart.h"
+
 #include <QDBusConnection>
 #include <QDBusMessage>
+#include <QDBusMetaType>
 #include <QDBusPendingCallWatcher>
 #include <QDBusPendingReply>
 #include <QGuiApplication>
 #include <QVariantMap>
 
 namespace {
+
+/// The portal knows a notification by a name of the app's own; there is one at a time
+constexpr QLatin1StringView PORTAL_ID{"pairing"};
+constexpr QLatin1StringView KEY_DEFAULT{"default"};
+constexpr QLatin1StringView KEY_BUTTON{"act"};
 
 QDBusMessage call(const QString& method) {
     return QDBusMessage::createMethodCall(QStringLiteral("org.freedesktop.Notifications"),
@@ -21,9 +29,29 @@ void close_notification(quint32 id) {
     QDBusConnection::sessionBus().send(message);
 }
 
+QDBusMessage portal_call(const QString& portal, const QString& method) {
+    return QDBusMessage::createMethodCall(portal, QStringLiteral("/org/freedesktop/portal/desktop"),
+                                          QStringLiteral("org.freedesktop.portal.Notification"),
+                                          method);
+}
+
 }  // namespace
 
-Notifier::Notifier(QObject* parent) : QObject(parent) {
+Notifier::Notifier(QObject* parent)
+    : Notifier(
+          autostart::sandboxed() ? QStringLiteral("org.freedesktop.portal.Desktop") : QString(),
+          parent) {}
+
+Notifier::Notifier(const QString& portal, QObject* parent) : QObject(parent), portal_(portal) {
+    if (!portal.isEmpty()) {
+        // The buttons, as aa{sv}
+        qDBusRegisterMetaType<QList<QVariantMap>>();
+        QDBusConnection::sessionBus().connect(
+            portal, QStringLiteral("/org/freedesktop/portal/desktop"),
+            QStringLiteral("org.freedesktop.portal.Notification"), QStringLiteral("ActionInvoked"),
+            this, SLOT(onPortalActionInvoked(QString, QString, QVariantList)));
+        return;
+    }
     QDBusConnection::sessionBus().connect(QStringLiteral("org.freedesktop.Notifications"),
                                           QStringLiteral("/org/freedesktop/Notifications"),
                                           QStringLiteral("org.freedesktop.Notifications"),
@@ -34,12 +62,48 @@ Notifier::Notifier(QObject* parent) : QObject(parent) {
 void Notifier::onActionInvoked(quint32 id, const QString& key) {
     // The signal is broadcast for every app's notifications
     if (id != 0 && id == this->id_) {
-        if (key == QLatin1String("default")) {
-            emit this->clicked();
-        } else {
-            emit this->actionInvoked();
-        }
+        this->invoked(key);
     }
+}
+
+void Notifier::onPortalActionInvoked(const QString& id, const QString& action,
+                                     const QVariantList& /*parameter*/) {
+    if (id == PORTAL_ID) {
+        this->invoked(action);
+    }
+}
+
+void Notifier::invoked(const QString& key) {
+    if (key == KEY_DEFAULT) {
+        emit this->clicked();
+    } else {
+        emit this->actionInvoked();
+    }
+}
+
+void Notifier::show_on_portal(const QString& summary, const QString& body, bool persistent,
+                              const QString& action) {
+    // No timeout to ask for: the desktop keeps a notification until it is removed. Priority
+    // is what tells the code to type in from the result
+    QVariantMap notification{
+        {QStringLiteral("title"), summary},
+        {QStringLiteral("priority"),
+         persistent ? QStringLiteral("high") : QStringLiteral("normal")},
+        {QStringLiteral("default-action"), QString(KEY_DEFAULT)},
+    };
+    if (!body.isEmpty()) {
+        notification.insert(QStringLiteral("body"), body);
+    }
+    if (!action.isEmpty()) {
+        const QList<QVariantMap> buttons{{
+            {QStringLiteral("label"), action},
+            {QStringLiteral("action"), QString(KEY_BUTTON)},
+        }};
+        notification.insert(QStringLiteral("buttons"), QVariant::fromValue(buttons));
+    }
+    QDBusMessage message = portal_call(this->portal_, QStringLiteral("AddNotification"));
+    message << QString(PORTAL_ID) << notification;
+    QDBusConnection::sessionBus().send(message);
 }
 
 void Notifier::show(const QString& summary, const QString& body, bool persistent,
@@ -48,10 +112,14 @@ void Notifier::show(const QString& summary, const QString& body, bool persistent
     if (!bus.isConnected()) {
         return;
     }
+    if (!this->portal_.isEmpty()) {
+        this->show_on_portal(summary, body, persistent, action);
+        return;
+    }
     // "default" is the click on the notification itself; servers that show it use the label
-    QStringList actions{QStringLiteral("default"), tr("Settings")};
+    QStringList actions{QString(KEY_DEFAULT), tr("Settings")};
     if (!action.isEmpty()) {
-        actions << QStringLiteral("act") << action;
+        actions << QString(KEY_BUTTON) << action;
     }
     QDBusMessage message = call(QStringLiteral("Notify"));
     // app_name, replaces_id, app_icon, summary, body, actions, hints, expire_timeout (0: never,
@@ -78,6 +146,12 @@ void Notifier::show(const QString& summary, const QString& body, bool persistent
 }
 
 void Notifier::close() {
+    if (!this->portal_.isEmpty()) {
+        QDBusMessage message = portal_call(this->portal_, QStringLiteral("RemoveNotification"));
+        message << QString(PORTAL_ID);
+        QDBusConnection::sessionBus().send(message);
+        return;
+    }
     ++this->generation_;
     if (this->id_ != 0) {
         close_notification(this->id_);
