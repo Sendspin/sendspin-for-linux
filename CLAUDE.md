@@ -54,6 +54,11 @@ than 1.4.2 API without a fallback.
   part on PipeWire's realtime thread. `cast_engine_test` runs a real sendspin-cpp player on the
   loopback interface, so it needs no speaker and no mDNS; `test_peer.h` is that player, for any
   test that needs a speaker.
+- `src/picker/` — the picker and what the tray shows. `picker` asks `speaker_menu` what each row
+  shows and what a click leads to, and carries that out on the cast engine, the client and the
+  default output; it holds no rules of its own. `qml/` is the window. `picker_test` loads the QML
+  offscreen and checks each status against its row.
+- `data/` — the launcher's entry and the icons, installed by `cmake --install`.
 - `src/client/` — the Sendspin client and its roles. `src/mpris.*` shows what a server plays here;
   its bus test needs a session bus and skips without one.
 - `src/settings_model.*` — what the Settings window shows and changes; `src/qml/` is the window,

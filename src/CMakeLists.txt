@@ -24,10 +24,29 @@ add_library(sendspin_app STATIC
     notifier.cpp
     paired_servers.cpp
     persistence.cpp
+    picker/picker.cpp
+    picker/picker_window.cpp
     settings_model.cpp
     single_instance.cpp
 )
-# The Settings window. Plain resources: the app's only QML, with nothing to import but Qt.
+# Plain resources rather than a QML module: a module in a static library needs its plugin
+# imported by everything that links it
+qt_add_resources(sendspin_app picker_qml PREFIX /qml BASE picker/qml FILES
+    picker/qml/OutputRow.qml
+    picker/qml/Picker.qml
+    picker/qml/ServerRow.qml
+)
+set(SENDSPIN_ICONS ${CMAKE_SOURCE_DIR}/data/icons)
+qt_add_resources(sendspin_app icons PREFIX /icons BASE ${SENDSPIN_ICONS} FILES
+    ${SENDSPIN_ICONS}/computer.svg
+    ${SENDSPIN_ICONS}/sendspin-symbolic.svg
+    ${SENDSPIN_ICONS}/sendspin-waves-symbolic.svg
+    ${SENDSPIN_ICONS}/server.svg
+    ${SENDSPIN_ICONS}/settings.svg
+    ${SENDSPIN_ICONS}/speaker-muted.svg
+    ${SENDSPIN_ICONS}/speaker.svg
+)
+# The Settings window, in the same way
 qt_add_resources(sendspin_app settings_qml PREFIX /
     FILES qml/Settings.qml qml/ThisPc.qml qml/Speakers.qml qml/MusicAssistant.qml)
 target_include_directories(sendspin_app PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
@@ -57,6 +76,17 @@ endif()
 add_executable(sendspin-for-linux main.cpp)
 target_compile_options(sendspin-for-linux PRIVATE -Wall -Wextra -Wpedantic)
 target_link_libraries(sendspin-for-linux PRIVATE sendspin_app)
+
+include(GNUInstallDirs)
+install(TARGETS sendspin-for-linux)
+# The launcher's entry, and the tray's icons where the panel finds and colours them
+install(FILES ${CMAKE_SOURCE_DIR}/data/com.sendspin_audio.Sendspin.desktop
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+install(FILES ${SENDSPIN_ICONS}/sendspin-symbolic.svg ${SENDSPIN_ICONS}/sendspin-waves-symbolic.svg
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/symbolic/apps)
+install(FILES ${SENDSPIN_ICONS}/sendspin-symbolic.svg
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
+    RENAME com.sendspin_audio.Sendspin.svg)
 
 if(BUILD_TESTING)
     find_package(Qt6 6.8 REQUIRED COMPONENTS Test)
@@ -92,6 +122,7 @@ if(BUILD_TESTING)
     sendspin_add_test(mpris_test)
     sendspin_add_test(paired_servers_test)
     sendspin_add_test(persistence_test)
+    sendspin_add_test(picker/picker_test)
     sendspin_add_test(settings_model_test)
     sendspin_add_test(single_instance_test)
 endif()

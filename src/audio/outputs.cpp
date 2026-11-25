@@ -8,6 +8,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLoggingCategory>
+#include <QSettings>
 
 #include <pipewire/extensions/metadata.h>
 #include <spa/param/audio/raw.h>
@@ -207,7 +208,96 @@ void Outputs::stop() {
     // last_default_ stays: the outputs come back as they were
     this->sinks_.clear();
     this->default_sink_.clear();
+    this->configured_sink_.clear();
     this->clock_ = {};
+}
+
+std::optional<OutputSink> Outputs::local() const {
+    if (this->loop_ == nullptr) {
+        return std::nullopt;
+    }
+    const LoopLock lock(this->loop_);
+    const std::optional<QByteArray> name =
+        choose_target(this->sinks_, this->default_sink_, {}, this->own_sink_, this->last_default_);
+    if (!name) {
+        return std::nullopt;
+    }
+    return *std::ranges::find(this->sinks_, *name, &OutputSink::name);
+}
+
+bool Outputs::own_is_default() const {
+    if (this->loop_ == nullptr) {
+        return false;
+    }
+    const LoopLock lock(this->loop_);
+    return this->default_sink_ == this->own_sink_;
+}
+
+QByteArray Outputs::configured_default() const {
+    if (this->loop_ == nullptr) {
+        return {};
+    }
+    const LoopLock lock(this->loop_);
+    return this->configured_sink_;
+}
+
+bool Outputs::configure_(const QByteArray& name) {
+    if (this->default_metadata_.proxy == nullptr) {
+        return false;
+    }
+    const QByteArray value = QJsonDocument(QJsonObject{{"name", QString::fromUtf8(name)}})
+                                 .toJson(QJsonDocument::Compact);
+    return pw_metadata_set_property(reinterpret_cast<pw_metadata*>(this->default_metadata_.proxy),
+                                    0, "default.configured.audio.sink",
+                                    name.isEmpty() ? nullptr : "Spa:String:JSON",
+                                    name.isEmpty() ? nullptr : value.constData()) >= 0;
+}
+
+bool Outputs::set_own_default(bool own) {
+    if (this->loop_ == nullptr) {
+        return false;
+    }
+    // Kept until it is put back, so a crash in between doesn't lose the user's choice
+    QSettings stored(QStringLiteral("sendspin"), QStringLiteral("sendspin"));
+    const QString key =
+        QStringLiteral("outputs/replaced_default/") + QString::fromUtf8(this->own_sink_);
+    const LoopLock lock(this->loop_);
+    if (own) {
+        if (!exists(this->sinks_, this->own_sink_)) {
+            return false;
+        }
+        if (this->configured_sink_ == this->own_sink_) {
+            return true;
+        }
+        const QByteArray replaced = this->configured_sink_;
+        if (!this->configure_(this->own_sink_)) {
+            return false;
+        }
+        stored.setValue(key, replaced);
+        return true;
+    }
+    // First an output that is there. The session manager falls back on the choices made before,
+    // and the last of those is the Sendspin output: it would stay the default while the user's
+    // own choice is unplugged.
+    const std::optional<QByteArray> other =
+        choose_target(this->sinks_, this->default_sink_, {}, this->own_sink_, this->last_default_);
+    if (stored.contains(key)) {
+        const QByteArray replaced = stored.value(key).toByteArray();
+        if (other && *other != replaced && !this->configure_(*other)) {
+            return false;
+        }
+        // Then exactly what it was: unplugged now, it is the default again once it's back
+        if (!this->configure_(replaced)) {
+            return false;
+        }
+        stored.remove(key);
+        return true;
+    }
+    // Chosen by hand, not by us: the default only has to stop being the Sendspin output
+    if (this->configured_sink_ != this->own_sink_) {
+        return true;
+    }
+    return (!other || this->configure_(*other)) && this->configure_({});
 }
 
 void Outputs::set_chosen(const QByteArray& name) {
@@ -286,15 +376,13 @@ void Outputs::update_target_() {
     }
     std::erase_if(choices, [this](const auto& sink) { return sink.name == this->own_sink_; });
     std::ranges::stable_sort(choices, std::ranges::greater{}, &OutputSink::priority);
-    if (choices != this->choices_) {
-        this->choices_ = std::move(choices);
-        emit this->choicesChanged();
-    }
+    this->choices_ = std::move(choices);
     if (target != this->target_) {
         this->target_ = target;
         qCInfo(lc_outputs, "playing on %s", target ? target->constData() : "nothing");
         emit this->targetChanged();
     }
+    emit this->changed();
 }
 
 void Outputs::lost_() {
@@ -384,6 +472,7 @@ void Outputs::on_global_remove(void* data, uint32_t id) {
     if (self->default_metadata_.proxy != nullptr && self->default_metadata_.id == id) {
         unbind_metadata_(self->default_metadata_);
         self->default_sink_.clear();
+        self->configured_sink_.clear();
         self->changed_();
     } else if (self->settings_metadata_.proxy != nullptr && self->settings_metadata_.id == id) {
         unbind_metadata_(self->settings_metadata_);
@@ -409,17 +498,21 @@ void Outputs::on_core_error(void* data, uint32_t id, int /*seq*/, int res,
 int Outputs::on_default(void* data, uint32_t /*subject*/, const char* key, const char* /*type*/,
                         const char* value) {
     auto* self = static_cast<Outputs*>(data);
+    const auto name = [value] {
+        // {"name": "<node.name>"}
+        return value == nullptr
+                   ? QByteArray()
+                   : QJsonDocument::fromJson(value).object().value("name").toString().toUtf8();
+    };
     // No key: everything was removed
-    if (key != nullptr && std::strcmp(key, "default.audio.sink") != 0) {
-        return 0;
+    if (key == nullptr || std::strcmp(key, "default.configured.audio.sink") == 0) {
+        self->configured_sink_ = key == nullptr ? QByteArray() : name();
     }
-    // {"name": "<node.name>"}
-    self->default_sink_ =
-        (key == nullptr || value == nullptr)
-            ? QByteArray()
-            : QJsonDocument::fromJson(value).object().value("name").toString().toUtf8();
-    if (!self->default_sink_.isEmpty() && self->default_sink_ != self->own_sink_) {
-        self->last_default_ = self->default_sink_;
+    if (key == nullptr || std::strcmp(key, "default.audio.sink") == 0) {
+        self->default_sink_ = key == nullptr ? QByteArray() : name();
+        if (!self->default_sink_.isEmpty() && self->default_sink_ != self->own_sink_) {
+            self->last_default_ = self->default_sink_;
+        }
     }
     self->changed_();
     return 0;

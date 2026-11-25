@@ -31,6 +31,10 @@ public:
         this->silenced_.store(silenced, std::memory_order_relaxed);
     }
 
+    bool silenced() const {
+        return this->silenced_.load(std::memory_order_relaxed);
+    }
+
     /// @brief Reports the signal to the server when it changed. Main loop, every tick.
     void poll();
 

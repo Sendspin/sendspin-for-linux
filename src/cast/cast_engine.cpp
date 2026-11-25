@@ -329,6 +329,13 @@ void CastEngine::remove(const QString& id) {
     this->refresh_();
 }
 
+void CastEngine::set_plays_groupable(bool groupable) {
+    if (this->plays_groupable_ != groupable) {
+        this->plays_groupable_ = groupable;
+        this->publish_rows_();
+    }
+}
+
 void CastEngine::setGroupVolume(int volume) {
     volume = std::clamp(volume, 0, static_cast<int>(sendspin::server::MAX_VOLUME));
     if (this->volume_ == volume) {
@@ -719,7 +726,9 @@ void CastEngine::publish_rows_() {
         row.plays = output.plays;
         row.paired = speaker.facts.paired;
         row.can_pair = speaker.can_pair;
-        row.row = speaker_menu::row(output, {.plays_groupable = true, .group_count = added});
+        row.can_play = speaker_menu::can_play(output);
+        row.row = speaker_menu::row(
+            output, {.plays_groupable = this->plays_groupable_, .group_count = added});
         rows.push_back(std::move(row));
     }
     std::ranges::sort(rows, [](const SpeakerRow& a, const SpeakerRow& b) {

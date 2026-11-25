@@ -86,9 +86,9 @@ starts its stream before it declares playback, which those clients ignore. See "
 Keys and pairing records are stored as owner-only files under `$XDG_DATA_HOME/sendspin/`
 (`~/.local/share/sendspin/`).
 
-**Settings…** in the tray menu opens the Settings window; so does launching the app a second
-time. Every change applies at once, except the device name, which servers see from the next
-start. The settings are kept in `~/.config/sendspin/sendspin.conf`:
+**Settings…** in the tray menu, or the picker's gear, opens the Settings window. Every change
+applies at once, except the device name, which servers see from the next start. The settings are
+kept in `~/.config/sendspin/sendspin.conf`:
 
 ```ini
 [client]

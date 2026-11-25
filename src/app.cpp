@@ -6,8 +6,8 @@
 #include <QIcon>
 #include <QLoggingCategory>
 #include <QQuickImageProvider>
+#include <QQuickStyle>
 #include <QStandardPaths>
-#include <QStyle>
 
 #include <pipewire/pipewire.h>
 
@@ -59,6 +59,8 @@ App::App(const std::filesystem::path& data_dir, QObject* parent)
               &this->client_persistence_),
       mpris_(this->client_, art_dir()),
       cast_(data_dir, output_),
+      picker_(cast_, client_, outputs_),
+      picker_window_(picker_, cast_),
       paired_servers_(data_dir),
       settings_(client_, cast_, outputs_, mpris_, paired_servers_) {
     qCInfo(lc_app, "PipeWire %s", pw_get_library_version());
@@ -69,18 +71,20 @@ App::App(const std::filesystem::path& data_dir, QObject* parent)
     this->menu_.addSeparator();
     this->menu_.addAction(tr("Settings…"), this, &App::showSettings);
     this->menu_.addAction(tr("Quit"), qApp, &QCoreApplication::quit);
-    this->update_status_();
+    this->update_tray_();
 
-    this->tray_.setIcon(QIcon::fromTheme(QIcon::ThemeIcon::MultimediaPlayer,
-                                         qApp->style()->standardIcon(QStyle::SP_MediaVolume)));
     this->tray_.setToolTip(tr("Sendspin"));
     this->tray_.setContextMenu(&this->menu_);
     this->tray_.show();
 
-    connect(&this->client_, &Client::stateChanged, this, &App::update_status_);
-    connect(&this->client_, &Client::serverNameChanged, this, &App::update_status_);
-    connect(&this->client_.player(), &Player::streamingChanged, this, &App::update_status_);
-    connect(&this->client_.now_playing(), &NowPlaying::changed, this, &App::update_status_);
+    connect(&this->picker_, &Picker::changed, this, &App::update_tray_);
+    connect(&this->picker_window_, &PickerWindow::settingsRequested, this, &App::showSettings);
+    connect(&this->tray_, &QSystemTrayIcon::activated, this,
+            [this](QSystemTrayIcon::ActivationReason reason) {
+                if (reason == QSystemTrayIcon::Trigger) {
+                    this->picker_window_.toggle(PickerWindow::Place::POINTER);
+                }
+            });
     connect(&this->outputs_, &Outputs::targetChanged, this,
             [this] { this->client_.player().stream().set_target(this->outputs_.target()); });
     this->client_.player().stream().set_target(this->outputs_.target());
@@ -102,8 +106,9 @@ App::App(const std::filesystem::path& data_dir, QObject* parent)
     connect(&this->client_, &Client::pairingEnded, this,
             [this] { this->show_result_(tr("Pairing ended")); });
 
-    // Both get every block. Which of the two the sound goes to is the picker's choice, still to
-    // come: the cast takes it while a speaker is added, the server while it has the PC as input.
+    // Both get every block. Which of the two the sound goes to is the picker's choice: the cast
+    // takes it while a speaker is added, and the picker silences the source unless the server is
+    // chosen.
     this->output_.set_consumer([this](const CapturedBlock& block) {
         this->client_.source().write(block);
         this->cast_.feed().take(block);
@@ -147,32 +152,24 @@ std::vector<sendspin::AudioSupportedFormatObject> App::probe_formats_() {
     return formats;
 }
 
-QString App::status_text(Client::State state, const QString& server_name, const Track& playing) {
-    switch (state) {
-        case Client::State::Stopped:
-            break;
-        case Client::State::Waiting:
-            return tr("Waiting for a server");
-        case Client::State::Connected:
-            if (!playing.title.isEmpty()) {
-                return playing.artist.isEmpty() ? playing.title
-                                                : tr("%1 — %2").arg(playing.title, playing.artist);
-            }
-            return tr("Connected to %1").arg(server_name);
-        case Client::State::Pairing:
-            return server_name.isEmpty() ? tr("Pairing…") : tr("Pairing with %1…").arg(server_name);
+QString App::tray_icon_name(bool sendspin_plays) {
+    return sendspin_plays ? QStringLiteral("sendspin-waves-symbolic")
+                          : QStringLiteral("sendspin-symbolic");
+}
+
+QIcon App::tray_icon(const QString& name) {
+    // Installed, the icon theme has it: the tray then gets its name, and the panel looks it up
+    // and draws it in its own colour. Uninstalled there is only the picture to hand over.
+    return QIcon::fromTheme(name, QIcon(QStringLiteral(":/icons/%1.svg").arg(name)));
+}
+
+void App::update_tray_() {
+    this->status_->setText(this->picker_.status_line());
+    const QString name = tray_icon_name(this->picker_.sendspin_plays());
+    if (name != this->tray_icon_) {
+        this->tray_icon_ = name;
+        this->tray_.setIcon(tray_icon(name));
     }
-    return tr("Not connected");
-}
-
-QString App::grouped_code(const QString& code) {
-    return code.size() == 6 ? code.first(3) + QLatin1Char('-') + code.last(3) : code;
-}
-
-void App::update_status_() {
-    this->status_->setText(status_text(
-        this->client_.state(), this->client_.server_name(),
-        this->client_.player().streaming() ? this->client_.now_playing().track() : Track{}));
 }
 
 void App::on_pairing_code_(const QString& code) {
@@ -197,7 +194,7 @@ void App::on_pairing_code_(const QString& code) {
             true);
         return;
     }
-    this->notifier_.show(tr("Pairing code: %1").arg(grouped_code(code)),
+    this->notifier_.show(tr("Pairing code: %1").arg(Picker::grouped_code(code)),
                          server_name.isEmpty()
                              ? tr("Enter it in the server to pair this PC.")
                              : tr("Enter it in %1 to pair this PC.").arg(server_name),
@@ -222,10 +219,8 @@ void App::show_result_(const QString& summary) {
     this->notifier_.show(summary);
 }
 
-void App::onSecondLaunch() {
-    // The picker, once there is one; until then Settings is the window there is to show
-    qCInfo(lc_app, "second launch");
-    this->showSettings();
+void App::showPicker(const QString& activationToken) {
+    this->picker_window_.show(PickerWindow::Place::CENTRE, activationToken);
 }
 
 QQuickWindow* App::settings_window() const {
@@ -241,6 +236,11 @@ void App::showSettings() {
 
 void App::show_settings_(Section section) {
     if (!this->window_) {
+        // As the picker does, whichever opens first: Fusion takes the platform's palette
+        if (QQuickStyle::name().isEmpty() &&
+            qEnvironmentVariableIsEmpty("QT_QUICK_CONTROLS_STYLE")) {
+            QQuickStyle::setStyle(QStringLiteral("Fusion"));
+        }
         qmlRegisterUncreatableType<SettingsModel>("Sendspin", 1, 0, "SettingsModel",
                                                   QStringLiteral("made by the app"));
         this->window_ = std::make_unique<QQmlApplicationEngine>();

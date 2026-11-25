@@ -17,6 +17,8 @@ struct SpeakerRow {
     bool paired{false};
     /// It offers a pairing method
     bool can_pair{false};
+    /// speaker_menu::can_play(): it plays now, or will once connected
+    bool can_play{false};
     speaker_menu::Row row;
 
     bool operator==(const SpeakerRow&) const = default;

@@ -78,7 +78,7 @@ SettingsModel::SettingsModel(Client& client, CastEngine& cast, Outputs& outputs,
       mpris_(mpris),
       servers_(servers),
       running_name_(client.name()) {
-    connect(&outputs, &Outputs::choicesChanged, this, &SettingsModel::outputsChanged);
+    connect(&outputs, &Outputs::changed, this, &SettingsModel::outputsChanged);
 
     const SpeakerModel* speakers = cast.speakers();
     connect(speakers, &QAbstractItemModel::modelReset, this, &SettingsModel::speakerCountsChanged);
@@ -175,10 +175,9 @@ void SettingsModel::setOutput(const QString& node_name) {
     } else {
         settings.setValue(KEY_OUTPUT, node_name);
     }
+    // Tells of the outputs too: an unplugged choice is listed only while it is the choice
     this->outputs_.set_chosen(node_name.toUtf8());
     emit this->outputChanged();
-    // An unplugged choice is listed only while it is the choice
-    emit this->outputsChanged();
 }
 
 bool SettingsModel::open_at_login() const {
