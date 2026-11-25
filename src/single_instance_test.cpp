@@ -32,6 +32,24 @@ private slots:
         QCOMPARE(second_pinged.count(), 0);
     }
 
+    // On Wayland only the launch that the user made may give a window the focus
+    void theSecondLaunchHandsOverItsActivationToken() {
+        const QTemporaryDir dir;
+        SingleInstance first(dir.path());
+        QSignalSpy pinged(&first, &SingleInstance::secondLaunch);
+        QVERIFY(first.claim());
+
+        SingleInstance second(dir.path());
+        QVERIFY(!second.claim("token-1"));
+        QTRY_COMPARE(pinged.count(), 1);
+        QCOMPARE(pinged.takeFirst().at(0).toString(), "token-1");
+
+        SingleInstance third(dir.path());
+        QVERIFY(!third.claim());
+        QTRY_COMPARE(pinged.count(), 1);
+        QCOMPARE(pinged.takeFirst().at(0).toString(), "");
+    }
+
     void claimIsFreeAgainAfterTheInstanceExits() {
         const QTemporaryDir dir;
         {

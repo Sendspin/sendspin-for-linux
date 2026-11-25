@@ -91,6 +91,12 @@ class MusicAssistant:
         owned = await self.bus.request_name("org.freedesktop.Notifications")
         assert owned == RequestNameReply.PRIMARY_OWNER, "another notification service is on this bus"
 
+        # The server is what the picker has chosen, as kept from an earlier run: only then does
+        # the PC's sound go to it rather than to speakers or this PC's own output
+        settings = self.home / "config" / "sendspin" / "sendspin.conf"
+        settings.parent.mkdir(parents=True, exist_ok=True)
+        settings.write_text("[picker]\nlocal=false\nserver_chosen=true\n")
+
         self.app = Process("the app", [APP], private_env(self.home))
         port = int(self.app.wait_for(r"sendspin\.client: listening on port (\d+)").group(1))
 
