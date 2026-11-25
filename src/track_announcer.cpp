@@ -1,6 +1,10 @@
 #include "track_announcer.h"
 
+#include <QLoggingCategory>
+
 #include <utility>
+
+Q_LOGGING_CATEGORY(lc_announce, "sendspin.notify")
 
 namespace {
 
@@ -56,6 +60,7 @@ void TrackAnnouncer::update(bool playing, const Track& track, const QByteArray& 
         const QImage cover = this->cover_();
         if (!cover.isNull()) {
             this->cover_wait_.stop();
+            qCDebug(lc_announce, "the track's cover came: shown again with it");
             emit this->announced(track.title, body(track), cover);
         }
     }
@@ -78,6 +83,8 @@ void TrackAnnouncer::update(bool playing, const Track& track, const QByteArray& 
 void TrackAnnouncer::announce_() {
     this->announced_ = std::exchange(this->pending_, {});
     // Kept up to date while off, so that switching it on mid-track shows nothing
+    // Per track, so debug; never the title, which is the listener's business
+    qCDebug(lc_announce, "a track is due: %s", this->enabled_ ? "shown" : "switched off");
     if (this->enabled_) {
         const QImage cover = this->cover_();
         if (cover.isNull()) {

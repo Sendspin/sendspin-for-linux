@@ -10,7 +10,10 @@
 #include <QDBusPendingCallWatcher>
 #include <QDBusPendingReply>
 #include <QGuiApplication>
+#include <QLoggingCategory>
 #include <QVariantMap>
+
+Q_LOGGING_CATEGORY(lc_notifier, "sendspin.notify")
 
 namespace {
 
@@ -215,6 +218,8 @@ void Notifier::send_(const Notice& notice) {
                 finished->deleteLater();
                 const QDBusPendingReply<quint32> reply = *finished;
                 if (reply.isError()) {
+                    // No service to show it is a desktop without notifications, not a fault
+                    qCDebug(lc_notifier, "not shown: %s", qUtf8Printable(reply.error().message()));
                     return;
                 }
                 if (generation == this->generation_) {
