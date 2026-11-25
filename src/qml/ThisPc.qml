@@ -56,16 +56,8 @@ ColumnLayout {
     Switch {
         Layout.topMargin: 12
         text: qsTr("Open at login")
-        enabled: page.settings.openAtLoginAvailable
         checked: page.settings.openAtLogin
         onToggled: page.settings.openAtLogin = checked
-    }
-    Label {
-        Layout.fillWidth: true
-        visible: !page.settings.openAtLoginAvailable
-        wrapMode: Text.WordWrap
-        opacity: 0.7
-        text: qsTr("Comes with the Flatpak build.")
     }
 
     Item { Layout.fillHeight: true }

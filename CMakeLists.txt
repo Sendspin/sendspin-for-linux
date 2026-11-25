@@ -16,6 +16,9 @@ if(NOT _multi_config AND NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "Build type" FORCE)
 endif()
 
+# The package's name, not the project's; ahead of Qt, which includes GNUInstallDirs
+set(CMAKE_INSTALL_DOCDIR share/doc/sendspin-for-linux CACHE PATH "")
+
 # Floors are Debian 13's versions
 find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Widgets Network Qml Quick QuickControls2 DBus)
 find_package(PkgConfig REQUIRED)
@@ -33,3 +36,4 @@ option(SENDSPIN_SANITIZE "Build the app and its tests with ASan and UBSan" OFF)
 
 include(CTest)
 add_subdirectory(src)
+include(cmake/package.cmake)

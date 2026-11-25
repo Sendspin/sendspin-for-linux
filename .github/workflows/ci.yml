@@ -94,3 +94,7 @@ jobs:
       - name: Test
         timeout-minutes: 10
         run: tests/interop/run.sh
+
+  packages:
+    name: Packages
+    uses: ./.github/workflows/packages.yml

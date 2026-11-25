@@ -1,0 +1,38 @@
+# Built inside a release's source tarball, where third_party/fetched/ has what the build would
+# download: flatpak-builder gives a build no network.
+#
+#     flatpak-builder --user --install-deps-from=flathub --force-clean build-flatpak \
+#         flatpak/com.sendspin_audio.Sendspin.yml
+#
+# For Flathub the source becomes that tarball, by URL and checksum.
+app-id: com.sendspin_audio.Sendspin
+runtime: org.kde.Platform
+runtime-version: '6.11'
+sdk: org.kde.Sdk
+command: sendspin-for-linux
+# docs/SPEC.md, "Install methods". The MPRIS name is granted to every app; autostart is the
+# Background portal's, which needs no permission.
+finish-args:
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --share=ipc
+  - --device=dri
+  - --share=network
+  - --filesystem=xdg-run/pipewire-0
+  - --talk-name=org.kde.StatusNotifierWatcher
+  - --talk-name=org.freedesktop.Notifications
+  - --system-talk-name=org.freedesktop.Avahi
+# The packages' autostart entry: nothing reads /app/etc
+cleanup:
+  - /etc
+modules:
+  - name: sendspin-for-linux
+    buildsystem: cmake-ninja
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DBUILD_TESTING=OFF
+      # Where Flatpak apps keep their licenses
+      - -DCMAKE_INSTALL_DOCDIR=/app/share/licenses/com.sendspin_audio.Sendspin
+    sources:
+      - type: dir
+        path: ..

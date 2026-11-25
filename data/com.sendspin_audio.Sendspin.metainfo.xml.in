@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.sendspin_audio.Sendspin</id>
+  <name>Sendspin</name>
+  <summary>Play this PC's sound on Sendspin speakers</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>Apache-2.0</project_license>
+  <developer id="com.sendspin_audio">
+    <name>Sendspin</name>
+  </developer>
+  <description>
+    <p>
+      Sendspin sits in the tray and plays what this PC plays on the Sendspin speakers you pick,
+      in sync with each other and with the PC's own output.
+    </p>
+    <p>
+      It also joins Music Assistant: as a player, for music Music Assistant sends to this PC, and
+      as an input, so Music Assistant can play this PC's sound wherever you choose.
+    </p>
+  </description>
+  <launchable type="desktop-id">com.sendspin_audio.Sendspin.desktop</launchable>
+  <url type="homepage">https://www.sendspin-audio.com</url>
+  <url type="bugtracker">https://github.com/Sendspin/sendspin-for-linux/issues</url>
+  <url type="vcs-browser">https://github.com/Sendspin/sendspin-for-linux</url>
+  <content_rating type="oars-1.1"/>
+  <provides>
+    <binary>sendspin-for-linux</binary>
+  </provides>
+  <releases>
+    <release version="@PROJECT_VERSION@" date="@SENDSPIN_RELEASE_DATE@"/>
+  </releases>
+</component>

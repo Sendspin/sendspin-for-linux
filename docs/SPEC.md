@@ -119,8 +119,9 @@ tray, that is the only way in; its gear button opens Settings.
 It is Qt Quick, like the picker: one toolkit for the app's windows, in the desktop's palette
 (the Fusion style, unless the desktop brings its own). It opens from the tray menu, the picker's
 gear and a click on a pairing notification. The
-settings are kept in `~/.config/sendspin/sendspin.conf`; open at login is the user's own XDG
-autostart entry, `~/.config/autostart/com.sendspin_audio.Sendspin.desktop`.
+settings are kept in `~/.config/sendspin/sendspin.conf`; open at login is an XDG autostart entry,
+`com.sendspin_audio.Sendspin.desktop`: the one a package installs, and the user's own in
+`~/.config/autostart/` where theirs differs. Under Flatpak it is the Background portal's.
 
 One instance per user session.
 
@@ -654,14 +655,23 @@ Listed in this order in the README and on the website:
    [backlog#52](https://github.com/Sendspin/backlog/issues/52) for `sendspin-cli`; solve it once.
    - Built against the distro's Qt 6, libpipewire, avahi-client and OpenSSL 3. Everything else
      comes from the source tree; see [Building offline](#building-offline).
-   - Installs an XDG autostart entry.
+   - Installs an XDG autostart entry for every user, which starts the app with `--background`:
+     the tray alone. Open at login in Settings switches it off with an entry of the user's own.
+     The entry is a configuration file, so an upgrade keeps an admin's change to it.
+   - Carries the licenses of everything linked into the binary, in `/usr/share/doc`.
 2. **Flatpak** (Flathub), on the KDE runtime.
+   - `--socket=wayland`, `--socket=fallback-x11`, `--share=ipc`, `--device=dri`: its windows
    - `--share=network`
    - `--filesystem=xdg-run/pipewire-0` (not `--socket=pulseaudio`)
    - `--talk-name=org.kde.StatusNotifierWatcher`
+   - `--talk-name=org.freedesktop.Notifications`: the pairing code, until it goes through the
+     notification portal
    - `--system-talk-name=org.freedesktop.Avahi`
    - MPRIS name is auto-granted — do not declare it
-   - Background portal for autostart. Only this build gets GNOME's Background Apps entry.
+   - Background portal for autostart. Only this build gets GNOME's Background Apps entry. The
+     app asks again at each start, which is how it learns that the desktop's settings took the
+     permission back. The portal's entry has the name of a package's own: with both installed,
+     the package's build leaves it alone until its own switch is turned on.
 
 ### Building offline
 

@@ -1,0 +1,201 @@
+# The release's artifacts: the source tarball, built offline; a .deb or .rpm for each supported
+# release, installed and started in a clean container; the Flatpak. CI runs it on every change,
+# the release workflow on a tag.
+name: Packages
+
+on:
+  workflow_call:
+    outputs:
+      version:
+        description: project(VERSION) in CMakeLists.txt
+        value: ${{ jobs.source.outputs.version }}
+
+permissions:
+  contents: read
+
+jobs:
+  source:
+    name: Source tarball, built offline
+    runs-on: ubuntu-latest
+    container:
+      image: registry.fedoraproject.org/fedora:44
+      # unshare -n, below
+      options: --cap-add=SYS_ADMIN
+    outputs:
+      version: ${{ steps.vendor.outputs.version }}
+    steps:
+      - name: Install dependencies
+        run: >-
+          dnf -y install cmake ninja-build gcc-c++ git patch pkgconf-pkg-config xz util-linux
+          qt6-qtbase-devel qt6-qtdeclarative-devel pipewire-devel avahi-devel openssl-devel
+      - uses: actions/checkout@v4
+      - name: Vendor
+        id: vendor
+        run: |
+          git config --global --add safe.directory "$PWD"
+          tarball=$(scripts/vendor.sh dist)
+          version=${tarball#dist/sendspin-for-linux-}
+          echo "version=${version%.tar.xz}" >>"$GITHUB_OUTPUT"
+      # In a network namespace with no interfaces: a build that reaches out fails
+      - name: Build with no network
+        run: |
+          mkdir offline && tar -xf dist/*.tar.xz -C offline --strip-components=1
+          unshare -n sh -c '
+            ! getent hosts github.com &&
+            cmake -S offline -B offline/build -G Ninja -DBUILD_TESTING=OFF &&
+            cmake --build offline/build'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: source
+          path: dist/*.tar.xz
+          if-no-files-found: error
+
+  package:
+    name: Package, ${{ matrix.name }}
+    needs: source
+    runs-on: ubuntu-latest
+    container: ${{ matrix.image }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Debian 13
+            tag: debian13
+            image: debian:13
+            generator: DEB
+            install: >-
+              apt-get update && apt-get install -y --no-install-recommends
+              ca-certificates cmake ninja-build g++ patch pkg-config xz-utils file dpkg-dev
+              qt6-base-dev qt6-declarative-dev libpipewire-0.3-dev libavahi-client-dev libssl-dev
+              appstream desktop-file-utils
+          - name: Ubuntu 26.04
+            tag: ubuntu26.04
+            image: ubuntu:26.04
+            generator: DEB
+            install: >-
+              apt-get update && apt-get install -y --no-install-recommends
+              ca-certificates cmake ninja-build g++ patch pkg-config xz-utils file dpkg-dev
+              qt6-base-dev qt6-declarative-dev libpipewire-0.3-dev libavahi-client-dev libssl-dev
+              appstream desktop-file-utils
+          - name: Fedora 44
+            tag: fedora44
+            image: registry.fedoraproject.org/fedora:44
+            generator: RPM
+            install: >-
+              dnf -y install cmake ninja-build gcc-c++ patch pkgconf-pkg-config xz rpm-build
+              qt6-qtbase-devel qt6-qtdeclarative-devel pipewire-devel avahi-devel openssl-devel
+              appstream desktop-file-utils
+    steps:
+      - name: Install dependencies
+        run: ${{ matrix.install }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: source
+      - name: Build
+        run: |
+          tar -xf sendspin-for-linux-*.tar.xz --strip-components=1
+          cmake -B build -G Ninja -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
+          cmake --build build
+      - name: Validate the desktop entries and the metainfo
+        run: |
+          desktop-file-validate data/*.desktop
+          appstreamcli validate --no-net build/src/com.sendspin_audio.Sendspin.metainfo.xml
+      - name: Package
+        env:
+          GENERATOR: ${{ matrix.generator }}
+          TAG: ${{ matrix.tag }}
+          VERSION: ${{ needs.source.outputs.version }}
+        run: |
+          cd build && cpack -G "$GENERATOR"
+          mkdir ../dist
+          case "$GENERATOR" in
+            DEB) mv sendspin-for-linux_*.deb "../dist/sendspin-for-linux-$VERSION-$TAG-$(dpkg --print-architecture).deb" ;;
+            RPM) mv sendspin-for-linux-*.rpm "../dist/sendspin-for-linux-$VERSION-$TAG-$(uname -m).rpm" ;;
+          esac
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package-${{ matrix.tag }}
+          path: dist/*
+          if-no-files-found: error
+
+  # The same images again, with nothing of the build in them
+  smoke:
+    name: Install and start, ${{ matrix.name }}
+    needs: [source, package]
+    runs-on: ubuntu-latest
+    container: ${{ matrix.image }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Debian 13
+            tag: debian13
+            image: debian:13
+            # The image's dpkg leaves out /usr/share/doc, where the licenses go
+            install: >-
+              rm -f /etc/dpkg/dpkg.cfg.d/excludes &&
+              apt-get update && apt-get install -y --no-install-recommends
+              ./*.deb dbus-daemon pipewire pipewire-bin wireplumber
+            conffiles: dpkg-query -W -f '${Conffiles}' sendspin-for-linux
+          - name: Ubuntu 26.04
+            tag: ubuntu26.04
+            image: ubuntu:26.04
+            # The image's dpkg leaves out /usr/share/doc, where the licenses go
+            install: >-
+              rm -f /etc/dpkg/dpkg.cfg.d/excludes &&
+              apt-get update && apt-get install -y --no-install-recommends
+              ./*.deb dbus-daemon pipewire pipewire-bin wireplumber
+            conffiles: dpkg-query -W -f '${Conffiles}' sendspin-for-linux
+          - name: Fedora 44
+            tag: fedora44
+            image: registry.fedoraproject.org/fedora:44
+            # The image's dnf leaves out documentation, where the licenses go
+            install: >-
+              dnf -y --setopt=tsflags= install
+              ./*.rpm dbus-daemon pipewire pipewire-utils wireplumber
+            conffiles: rpm -qc sendspin-for-linux
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: package-${{ matrix.tag }}
+      - name: Install the package
+        run: ${{ matrix.install }}
+      # An upgrade keeps an admin's edit of it
+      - name: The autostart entry is a configuration file
+        run: ${{ matrix.conffiles }} | grep /etc/xdg/autostart/com.sendspin_audio.Sendspin.desktop
+      - name: Start it
+        run: ci/start-pipewire.sh ci/smoke-test.sh "${{ needs.source.outputs.version }}"
+
+  flatpak:
+    name: Flatpak
+    needs: source
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install flatpak-builder
+        run: |
+          sudo apt-get update && sudo apt-get install -y flatpak flatpak-builder
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+      - uses: actions/download-artifact@v4
+        with:
+          name: source
+      # The manifest builds the tree it is in; a module's build has no network
+      - name: Build
+        run: |
+          tar -xf sendspin-for-linux-*.tar.xz --strip-components=1
+          flatpak-builder --user --install-deps-from=flathub --repo=repo build-flatpak \
+            flatpak/com.sendspin_audio.Sendspin.yml
+          licenses=build-flatpak/files/share/licenses/com.sendspin_audio.Sendspin
+          test -s $licenses/LICENSE -a -s $licenses/NOTICES.md -a -s $licenses/third_party/micro_opus/lib/opus/COPYING
+      - name: Bundle
+        env:
+          VERSION: ${{ needs.source.outputs.version }}
+        run: |
+          mkdir dist
+          flatpak build-bundle --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo \
+            repo "dist/sendspin-for-linux-$VERSION-$(uname -m).flatpak" com.sendspin_audio.Sendspin
+      - uses: actions/upload-artifact@v4
+        with:
+          name: flatpak
+          path: dist/*
+          if-no-files-found: error

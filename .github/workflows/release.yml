@@ -1,0 +1,84 @@
+# A version tag builds the artifacts and attaches them to a draft release. Publishing the draft
+# is a person's step.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  # The version has one home, project(VERSION) in CMakeLists.txt: the tag has to name it
+  version:
+    name: Tag matches the version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          version=$(sed -n 's/^project(.* VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)
+          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME doesn't match project(VERSION) $version"
+            exit 1
+          fi
+
+  packages:
+    needs: version
+    uses: ./.github/workflows/packages.yml
+
+  release:
+    name: Draft release
+    needs: packages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      # gh run download
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      VERSION: ${{ needs.packages.outputs.version }}
+    steps:
+      # An artifact uploaded seconds ago can be missing from the run's list, and a release short
+      # of a file would still look done: ask again until all of them are there
+      - name: Download the artifacts
+        run: |
+          expected="sendspin-for-linux-$VERSION-debian13-amd64.deb
+          sendspin-for-linux-$VERSION-fedora44-x86_64.rpm
+          sendspin-for-linux-$VERSION-ubuntu26.04-amd64.deb
+          sendspin-for-linux-$VERSION-x86_64.flatpak
+          sendspin-for-linux-$VERSION.tar.xz"
+          for try in 1 2 3 4 5 6; do
+            gh run download "$GITHUB_RUN_ID" --dir "try$try"
+            actual=$(find "try$try" -type f -printf '%f\n' | LC_ALL=C sort)
+            [ "$actual" != "$expected" ] || break
+            sleep 10
+          done
+          if [ "$actual" != "$expected" ]; then
+            echo "::error::the artifacts are not the release's files"
+            echo "$actual"
+            exit 1
+          fi
+          mkdir dist && find "try$try" -type f -exec mv {} dist/ \;
+      - name: Create the draft
+        run: |
+          cd dist
+          sha256sum -- * >SHA256SUMS
+          cat SHA256SUMS
+          # A run again for the same tag: the draft takes this run's files, a published
+          # release is left as it is
+          if draft=$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft 2>/dev/null); then
+            if [ "$draft" != true ]; then
+              echo "::error::$GITHUB_REF_NAME is already published. A release's files don't change: tag a new version."
+              exit 1
+            fi
+            gh release upload "$GITHUB_REF_NAME" --clobber -- *
+          else
+            gh release create "$GITHUB_REF_NAME" --verify-tag --draft --generate-notes \
+              --title "Sendspin for Linux $VERSION" -- *
+          fi
