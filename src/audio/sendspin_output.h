@@ -110,7 +110,7 @@ private:
     std::atomic<bool> connected_{false};  ///< taken by the graph, so losing it is reported
     std::atomic<uint32_t> rate_{0};
     std::atomic<uint64_t> untimed_blocks_{0};
-    int64_t latency_ns_{0};
+    std::atomic<int64_t> latency_ns_{0};
 
     float volume_{1.0F};
     bool muted_{false};
