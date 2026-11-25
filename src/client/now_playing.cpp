@@ -30,10 +30,7 @@ QString text(const std::optional<std::string_view>& field) {
 }  // namespace
 
 NowPlaying::NowPlaying(sendspin::SendspinClient& client)
-    : client_(client),
-      controller_(client.add_controller()),
-      // The cover comes through the artwork role
-      metadata_(client.add_metadata({.artwork_url = false})) {
+    : client_(client), controller_(client.add_controller()), metadata_(client.add_metadata({})) {
     this->controller_.set_listener(this);
     this->metadata_.set_listener(this);
     client.add_artwork(artwork_config()).set_listener(this);
@@ -115,10 +112,18 @@ void NowPlaying::on_track_metadata(const sendspin::TrackMetadata& metadata) {
         this->track_ = std::move(track);
         this->dirty_ = true;
     }
+    if (const QString url = text(metadata.artwork_url); url != this->artwork_url_) {
+        this->artwork_url_ = url;
+        this->dirty_ = true;
+    }
 }
 
 void NowPlaying::on_metadata_clear() {
     this->progress_.reset();
+    if (!this->artwork_url_.isEmpty()) {
+        this->artwork_url_.clear();
+        this->dirty_ = true;
+    }
     if (this->track_ != Track{}) {
         this->track_ = {};
         this->dirty_ = true;

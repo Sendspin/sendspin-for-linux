@@ -197,6 +197,10 @@ output=alsa_output.usb-Example_DAC-00.analog-stereo
 ; false keeps what a server plays here out of the desktop's media controls
 enabled=true
 
+[discord]
+; true shows what a server plays here in Discord, as "Listening to": the title, artist and album
+rich_presence=false
+
 [updates]
 ; false never asks GitHub for a newer release
 check=true
