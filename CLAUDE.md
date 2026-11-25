@@ -64,7 +64,8 @@ than 1.4.2 API without a fallback.
   and the icons, installed by `cmake --install`. The app icon's PNGs are rendered from its SVG
   by `scripts/render-app-icon.py`.
 - `src/autostart.*` — open at login: the user's entry over a package's, the Background portal
-  under Flatpak. Either starts the app with `--background`.
+  under Flatpak. Either starts the app with `--background`. The portal's entry has the same
+  name as the user's own, and is left alone.
 - `src/client/` — the Sendspin client and its roles. `src/mpris.*` shows what a server plays here;
   its bus test needs a session bus and skips without one.
 - `src/settings_model.*` — what the Settings window shows and changes; `src/qml/` is the window,
@@ -73,12 +74,12 @@ than 1.4.2 API without a fallback.
 - `third_party/` — vendored sources, listed in its `README.md`. Not formatted, not edited.
   `third_party/fetched/` exists only in a release's source tarball (`scripts/vendor.sh`): what
   FetchContent would download, which the build then uses instead. `NOTICES.md` lists it; update
-  it with every pin.
+  it with every pin. `cmake --install` puts its license files with the binary.
 - `cmake/package.cmake` — the .deb and .rpm, by CPack. A QML import or Qt plugin the app starts
   to use is a dependency to add there. `flatpak/` is the Flatpak's manifest.
 - `.github/workflows/packages.yml` — builds the tarball offline, the packages and the Flatpak,
-  and starts each package in a clean container (`ci/smoke-test.sh`); `ci.yml` and `release.yml`
-  both call it. The version is `project(VERSION)` alone; a tag `v<version>` drafts a release.
+  and starts each package in a clean container (`ci/smoke-test.sh`, which runs the app with
+  `--check`: both windows and an SVG, or it exits); `ci.yml` and `release.yml` both call it. The version is `project(VERSION)` alone; a tag `v<version>` drafts a release.
 - `ci/` — `start-pipewire.sh` and the daemon config it loads: a null sink, no hardware.
 - `tests/interop/` — the app end to end, in Python on pytest, run by `uv`: `test_cast.py` casts to
   a real sendspin-cpp-cli player, `test_music_assistant.py` is a server on aiosendspin that pairs

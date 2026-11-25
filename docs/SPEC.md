@@ -657,6 +657,8 @@ Listed in this order in the README and on the website:
      comes from the source tree; see [Building offline](#building-offline).
    - Installs an XDG autostart entry for every user, which starts the app with `--background`:
      the tray alone. Open at login in Settings switches it off with an entry of the user's own.
+     The entry is a configuration file, so an upgrade keeps an admin's change to it.
+   - Carries the licenses of everything linked into the binary, in `/usr/share/doc`.
 2. **Flatpak** (Flathub), on the KDE runtime.
    - `--socket=wayland`, `--socket=fallback-x11`, `--share=ipc`, `--device=dri`: its windows
    - `--share=network`
@@ -666,7 +668,10 @@ Listed in this order in the README and on the website:
      notification portal
    - `--system-talk-name=org.freedesktop.Avahi`
    - MPRIS name is auto-granted — do not declare it
-   - Background portal for autostart. Only this build gets GNOME's Background Apps entry.
+   - Background portal for autostart. Only this build gets GNOME's Background Apps entry. The
+     app asks again at each start, which is how it learns that the desktop's settings took the
+     permission back. The portal's entry has the name of a package's own: with both installed,
+     the package's build leaves it alone until its own switch is turned on.
 
 ### Building offline
 
