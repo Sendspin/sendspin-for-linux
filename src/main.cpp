@@ -3,6 +3,7 @@
 #include "single_instance.h"
 
 #include <QApplication>
+#include <QQuickStyle>
 #include <QStandardPaths>
 
 int main(int argc, char** argv) {
@@ -16,6 +17,12 @@ int main(int argc, char** argv) {
     QApplication::setApplicationDisplayName(QStringLiteral("Sendspin"));
     // A tray app: no window is not a reason to exit
     QApplication::setQuitOnLastWindowClosed(false);
+
+    // Fusion wears the desktop's palette. A desktop that brings a style of its own (Plasma) or a
+    // user who set one keeps it.
+    if (QQuickStyle::name().isEmpty()) {
+        QQuickStyle::setStyle(QStringLiteral("Fusion"));
+    }
 
     SingleInstance instance(QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation));
     if (!instance.claim()) {

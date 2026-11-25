@@ -71,10 +71,17 @@ starts its stream before it declares playback, which those clients ignore. See "
 Keys and pairing records are stored as owner-only files under `$XDG_DATA_HOME/sendspin/`
 (`~/.local/share/sendspin/`).
 
-Until there is a Settings window, three settings are read at startup from
-`~/.config/sendspin/sendspin.conf`:
+**Settings…** in the tray menu opens the Settings window; so does launching the app a second
+time. Every change applies at once, except the device name, which servers see from the next
+start. The settings are kept in `~/.config/sendspin/sendspin.conf`:
 
 ```ini
+[client]
+; what servers call this PC, instead of its hostname
+name=Den PC
+; false makes a server pair before it may play here
+unpaired_access=true
+
 [player]
 ; the PipeWire node.name to play on, instead of the default output
 output=alsa_output.usb-Example_DAC-00.analog-stereo
@@ -82,8 +89,7 @@ output=alsa_output.usb-Example_DAC-00.analog-stereo
 [mpris]
 ; false keeps what a server plays here out of the desktop's media controls
 enabled=true
-
-[client]
-; false makes a server pair before it may play here
-unpaired_access=true
 ```
+
+Open at login is `~/.config/autostart/com.sendspin_audio.Sendspin.desktop`. The servers that
+paired with this PC are listed from `~/.local/share/sendspin/paired_servers.ini`.

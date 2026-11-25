@@ -1,14 +1,29 @@
 #include "app.h"
 
+#include <QScopeGuard>
 #include <QTemporaryDir>
 #include <QTest>
+
+namespace {
+
+QStringList qml_complaints;
+
+/// Keeps what the QML engine says of the app's own files: a wrong name or binding only warns
+void note_qml_complaints(QtMsgType type, const QMessageLogContext& /*context*/,
+                         const QString& message) {
+    if (type != QtDebugMsg && type != QtInfoMsg && message.contains("qrc:/qml/")) {
+        qml_complaints << message;
+    }
+}
+
+}  // namespace
 
 class AppTest : public QObject {
     Q_OBJECT
 
 private slots:
     // Constructs and destroys a SendspinServer and a SendspinClient, so both libraries link
-    void menuIsTheStub() {
+    void menuHoldsTheStatusSettingsAndQuit() {
         const QTemporaryDir dir;
         App app(dir.path().toStdString());
 
@@ -21,7 +36,7 @@ private slots:
             }
         }
         QCOMPARE(labels, (QStringList{"Not connected", "Settings…", "Quit"}));
-        QCOMPARE(enabled, (QList<bool>{false, false, true}));
+        QCOMPARE(enabled, (QList<bool>{false, true, true}));
     }
 
     void constructingWritesNothing() {
@@ -56,10 +71,53 @@ private slots:
         QCOMPARE(App::grouped_code("0427"), "0427");
     }
 
-    void secondLaunchIsHandled() {
+    void settingsOpenInOneWindow() {
         const QTemporaryDir dir;
         App app(dir.path().toStdString());
+        QVERIFY(app.settings_window() == nullptr);
+
+        qml_complaints.clear();
+        const QtMessageHandler previous = qInstallMessageHandler(note_qml_complaints);
+        const auto restore = qScopeGuard([previous] { qInstallMessageHandler(previous); });
+
+        app.showSettings();
+        QQuickWindow* window = app.settings_window();
+        QVERIFY(window != nullptr);
+        QVERIFY(window->isVisible());
+        QCOMPARE(window->property("section").toInt(), 0);
+
+        // Every section, and the pairing dialog, with nothing the QML engine objects to
+        for (int section = 0; section < 3; section++) {
+            window->setProperty("section", section);
+            QTest::qWait(50);
+        }
+        app.settings()->pair("no-such-speaker");
+        QTest::qWait(50);
+        app.settings()->cancelPairing();
+        QTest::qWait(50);
+        QCOMPARE(qml_complaints, QStringList());
+
+        // Asked for again, closed or not, it is the same window
+        window->close();
+        QVERIFY(!window->isVisible());
         app.onSecondLaunch();
+        QCOMPARE(app.settings_window(), window);
+        QVERIFY(window->isVisible());
+        QCOMPARE(window->property("section").toInt(), 2);
+        app.showSettings();
+        QCOMPARE(app.settings_window(), window);
+    }
+
+    void theTraysSettingsOpensTheWindow() {
+        const QTemporaryDir dir;
+        App app(dir.path().toStdString());
+        for (QAction* action : app.menu()->actions()) {
+            if (action->text() == "Settings…") {
+                action->trigger();
+            }
+        }
+        QVERIFY(app.settings_window() != nullptr);
+        QVERIFY(app.settings_window()->isVisible());
     }
 };
 

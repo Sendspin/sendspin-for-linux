@@ -111,10 +111,16 @@ tray, that is the only way in; its gear button opens Settings.
   follow the system default); open at login.
 - *Speakers:* the paired speakers, each with Forget; the speakers on the network that aren't
   paired, each with Pair…; a field to paste a pairing token.
-- *Music Assistant:* which server is connected, or none; the pairing code while pairing; the
-  servers this PC paired with, from the app's own record of `on_paired()`; Copy pairing token;
-  allow playback without pairing (on by default); media controls
-  on/off.
+- *Music Assistant:* which server is connected, or none; the pairing code while pairing, as
+  digits or as a QR code, whichever the server asked for; Allow pairing, when the library holds
+  pairing back; the servers this PC paired with, from the app's own record of `on_paired()`;
+  Copy pairing token; allow playback without pairing (on by default); media controls on/off.
+
+It is Qt Quick, like the picker: one toolkit for the app's windows, in the desktop's palette
+(the Fusion style, unless the desktop brings its own). It opens from the tray menu, the picker's
+gear, a click on a pairing notification, and, until there is a picker, a second launch. The
+settings are kept in `~/.config/sendspin/sendspin.conf`; open at login is the user's own XDG
+autostart entry, `~/.config/autostart/com.sendspin_audio.Sendspin.desktop`.
 
 One instance per user session.
 
@@ -383,14 +389,15 @@ desktop, and both libraries' examples use files. Never log keys, PSKs or tokens.
 
 ### Music Assistant (we are the client)
 
-- Offer `dynamic_pairing_code` on `DISPLAY` as `DIGITS`, and `pairing_psk`
+- Offer `dynamic_pairing_code` on `DISPLAY` as `DIGITS` then `QR_CODE`, and `pairing_psk`
   (`SendspinClientConfig::pairing_code_out_channels`, `pairing_code_formats`). Never a static
   code: a client offers one code method.
-- No `QR_CODE` format: the server picks one format, and the person pairing usually sits at this
-  PC typing into MA's page, where a QR code can't be entered.
-- When a server starts pairing, `on_pairing_code()` delivers the code. Show it as `123-456` in
-  the server row's caption, in Settings, and in a notification; copy it to the clipboard. Take it
-  down on `on_clear_pairing_code()`.
+- The server picks the format. Digits are for the person who sits at this PC typing into MA's
+  page; a server whose operator can scan (a phone app) may ask for the QR code instead.
+- When a server starts pairing, `on_pairing_code()` delivers the code. Digits: show them as
+  `123-456` in the server row's caption, in Settings, and in a notification; copy them to the
+  clipboard. A QR code: draw it in Settings, open Settings, and say so in the notification; its
+  token is never shown as text. Take either down on `on_clear_pairing_code()`.
 - Result: "Paired with [server]" on `on_paired()`, "Pairing ended" on `on_pairing_aborted()`.
 - The pairing token (`client_pairing_token()`) is only behind Copy pairing token in Settings.
 - The source role needs pairing: MA only accepts paired sources. Unpaired access covers the
@@ -636,7 +643,8 @@ CMake FetchContent. So the release source tree carries them:
 - The build runs with FetchContent disconnected and pointed at the vendored copies. A build that
   reaches for the network is a bug.
 - Each release lists the vendored sources, their versions and licenses, as the server's
-  `NOTICES.md` does.
+  `NOTICES.md` does. What is in the tree already is listed in `third_party/README.md`: the QR
+  code encoder.
 - Qt, PipeWire, Avahi and OpenSSL always come from the distro or the Flatpak runtime.
 
 ### Supported releases
@@ -673,6 +681,8 @@ As of 2026-09-10:
   - **Its pairing records, to the host.** No call lists them, none forgets one, and no callback
     reports a `server/unpair` or an eviction. The app keeps its own list from `on_paired()`,
     which can go stale, and Settings cannot offer Forget for a server.
+  - **A new name while it runs.** The name is `SendspinClientConfig::name`, read when the client
+    is made. A device name changed in Settings is kept at once and used from the next start.
   - mDNS, by design. The app advertises.
 - **Both** fetch their dependencies with CMake FetchContent. The server's tests build the two
   libraries in one tree, so linking both works. The sources are vendored; see

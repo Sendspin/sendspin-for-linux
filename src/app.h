@@ -6,14 +6,19 @@
 #include "client/client.h"
 #include "mpris.h"
 #include "notifier.h"
+#include "paired_servers.h"
 #include "persistence.h"
+#include "settings_model.h"
 
 #include <QAction>
 #include <QMenu>
 #include <QObject>
+#include <QQmlApplicationEngine>
+#include <QQuickWindow>
 #include <QSystemTrayIcon>
 
 #include <filesystem>
+#include <memory>
 #include <vector>
 
 /// @brief The running app: the tray icon, the Sendspin output, the cast engine that plays it on
@@ -36,6 +41,11 @@ public:
     CastEngine* cast() {
         return &this->cast_;
     }
+    SettingsModel* settings() {
+        return &this->settings_;
+    }
+    /// @brief The Settings window; nullptr until it was first shown
+    QQuickWindow* settings_window() const;
 
     /// @brief The tray's status line for a client state
     /// @param playing The track the server plays to this PC; empty when it plays none
@@ -47,8 +57,12 @@ public:
 public slots:
     /// @brief A second launch pinged this instance
     void onSecondLaunch();
+    /// @brief Opens the Settings window, or raises the one that is open
+    void showSettings();
 
 private:
+    enum class Section { Current = -1, ThisPc, Speakers, MusicAssistant };
+    void show_settings_(Section section);
     void update_status_();
     void on_pairing_code_(const QString& code);
     void show_result_(const QString& summary);
@@ -74,4 +88,9 @@ private:
     CastEngine cast_;
     // After the client and the engine, so its capture thread is gone before what it writes to
     SendspinOutput output_;
+
+    PairedServers paired_servers_;
+    SettingsModel settings_;
+    /// The Settings window, made when it is first shown
+    std::unique_ptr<QQmlApplicationEngine> window_;
 };
