@@ -53,6 +53,13 @@ jobs:
               ca-certificates cmake ninja-build g++ git patch pkg-config xz-utils
               qt6-base-dev qt6-declarative-dev libpipewire-0.3-dev libavahi-client-dev libssl-dev
               dbus-daemon pipewire pipewire-bin wireplumber
+          - name: Ubuntu 26.04
+            image: ubuntu:26.04
+            install: >-
+              apt-get update && apt-get install -y --no-install-recommends
+              ca-certificates cmake ninja-build g++ git patch pkg-config xz-utils
+              qt6-base-dev qt6-declarative-dev libpipewire-0.3-dev libavahi-client-dev libssl-dev
+              dbus-daemon pipewire pipewire-bin wireplumber
     steps:
       - name: Install dependencies
         run: ${{ matrix.install }}

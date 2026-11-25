@@ -18,9 +18,9 @@ ci/start-pipewire.sh ctest --test-dir build
 
 `-DSENDSPIN_SANITIZE=ON` builds the app and its tests with ASan and UBSan.
 
-CI builds in Fedora 44 and Debian 13 containers, runs the tests there against a headless
-PipeWire, repeats them under the sanitizers on Fedora, and checks formatting. Debian 13 is the
-floor: do not use Qt newer than 6.8 or PipeWire newer than 1.4.2 API without a fallback.
+CI builds in Fedora 44, Debian 13 and Ubuntu 26.04 containers, runs the tests there against a
+headless PipeWire, repeats them under the sanitizers on Fedora, and checks formatting. Debian 13
+is the floor: do not use Qt newer than 6.8 or PipeWire newer than 1.4.2 API without a fallback.
 
 ## Conventions
 
