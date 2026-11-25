@@ -163,4 +163,5 @@ private:
     PairingStep step_{PairingStep::Idle};
     int pairing_digits_{6};
     QString pairing_message_;
+    int qr_serial_{0};
 };

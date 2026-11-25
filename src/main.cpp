@@ -20,7 +20,7 @@ int main(int argc, char** argv) {
 
     // Fusion wears the desktop's palette. A desktop that brings a style of its own (Plasma) or a
     // user who set one keeps it.
-    if (QQuickStyle::name().isEmpty()) {
+    if (QQuickStyle::name().isEmpty() && qEnvironmentVariableIsEmpty("QT_QUICK_CONTROLS_STYLE")) {
         QQuickStyle::setStyle(QStringLiteral("Fusion"));
     }
 

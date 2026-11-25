@@ -165,6 +165,10 @@ private slots:
         model.setOutput("");
         QVERIFY(!conf().contains("player/output"));
         QCOMPARE(model.outputs().size(), 1);
+
+        // The Sendspin output is never offered, even written into the file by hand
+        model.setOutput("sendspin");
+        QCOMPARE(model.outputs().size(), 1);
     }
 
     void openAtLoginWritesAndRemovesTheEntry() {
@@ -275,6 +279,15 @@ private slots:
         // Closing the dialog ends the pairing, and shows no failure for it
         model.cancelPairing();
         QCOMPARE(model.pairing_step(), Step::Idle);
+
+        // Pair… again at once: the end of the pairing just cancelled is not this one's
+        model.pair(peer.id());
+        QCOMPARE(model.pairing_step(), Step::Starting);
+        QTRY_COMPARE(model.pairing_step(), Step::EnterCode);
+        QTest::qWait(300);
+        QCOMPARE(model.pairing_step(), Step::EnterCode);
+
+        model.cancelPairing();
         QTest::qWait(300);
         QCOMPARE(model.pairing_step(), Step::Idle);
         QVERIFY(!parts.row(peer.id())->paired);
@@ -356,7 +369,7 @@ private slots:
         if (qr) {
             // The token is drawn, never spelled out
             QVERIFY(model.pairing_code().isEmpty());
-            QCOMPARE(model.pairing_qr(), "image://qr/pairing");
+            QVERIFY(model.pairing_qr().startsWith("image://qr/"));
             QVERIFY(!model.pairing_qr().contains(parts.client.pairing_code()));
             QVERIFY(!model.pairing_qr_image().isNull());
         } else {

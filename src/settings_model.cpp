@@ -102,7 +102,10 @@ SettingsModel::SettingsModel(Client& client, CastEngine& cast, Outputs& outputs,
 
     connect(&client, &Client::stateChanged, this, &SettingsModel::serverChanged);
     connect(&client, &Client::serverNameChanged, this, &SettingsModel::serverChanged);
-    connect(&client, &Client::pairingCodeChanged, this, &SettingsModel::serverChanged);
+    connect(&client, &Client::pairingCodeChanged, this, [this] {
+        this->qr_serial_++;
+        emit this->serverChanged();
+    });
     connect(&client, &Client::pairingApprovalNeededChanged, this, &SettingsModel::serverChanged);
     connect(&client, &Client::paired, this, [this](const QString& name, const QString& id) {
         this->servers_.add(id, name, QDateTime::currentDateTime());
@@ -150,7 +153,8 @@ QVariantList SettingsModel::outputs() const {
         listed = listed || name == chosen;
         list.append(QVariantMap{{"name", name}, {"description", sink.description}});
     }
-    if (!listed) {
+    // Never the Sendspin output, even written into the file by hand
+    if (!listed && !this->outputs_.is_own(chosen.toUtf8())) {
         list.append(
             QVariantMap{{"name", chosen}, {"description", tr("%1 (not connected)").arg(chosen)}});
     }
@@ -249,6 +253,8 @@ void SettingsModel::submitPairingCode(const QString& code) {
     }
     if (this->cast_.submitPairingCode(this->pairing_id_, code)) {
         this->set_step_(PairingStep::Checking);
+    } else {
+        this->set_step_(PairingStep::Failed, tr("The speaker is no longer there."));
     }
 }
 
@@ -278,6 +284,10 @@ void SettingsModel::cancelPairing() {
 
 void SettingsModel::on_pairing_finished_(const QString& id, PairingResult result) {
     if (id != this->pairing_id_) {
+        return;
+    }
+    if (result == PairingResult::CANCELLED && this->step_ == PairingStep::Starting) {
+        // The end of an earlier pairing of this speaker, which starting this one cancelled
         return;
     }
     if (result == PairingResult::PAIRED || result == PairingResult::CANCELLED) {
@@ -333,9 +343,9 @@ QString SettingsModel::pairing_code() const {
 }
 
 QString SettingsModel::pairing_qr() const {
-    // The image is asked for by this name; the code itself stays out of the URL
+    // The image is asked for by a number, new with each code; the code stays out of the URL
     return this->client_.pairing_code_is_qr() && !this->client_.pairing_code().isEmpty()
-               ? QStringLiteral("image://qr/pairing")
+               ? QStringLiteral("image://qr/%1").arg(this->qr_serial_)
                : QString();
 }
 

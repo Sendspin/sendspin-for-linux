@@ -61,6 +61,11 @@ public:
         return this->choices_;
     }
 
+    /// @brief name is the Sendspin output's
+    bool is_own(const QByteArray& name) const {
+        return name == this->own_sink_;
+    }
+
     ClockRates clock() const;
 
     /// @brief Asks an output what it plays. Waits for the answer, briefly; empty without one.
