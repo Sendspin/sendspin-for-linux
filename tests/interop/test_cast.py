@@ -177,3 +177,21 @@ def test_a_removed_player_is_out_of_the_group(cast, tone):
     assert not cast.app.find(TICKED, since=mark), cast.app.tail()
     cast.expect_status(streaming="0")
     assert "client_id=" not in cast.settings.read_text()
+
+
+def test_this_pc_plays_along_beside_the_player(cast):
+    # Its own output here is the private daemon's null sink
+    cast.stop_app()
+    cast.start_app("--add", NAME, "--play-along")
+    cast.app.wait_for(TICKED, 20)
+    mark = cast.app.mark()
+    playing = play_to_sendspin(cast.tone)
+    try:
+        cast.app.wait_for(r"playing along on ", 5, since=mark)
+        # In time with the group: on its timeline, not late for it
+        off_us = int(cast.app.wait_for(r"this PC plays along: (-?\d+) us off", 5, since=mark).group(1))
+        assert abs(off_us) < 1000, cast.app.tail()
+        assert not cast.app.find(r"can't play along", since=mark), cast.app.tail()
+    finally:
+        playing.kill()
+        playing.wait()

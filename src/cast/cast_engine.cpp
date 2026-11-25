@@ -760,7 +760,8 @@ void CastEngine::update_local_(int64_t now_ns) {
     this->feed_.set_local(local);
     this->play_along_.set_active(active);
 
-    if (active && now_ns - this->local_logged_ns_ >= LOCAL_LOG_NS) {
+    // Once the stream has run: before that there is no timing to tell
+    if (active && delay_ns != 0 && now_ns - this->local_logged_ns_ >= LOCAL_LOG_NS) {
         this->local_logged_ns_ = now_ns;
         const PlayAlong::Stats stats = this->play_along_.stats();
         qCInfo(lc_cast,
