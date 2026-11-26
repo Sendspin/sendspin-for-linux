@@ -134,6 +134,7 @@ struct UpdateMachine {
                         .os_version = QStringLiteral("13"),
                         .cpu = QStringLiteral("x86_64"),
                         .sandboxed = false,
+                        .image_based = false,
                         .origin_command = {QStringLiteral("cat"), this->path("policy")}};
     }
 

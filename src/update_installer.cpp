@@ -88,6 +88,7 @@ UpdateInstaller::System UpdateInstaller::this_system() {
                   .os_version = QSysInfo::productVersion(),
                   .cpu = QSysInfo::currentCpuArchitecture(),
                   .sandboxed = QFileInfo::exists(QStringLiteral("/.flatpak-info")),
+                  .image_based = QFileInfo::exists(QStringLiteral("/run/ostree-booted")),
                   .origin_command = {}};
     // The one the package installed, and the only one install-update reads as root
     const QString key = QStringLiteral("/usr/share/sendspin-for-linux/sendspin.asc");
@@ -164,10 +165,11 @@ QString UpdateInstaller::package_(const Release& release) const {
 
 bool UpdateInstaller::can_install(const Release& release) const {
     const QString package = this->package_(release);
-    return this->probed_ && !this->system_.sandboxed && this->origin_ == Origin::LOCAL &&
-           !this->system_.key.isEmpty() && !this->system_.pkexec.isEmpty() &&
-           QFileInfo::exists(this->system_.helper) && !package.isEmpty() &&
-           release.files.contains(package) && release.files.contains(QLatin1String(SUMS)) &&
+    return this->probed_ && !this->system_.sandboxed && !this->system_.image_based &&
+           this->origin_ == Origin::LOCAL && !this->system_.key.isEmpty() &&
+           !this->system_.pkexec.isEmpty() && QFileInfo::exists(this->system_.helper) &&
+           !package.isEmpty() && release.files.contains(package) &&
+           release.files.contains(QLatin1String(SUMS)) &&
            release.files.contains(QLatin1String(SIGNATURE));
 }
 

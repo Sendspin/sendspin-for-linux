@@ -52,6 +52,8 @@ public:
         QString os_version;
         QString cpu;
         bool sandboxed{false};  ///< the Flatpak
+        /// An ostree deployment (Silverblue, Kinoite): dnf cannot upgrade a package there
+        bool image_based{false};
         /// Prints what apt_origin() or dnf_origin() reads, by os_id; empty where neither is
         QStringList origin_command;
     };

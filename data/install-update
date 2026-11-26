@@ -65,6 +65,7 @@ sum=$(sha256sum "$work/package.$kind" | cut -d' ' -f1)
 grep -qxF "$sum  $name" "$work/SHA256SUMS" || fail "$name is not the file in SHA256SUMS"
 
 [ "$mode" = install ] || exit 0
+[ ! -e /run/ostree-booted ] || fail "an image-based system: dnf cannot upgrade a package here"
 
 # The private copies are made; what the package manager writes is for everyone to read
 umask 022

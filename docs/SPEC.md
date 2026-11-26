@@ -854,7 +854,7 @@ Keep it in step with them.
 | Avahi for mDNS | A system with no avahi-daemon, or one where it is installed and not enabled (Arch), or where systemd-resolved answers mDNS instead | The picker's notice; speakers by URL (`speaker_urls`); a server has to be given this PC's address |
 | Tray icon as a StatusNotifierItem | Stock GNOME (Fedora Workstation, Debian), which has no tray | The launcher opens the picker, and its gear Settings. Ubuntu's GNOME has the AppIndicator extension |
 | Packages per release, x86_64 only | openSUSE, the RHEL family, anything on aarch64 | The Flatpak (Flathub builds aarch64), or a build from source |
-| The updater keys on `ID` in `/etc/os-release` being `debian`, `ubuntu` or `fedora` | Derivatives with their own `ID` (LMDE, Linux Mint, Pop!_OS) even where the package installs, and Arch | The newer release is announced with a link; the apt and dnf repositories still update a derivative that was pointed at a suite by hand |
+| The updater keys on `ID` in `/etc/os-release` being `debian`, `ubuntu` or `fedora` | Derivatives with their own `ID` (LMDE, Linux Mint, Pop!_OS) even where the package installs, Arch, and an image-based Fedora (Silverblue, Kinoite), where `dnf` cannot upgrade a layered package | The newer release is announced with a link; the apt and dnf repositories still update a derivative that was pointed at a suite by hand |
 | Little-endian only (`source_feed.cpp`) | Big-endian ports (s390x) | Nothing |
 | Clipboard and window placement as the compositor allows | GNOME on Wayland takes no copy from the background; no Wayland compositor lets the picker open at the tray icon | "Music Assistant (we are the client)"; the picker is centred |
 
@@ -876,6 +876,7 @@ Who installs the newer release depends on how this one was installed:
 | From the apt or dnf repository | Says so. The system's updates bring it. |
 | Flatpak | Says so. Flatpak updates it. |
 | From a release's `.deb` or `.rpm` | Offers **Install update**. |
+| From a release's `.rpm`, layered on an image-based system (`/run/ostree-booted`: Silverblue, Kinoite) | Says so, and opens the release's page: `dnf upgrade` cannot work there. |
 | Anything else: Arch, a build from source, a distro no package is built for | Says so, and opens the release's page. |
 
 The package manager says which: `apt-cache policy` lists a repository under the installed
@@ -905,7 +906,8 @@ the copy. So a download that is changed between the check and the install is ref
 whoever calls the script directly gets nothing installed that the key did not sign. It also
 refuses a package that is not this app, is not newer than the installed one, or is named for
 another distro release than this machine's: an old signed release is not an update, and
-another release's package is built against other libraries.
+another release's package is built against other libraries. On an image-based system it
+installs nothing.
 
 The check and the downloads go to GitHub over https and nowhere else, redirects included
 (`api.github.com`, `github.com`, `*.githubusercontent.com`), and stop at a size no release

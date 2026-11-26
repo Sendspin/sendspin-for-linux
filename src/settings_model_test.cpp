@@ -261,6 +261,8 @@ private slots:
             << "flatpak" << "Sendspin 9.0.0 is available. Flatpak installs it." << Action::Open;
         QTest::newRow("from a package, with no signing key here")
             << "no key" << "Sendspin 9.0.0 is available." << Action::Open;
+        QTest::newRow("from a package, on an image-based system")
+            << "image" << "Sendspin 9.0.0 is available." << Action::Open;
     }
     void aNewerReleaseShowsWithWhoInstallsIt() {
         QFETCH(QString, installed);
@@ -268,6 +270,7 @@ private slots:
         UpdateMachine machine("exit 0",
                               installed == "repository" ? REPOSITORY_POLICY : LOCAL_POLICY);
         machine.system.sandboxed = installed == "flatpak";
+        machine.system.image_based = installed == "image";
         if (installed == "no key") {
             machine.system.key.clear();
         }
