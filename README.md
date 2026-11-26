@@ -140,8 +140,9 @@ Music Assistant is optional: without it, this PC plays to the speakers on its ow
 
 ### Pick your speakers
 
-Click the tray icon to open the picker. On a desktop without a tray, such as stock GNOME, start
-Sendspin again from the launcher instead.
+Click the tray icon to open the picker, or pick **Open Sendspin** from its menu. On a desktop
+without a tray, such as stock GNOME, Sendspin still runs from login: start it again from the
+launcher to open the picker, and quit it with **Quit Sendspin** in Settings, under **This PC**.
 
 - **Tick a speaker** and the PC's sound plays on it. Ticking the first one makes **Sendspin**
   your system's output; unticking the last one puts back the output you had.
@@ -281,8 +282,9 @@ and going, and anything that went wrong. To see what it logged since you logged 
 journalctl --user -b /usr/bin/sendspin-for-linux
 ```
 
-For a bug report, quit Sendspin from the tray menu and start it from a terminal with `--verbose`
-(or `-v`), which adds every dial, connection and timing line:
+For a bug report, quit Sendspin from the tray menu, or with **Quit Sendspin** in Settings, and
+start it from a terminal with `--verbose` (or `-v`), which adds every dial, connection and
+timing line:
 
 ```sh
 sendspin-for-linux --verbose 2> sendspin.log

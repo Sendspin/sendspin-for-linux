@@ -84,5 +84,13 @@ ColumnLayout {
         }
     }
 
+    // The tray menu's Quit, for a desktop with no tray
+    Button {
+        objectName: "quit"
+        Layout.topMargin: 12
+        text: qsTr("Quit Sendspin")
+        onClicked: Qt.quit()
+    }
+
     Item { Layout.fillHeight: true }
 }

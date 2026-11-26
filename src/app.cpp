@@ -94,6 +94,8 @@ App::App(const std::filesystem::path& data_dir, QObject* parent)
     this->mpris_.set_enabled(SettingsModel::stored_media_controls());
     this->discord_.set_enabled(SettingsModel::stored_discord_rich_presence());
 
+    // Some trays show the menu on a click and never activate the icon
+    this->menu_.addAction(tr("Open Sendspin"), this, [this] { this->showPicker(); });
     this->status_ = this->menu_.addAction(QString());
     this->status_->setEnabled(false);
     this->menu_.addSeparator();

@@ -91,13 +91,15 @@ Four surfaces, and no others:
 1. **The picker** — a small Qt Quick window: the Sendspin row, this PC's output, the speakers,
    the server. See [The picker](#the-picker).
 2. **The tray icon and its menu** (StatusNotifierItem). Activating the icon opens the picker. The
-   menu holds a status line, Settings… and Quit, and while there is a newer release, a line that
+   menu holds Open Sendspin, for a tray that shows the menu on a click (GNOME's AppIndicator
+   extension), a status line, Settings… and Quit, and while there is a newer release, a line that
    says so and opens Settings. No sliders, no speakers.
 3. **One Settings window.**
 4. **The desktop's media controls** (MPRIS) — only for what MA plays to this PC.
 
 The picker also opens from the app launcher and on a second launch. On stock GNOME, which has no
-tray, that is the only way in; its gear button opens Settings.
+tray, that is the only way in; its gear button opens Settings, whose Quit Sendspin is the only
+one there.
 
 **Tray icon:** the Sendspin mark with its waves while the PC's sound goes out through Sendspin
 (to a connected speaker, or to a server with its stream open, and there was sound in the last
@@ -110,7 +112,7 @@ tray, that is the only way in; its gear button opens Settings.
 
 - *This PC:* device name (MA's own custom player name still wins in MA); output device (default:
   follow the system default); open at login; check for updates, and under it the newer release
-  with Install update, or who installs it instead. See [Updates](#updates).
+  with Install update, or who installs it instead (see [Updates](#updates)); Quit Sendspin.
 - *Speakers:* the paired speakers, each with Forget; the speakers on the network that aren't
   paired, each with Pair…; a field to paste a pairing token.
 - *Music Assistant:* which server is connected, or none; the pairing code while pairing, as
@@ -852,7 +854,7 @@ Keep it in step with them.
 | Qt 6.8 floor | Everything built on Ubuntu 24.04 or Debian 12: Linux Mint 22, Pop!_OS 24.04, elementary OS 8 | The Flatpak, which brings its own Qt |
 | PipeWire required, 1.4.2 floor | A session that still runs the PulseAudio daemon, or bare ALSA or JACK | Nothing: the app starts and says PipeWire can't be reached |
 | Avahi for mDNS | A system with no avahi-daemon, or one where it is installed and not enabled (Arch), or where systemd-resolved answers mDNS instead | The picker's notice; speakers by URL (`speaker_urls`); a server has to be given this PC's address |
-| Tray icon as a StatusNotifierItem | Stock GNOME (Fedora Workstation, Debian), which has no tray | The launcher opens the picker, and its gear Settings. Ubuntu's GNOME has the AppIndicator extension |
+| Tray icon as a StatusNotifierItem | Stock GNOME (Fedora Workstation, Debian), which has no tray | The launcher opens the picker, and its gear Settings, which has Quit. Ubuntu's GNOME has the AppIndicator extension |
 | Packages per release, x86_64 only | openSUSE, the RHEL family, anything on aarch64 | The Flatpak (Flathub builds aarch64), or a build from source |
 | The updater keys on `ID` in `/etc/os-release` being `debian`, `ubuntu` or `fedora` | Derivatives with their own `ID` (LMDE, Linux Mint, Pop!_OS) even where the package installs, and Arch | The newer release is announced with a link; the apt and dnf repositories still update a derivative that was pointed at a suite by hand |
 | Little-endian only (`source_feed.cpp`) | Big-endian ports (s390x) | Nothing |
