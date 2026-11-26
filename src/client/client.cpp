@@ -15,6 +15,8 @@ namespace {
 
 // How often the library's callbacks are delivered; its connections do not wait for this
 constexpr auto LOOP_INTERVAL = std::chrono::milliseconds(20);
+// With no server there is nothing to deliver but its arrival, which this bounds
+constexpr auto IDLE_INTERVAL = std::chrono::milliseconds(250);
 
 sendspin::SendspinClientConfig library_config(const Client::Config& config) {
     sendspin::SendspinClientConfig result;
@@ -177,6 +179,7 @@ void Client::sync_() {
     }
     if (state != this->state_) {
         this->state_ = state;
+        this->loop_timer_.setInterval(state == State::Waiting ? IDLE_INTERVAL : LOOP_INTERVAL);
         emit this->stateChanged(state);
     }
     if (this->code_ != this->pairing_code_) {
