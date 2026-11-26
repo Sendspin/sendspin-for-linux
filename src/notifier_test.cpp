@@ -66,6 +66,7 @@ public:
         int expire_timeout;
     };
     QMap<quint32, Shown> showing_;
+    QStringList capabilities_{"body", "body-markup"};
     int notified_ = 0;
     int closed_ = 0;
 
@@ -91,6 +92,9 @@ public:
     }
 
 public slots:
+    QStringList GetCapabilities() {
+        return this->capabilities_;
+    }
     uint Notify(const QString& /*app_name*/, uint replaces_id, const QString& /*app_icon*/,
                 const QString& summary, const QString& body, const QStringList& actions,
                 const QVariantMap& hints, int expire_timeout) {
@@ -247,6 +251,28 @@ private slots:
         this->portal_->invoke(this->portal_->showing_.firstKey(), "default");
         // In order on the one connection: the first would have arrived by now
         QTRY_COMPARE(clicked.count(), 1);
+    }
+
+    // The text is a server's on the network, and most desktops read a body as markup
+    void aBodyIsEscapedOnlyWhereItIsMarkup() {
+        const QString body = "<a href=\"https://example.invalid/\">R&B</a> <3";
+        Notifier markup("pairing", DESKTOP, false);
+        markup.show("Pairing code: 123-456", body);
+        QTRY_COMPARE(this->desktop_->notified_, 1);
+        QCOMPARE(this->desktop_->showing_.first().body,
+                 "&lt;a href=&quot;https://example.invalid/&quot;&gt;R&amp;B&lt;/a&gt; &lt;3");
+
+        this->desktop_->capabilities_ = {"body"};
+        Notifier plain("now-playing", DESKTOP, false);
+        let_the_id_arrive();
+        plain.show("Pairing code: 123-456", body);
+        QTRY_COMPARE(this->desktop_->notified_, 2);
+        QCOMPARE(this->desktop_->showing_.last().body, body);
+
+        Notifier portal("pairing", SERVICE, true);
+        portal.show("Pairing code: 123-456", body);
+        QTRY_COMPARE(this->portal_->added_, 1);
+        QCOMPARE(this->portal_->showing_.first().value("body").toString(), body);
     }
 
     // ==========================================================================
