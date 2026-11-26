@@ -4,6 +4,7 @@
 
 #include <QDir>
 #include <QFile>
+#include <QQmlEngine>
 #include <QScopeGuard>
 #include <QSettings>
 #include <QSignalSpy>
@@ -30,7 +31,7 @@ class AppTest : public QObject {
 
 private slots:
     // Constructs and destroys a SendspinServer and a SendspinClient, so both libraries link
-    void menuHoldsStatusSettingsAndQuit() {
+    void menuHoldsOpenStatusSettingsAndQuit() {
         const QTemporaryDir dir;
         App app(dir.path().toStdString());
 
@@ -42,8 +43,8 @@ private slots:
                 enabled << action->isEnabled();
             }
         }
-        QCOMPARE(labels, (QStringList{"Not in use", "Settings…", "Quit"}));
-        QCOMPARE(enabled, (QList<bool>{false, true, true}));
+        QCOMPARE(labels, (QStringList{"Open Sendspin", "Not in use", "Settings…", "Quit"}));
+        QCOMPARE(enabled, (QList<bool>{true, false, true, true}));
     }
 
     void constructingWritesNothing() {
@@ -198,11 +199,11 @@ private slots:
         });
         const QTemporaryDir dir;
         App app(dir.path().toStdString());
-        QAction* update = app.menu()->actions().at(2);
+        QAction* update = app.menu()->actions().at(3);
         QVERIFY(!update->isVisible());
         QTRY_VERIFY(update->isVisible());
         QCOMPARE(update->text(), "Sendspin 9.0.0 is available…");
-        QCOMPARE(app.menu()->actions().at(3)->text(), "Settings…");
+        QCOMPARE(app.menu()->actions().at(4)->text(), "Settings…");
 
         // It leads to the switch and the button
         update->trigger();
@@ -211,6 +212,27 @@ private slots:
 
         app.settings()->setCheckForUpdates(false);
         QVERIFY(!update->isVisible());
+    }
+
+    void theTraysOpenOpensThePicker() {
+        const QTemporaryDir dir;
+        App app(dir.path().toStdString());
+        app.menu()->actions().first()->trigger();
+        QVERIFY(app.picker_window()->window() != nullptr);
+        QVERIFY(app.picker_window()->window()->isVisible());
+    }
+
+    // Where there is no tray, this is the only Quit
+    void theSettingsButtonQuits() {
+        const QTemporaryDir dir;
+        App app(dir.path().toStdString());
+        app.showSettings();
+        QObject* quit = app.settings_window()->findChild<QObject*>("quit");
+        QVERIFY(quit != nullptr);
+        // Which the window's engine hands to the application
+        QSignalSpy asked(qmlEngine(app.settings_window()), &QQmlEngine::quit);
+        QVERIFY(QMetaObject::invokeMethod(quit, "clicked"));
+        QCOMPARE(asked.count(), 1);
     }
 
     // The tray icon, the launcher and a second launch all end here
