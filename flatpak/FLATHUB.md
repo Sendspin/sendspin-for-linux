@@ -43,6 +43,7 @@ reviewer reads them all the same (`docs/SPEC.md`, "Install methods"):
 | Permission | Why |
 | --- | --- |
 | `--filesystem=xdg-run/pipewire-0` | The app creates the "Sendspin" output and captures it with its timing, and plays in sync on a chosen output. The PulseAudio socket can do neither, and the camera portal's PipeWire has no audio. EasyEffects is the precedent. |
+| `media.category = Manager` on one PipeWire connection | Not a permission, but it is asked about: ticking a speaker makes "Sendspin" the system's default output, a write to PipeWire's `default` metadata. WirePlumber gives a sandboxed client read and execute alone unless it says it is a manager (`find-flatpak-access.lua`), and drops the write. Only the connection that sets the default says so; the output and the streams are ordinary clients. EasyEffects again. |
 | `--system-talk-name=org.freedesktop.Avahi` | Finds the speakers and advertises this PC to Music Assistant, over mDNS. |
 | `--share=network` | Serves the speakers and dials them; connects to Music Assistant. |
 | `--talk-name=org.kde.StatusNotifierWatcher` | The tray icon. |

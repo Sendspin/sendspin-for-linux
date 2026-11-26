@@ -139,7 +139,18 @@ private slots:
         QCOMPARE(outputs.configured_default(), "usb-dac");
     }
 
-    // The user never chose a default: there is none afterwards either
+    // Sandboxed, only a manager may write the default (flatpak/FLATHUB.md)
+    void connectsAsAManager() {
+        Outputs outputs("sendspin-test-manager");
+        if (!outputs.start()) {
+            SKIP_UNLESS_REQUIRED("no PipeWire daemon");
+        }
+        QProcess dump;
+        dump.start(QStringLiteral("pw-dump"), {QStringLiteral("Client")});
+        QVERIFY(dump.waitForFinished());
+        QVERIFY(dump.readAllStandardOutput().contains(R"("media.category": "Manager")"));
+    }
+
     void givesBackNoChoiceWhereThereWasNone() {
         if (!qEnvironmentVariableIsSet("SENDSPIN_REQUIRE_PIPEWIRE_TESTS")) {
             QSKIP("only against the private daemon of ci/start-pipewire.sh");
