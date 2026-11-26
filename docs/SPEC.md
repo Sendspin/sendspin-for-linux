@@ -802,6 +802,8 @@ Listed in this order in the README and on the website:
    - `--socket=wayland`, `--socket=fallback-x11`, `--share=ipc`, `--device=dri`: its windows
    - `--share=network`
    - `--filesystem=xdg-run/pipewire-0` (not `--socket=pulseaudio`)
+   - The PipeWire connection that sets the default output has `media.category = Manager`:
+     WirePlumber refuses a sandboxed client's metadata writes without it.
    - `--talk-name=org.kde.StatusNotifierWatcher`
    - `--system-talk-name=org.freedesktop.Avahi`
    - MPRIS name is auto-granted — do not declare it

@@ -158,7 +158,10 @@ bool Outputs::start() {
         const LoopLock lock(this->loop_);
         this->context_ = pw_context_new(pw_thread_loop_get_loop(this->loop_), nullptr, 0);
         if (this->context_ != nullptr) {
-            this->core_ = pw_context_connect(this->context_, nullptr, 0);
+            // A session manager gives a sandboxed client that isn't a manager no write on the
+            // metadata, and the default output is set there (flatpak/FLATHUB.md)
+            this->core_ = pw_context_connect(
+                this->context_, pw_properties_new(PW_KEY_MEDIA_CATEGORY, "Manager", nullptr), 0);
         }
         if (this->core_ != nullptr) {
             pw_core_add_listener(this->core_, &this->core_hook_, &core_events, this);
@@ -487,11 +490,13 @@ void Outputs::on_core_done(void* data, uint32_t id, int seq) {
     }
 }
 
-void Outputs::on_core_error(void* data, uint32_t id, int /*seq*/, int res,
-                            const char* /*message*/) {
+void Outputs::on_core_error(void* data, uint32_t id, int /*seq*/, int res, const char* message) {
     auto* self = static_cast<Outputs*>(data);
     if (id == PW_ID_CORE && res == -EPIPE) {
         QMetaObject::invokeMethod(self, &Outputs::lost_, Qt::QueuedConnection);
+    } else {
+        // A write that is refused still returns success: this is all that tells of it
+        qCWarning(lc_outputs, "PipeWire reported an error: %s", message);
     }
 }
 
