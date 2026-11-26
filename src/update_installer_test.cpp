@@ -135,6 +135,7 @@ private slots:
         QTest::newRow("no package from a package manager") << "package";
         QTest::newRow("no signing key on this machine") << "key";
         QTest::newRow("no pkexec") << "pkexec";
+        QTest::newRow("an image-based system") << "image";
         QTest::newRow("no package for this release of the distro") << "distro";
         QTest::newRow("a release without a signature") << "signature";
     }
@@ -148,6 +149,8 @@ private slots:
             machine.system.key.clear();
         } else if (missing == "pkexec") {
             machine.system.pkexec.clear();
+        } else if (missing == "image") {
+            machine.system.image_based = true;
         } else if (missing == "distro") {
             machine.system.os_version = "14";
         } else {
