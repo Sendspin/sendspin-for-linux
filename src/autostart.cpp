@@ -63,11 +63,15 @@ bool packaged() {
     return false;
 }
 
-QByteArray entry_for(const QString& program) {
+QByteArray exec_line(const QString& program) {
     const QString exec =
         exec_value(program.isEmpty() ? QCoreApplication::applicationFilePath() : program);
-    return "[Desktop Entry]\nType=Application\nName=Sendspin\nExec=" + exec.toUtf8() +
-           " --background\nIcon=" + APP_ID + "\nTerminal=false\nX-GNOME-Autostart-enabled=true\n";
+    return "Exec=" + exec.toUtf8() + " --background";
+}
+
+QByteArray entry_for(const QString& program) {
+    return "[Desktop Entry]\nType=Application\nName=Sendspin\n" + exec_line(program) +
+           "\nIcon=" + APP_ID + "\nTerminal=false\nX-GNOME-Autostart-enabled=true\n";
 }
 
 bool write(const QByteArray& entry) {
@@ -182,9 +186,22 @@ void refresh(const QString& program, QObject* context, const std::function<void(
         return;
     }
     QFile file(path());
-    if (file.open(QIODevice::ReadOnly) && file.readAll() != entry_for(program)) {
-        file.close();
-        write(entry_for(program));
+    if (!file.open(QIODevice::ReadOnly)) {
+        return;
+    }
+    QList<QByteArray> lines = file.readAll().split('\n');
+    file.close();
+    // Exec alone: the rest may be the user's, or their desktop's
+    const QByteArray exec = exec_line(program);
+    bool stale = false;
+    for (QByteArray& line : lines) {
+        if (line.startsWith("Exec=") && line != exec) {
+            line = exec;
+            stale = true;
+        }
+    }
+    if (stale) {
+        write(lines.join('\n'));
     }
 }
 

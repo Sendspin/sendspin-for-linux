@@ -30,9 +30,9 @@ bool enabled();
 void set_enabled(bool enabled, const QString& program = {}, QObject* context = nullptr,
                  const std::function<void()>& done = {});
 
-/// @brief Writes the user's entry again while it is enabled and starts something else than
-/// program: the app moved, or starts differently than when the entry was written. Under
-/// Flatpak, asks the portal again for what was granted.
+/// @brief Points the user's entry at program while it is enabled and starts something else:
+/// the app moved, or starts differently than when the entry was written. Only its Exec line
+/// changes. Under Flatpak, asks the portal again for what was granted.
 /// @param done runs if enabled() changed, which only the portal's answer does
 void refresh(const QString& program = {}, QObject* context = nullptr,
              const std::function<void()>& done = {});

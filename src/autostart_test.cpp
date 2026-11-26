@@ -234,6 +234,28 @@ private slots:
         QCOMPARE(entry(), hidden);
     }
 
+    // As Cinnamon's Startup Applications stores a delay
+    void refreshKeepsWhatElseTheEntryHolds() {
+        const auto entry = [] {
+            QFile file(autostart::path());
+            return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray();
+        };
+        autostart::set_enabled(true, "/opt/old/sendspin-for-linux");
+        QFile file(autostart::path());
+        QVERIFY(file.open(QIODevice::Append));
+        file.write("X-GNOME-Autostart-Delay=10\n");
+        file.close();
+        const QByteArray edited = entry();
+
+        autostart::refresh("/opt/old/sendspin-for-linux");
+        QCOMPARE(entry(), edited);
+
+        autostart::refresh("/usr/bin/sendspin-for-linux");
+        QByteArray moved = edited;
+        moved.replace("/opt/old/", "/usr/bin/");
+        QCOMPARE(entry(), moved);
+    }
+
     void execIsQuotedAndEscaped() {
         QCOMPARE(autostart::exec_value("/opt/My Apps/sendspin"), "\"/opt/My Apps/sendspin\"");
         QCOMPARE(autostart::exec_value("/opt/50%/a$b"), "\"/opt/50%%/a\\\\$b\"");
