@@ -29,7 +29,7 @@ jobs:
         run: >-
           dnf -y install cmake ninja-build gcc-c++ git patch pkgconf-pkg-config xz util-linux
           qt6-qtbase-devel qt6-qtdeclarative-devel pipewire-devel avahi-devel openssl-devel
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Vendor
         id: vendor
         run: |
@@ -45,7 +45,7 @@ jobs:
             ! getent hosts github.com &&
             cmake -S offline -B offline/build -G Ninja -DBUILD_TESTING=OFF &&
             cmake --build offline/build'
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: source
           path: dist/*.tar.xz
@@ -97,7 +97,7 @@ jobs:
     steps:
       - name: Install dependencies
         run: ${{ matrix.install }}
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: source
       - name: Build
@@ -121,7 +121,7 @@ jobs:
             DEB) mv sendspin-for-linux_*.deb "../dist/sendspin-for-linux-$VERSION-$TAG-$(dpkg --print-architecture).deb" ;;
             RPM) mv sendspin-for-linux-*.rpm "../dist/sendspin-for-linux-$VERSION-$TAG-$(uname -m).rpm" ;;
           esac
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: package-${{ matrix.tag }}
           path: dist/*
@@ -141,7 +141,7 @@ jobs:
             DEB) mv sendspin-for-linux_*.deb "../later/sendspin-for-linux-999.0.0-$TAG-$(dpkg --print-architecture).deb" ;;
             RPM) mv sendspin-for-linux-*.rpm "../later/sendspin-for-linux-999.0.0-$TAG-$(uname -m).rpm" ;;
           esac
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: later-${{ matrix.tag }}
           path: later/*
@@ -163,8 +163,8 @@ jobs:
           pacman -Syu --noconfirm
           useradd -m builder
           echo 'builder ALL=(ALL) NOPASSWD: ALL' >/etc/sudoers.d/builder
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: source
           path: arch
@@ -188,7 +188,7 @@ jobs:
           mkdir ../dist
           mv "sendspin-for-linux-$VERSION"-*.pkg.tar.zst \
             "../dist/sendspin-for-linux-$VERSION-archlinux-$(uname -m).pkg.tar.zst"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: package-archlinux
           path: dist/*
@@ -247,8 +247,8 @@ jobs:
               pacman -S --noconfirm dbus pipewire wireplumber
             conffiles: pacman -Qii sendspin-for-linux
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: package-${{ matrix.tag }}
       - name: Install the package
@@ -265,8 +265,8 @@ jobs:
     needs: package
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           pattern: package-*
           path: packages
@@ -276,7 +276,7 @@ jobs:
       - name: Build the repositories
         run: ci/repo-fixture.sh packages repositories http://127.0.0.1:8000
       # Not package-*: the release takes those
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: test-repositories
           path: repositories
@@ -309,8 +309,8 @@ jobs:
             image: registry.fedoraproject.org/fedora:45
             install: dnf -y install python3
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: test-repositories
           path: repositories
@@ -352,12 +352,12 @@ jobs:
             image: registry.fedoraproject.org/fedora:45
             install: dnf -y install python3 gnupg2
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: package-${{ matrix.tag }}
           path: package
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: later-${{ matrix.tag }}
           path: later
@@ -382,7 +382,7 @@ jobs:
           sudo apt-get update && sudo apt-get install -y flatpak dbus-daemon
           flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
           flatpak install --user -y --noninteractive flathub org.flatpak.Builder
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: source
       - name: Flathub's manifest
@@ -418,7 +418,7 @@ jobs:
         run: |
           flatpak build-bundle --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo \
             repo "dist/sendspin-for-linux-$VERSION-$(uname -m).flatpak" com.sendspin_audio.Sendspin
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: flatpak
           path: dist/*
