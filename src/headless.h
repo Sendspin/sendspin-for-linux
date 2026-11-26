@@ -2,6 +2,11 @@
 
 #include <optional>
 
+/// @brief Has SIGINT and SIGTERM quit the event loop, so the process leaves through the
+/// destructors: the node goes, and the speakers and the server get their goodbye. Call once the
+/// application object exists.
+void quit_on_signal();
+
 /// @brief The cast engine without the UI, for development: `--list` prints the speakers as they
 /// change, `--add <name>` and `--remove <name>` put a speaker in the group or take it out,
 /// `--play-along` adds this PC's own output. Runs, and casts, until interrupted. `--update`
