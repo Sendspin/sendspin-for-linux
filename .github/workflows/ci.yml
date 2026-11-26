@@ -17,7 +17,7 @@ jobs:
     name: Format
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # The version CLAUDE.md names; output differs between releases
       - name: clang-format
         run: >-
@@ -69,7 +69,7 @@ jobs:
     steps:
       - name: Install dependencies
         run: ${{ matrix.install }}
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Configure
         run: cmake -B build -G Ninja ${{ matrix.configure }}
       - name: Build
@@ -91,7 +91,7 @@ jobs:
           qt6-qtbase-devel qt6-qtdeclarative-devel pipewire-devel avahi-devel openssl-devel
           dbus-daemon pipewire pipewire-utils wireplumber
           uv portaudio avahi-compat-libdns_sd
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Configure
         run: cmake -B build -G Ninja -DBUILD_TESTING=OFF
       - name: Build
