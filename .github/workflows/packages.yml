@@ -45,7 +45,7 @@ jobs:
             ! getent hosts github.com &&
             cmake -S offline -B offline/build -G Ninja -DBUILD_TESTING=OFF &&
             cmake --build offline/build'
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: source
           path: dist/*.tar.xz
@@ -121,7 +121,7 @@ jobs:
             DEB) mv sendspin-for-linux_*.deb "../dist/sendspin-for-linux-$VERSION-$TAG-$(dpkg --print-architecture).deb" ;;
             RPM) mv sendspin-for-linux-*.rpm "../dist/sendspin-for-linux-$VERSION-$TAG-$(uname -m).rpm" ;;
           esac
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: package-${{ matrix.tag }}
           path: dist/*
@@ -141,7 +141,7 @@ jobs:
             DEB) mv sendspin-for-linux_*.deb "../later/sendspin-for-linux-999.0.0-$TAG-$(dpkg --print-architecture).deb" ;;
             RPM) mv sendspin-for-linux-*.rpm "../later/sendspin-for-linux-999.0.0-$TAG-$(uname -m).rpm" ;;
           esac
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: later-${{ matrix.tag }}
           path: later/*
@@ -188,7 +188,7 @@ jobs:
           mkdir ../dist
           mv "sendspin-for-linux-$VERSION"-*.pkg.tar.zst \
             "../dist/sendspin-for-linux-$VERSION-archlinux-$(uname -m).pkg.tar.zst"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: package-archlinux
           path: dist/*
@@ -276,7 +276,7 @@ jobs:
       - name: Build the repositories
         run: ci/repo-fixture.sh packages repositories http://127.0.0.1:8000
       # Not package-*: the release takes those
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: test-repositories
           path: repositories
@@ -418,7 +418,7 @@ jobs:
         run: |
           flatpak build-bundle --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo \
             repo "dist/sendspin-for-linux-$VERSION-$(uname -m).flatpak" com.sendspin_audio.Sendspin
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: flatpak
           path: dist/*
