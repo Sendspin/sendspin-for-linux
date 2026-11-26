@@ -138,6 +138,17 @@ int run_update(QCoreApplication& qt, const char* version) {
 
 }  // namespace
 
+void quit_on_signal() {
+    if (::socketpair(AF_UNIX, SOCK_STREAM, 0, signal_fds) != 0) {
+        return;
+    }
+    QCoreApplication* qt = QCoreApplication::instance();
+    auto* notifier = new QSocketNotifier(signal_fds[1], QSocketNotifier::Read, qt);
+    QObject::connect(notifier, &QSocketNotifier::activated, qt, &QCoreApplication::quit);
+    std::signal(SIGINT, on_signal);
+    std::signal(SIGTERM, on_signal);
+}
+
 std::optional<int> run_headless(int argc, char** argv, const char* version) {
     const bool asked = std::any_of(argv + 1, argv + argc, [](const char* arg) {
         const std::string_view text(arg);
@@ -233,13 +244,7 @@ std::optional<int> run_headless(int argc, char** argv, const char* version) {
     });
     apply();
 
-    // Ctrl-C leaves through the destructors: the node goes and the speakers get their goodbye
-    if (::socketpair(AF_UNIX, SOCK_STREAM, 0, signal_fds) == 0) {
-        auto* notifier = new QSocketNotifier(signal_fds[1], QSocketNotifier::Read, &qt);
-        QObject::connect(notifier, &QSocketNotifier::activated, &qt, &QCoreApplication::quit);
-        std::signal(SIGINT, on_signal);
-        std::signal(SIGTERM, on_signal);
-    }
+    quit_on_signal();
     const int code = QCoreApplication::exec();
     // The capture thread writes into the engine, which goes first
     output.stop();

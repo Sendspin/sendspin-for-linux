@@ -147,7 +147,8 @@ App::App(const std::filesystem::path& data_dir, QObject* parent)
         const NowPlaying& now_playing = this->client_.now_playing();
         this->announcer_.update(now_playing.playing(), now_playing.track(), now_playing.artwork());
     };
-    connect(&this->client_.now_playing(), &NowPlaying::changed, this, announce);
+    // The announcer's: the client's goodbye changes what plays after the announcer is gone
+    connect(&this->client_.now_playing(), &NowPlaying::changed, &this->announcer_, announce);
     connect(&this->announcer_, &TrackAnnouncer::announced, &this->track_notifier_,
             &Notifier::show_track);
     connect(&this->track_notifier_, &Notifier::clicked, this, &App::showPicker);

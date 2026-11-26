@@ -35,6 +35,7 @@ int main(int argc, char** argv) {
     }
 
     QApplication qt(argc, argv);
+    quit_on_signal();
     set_log_rules(verbose);
     QApplication::setApplicationName(QStringLiteral("sendspin"));
     QApplication::setApplicationDisplayName(QStringLiteral("Sendspin"));
