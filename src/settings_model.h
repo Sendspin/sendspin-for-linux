@@ -69,7 +69,7 @@ public:
 
     /// What there is to do about a newer release
     enum class UpdateAction {
-        None,     ///< nothing newer, or it is on its way in
+        None,     ///< nothing newer, not known yet, on its way in, or the system's to update
         Install,  ///< installUpdate() takes it from here
         Open,     ///< nothing here installs it: updatePage has it
     };

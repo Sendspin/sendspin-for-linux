@@ -1,13 +1,11 @@
 #!/bin/sh
 # A clean machine with the package installed from a downloaded file takes itself to a later
-# version: `sendspin-for-linux --update` against a
-# stand-in for the release on GitHub, signed with a key made here, which takes the place of the
-# one the package came with. And leaves alone a download
-# the key did not sign, one that is changed after the app verified it, and a signed package
-# that is older than the installed one. install-update, called directly as anyone may through
-# pkexec, refuses another key's signature, changed sums and another distro's package by itself.
-# As root; needs
-# python3 to serve the release, gpg to sign it, and gpgv.
+# version: `sendspin-for-linux --update` against a stand-in for the release on GitHub, signed
+# with a key made here, which takes the place of the one the package came with. And leaves
+# alone a download the key did not sign, one that is changed after the app verified it, and a
+# signed package that is older than the installed one. install-update, called directly as
+# anyone may through pkexec, refuses another key's signature, changed sums and another distro's
+# package by itself. As root; needs python3 to serve the release, gpg to sign it, and gpgv.
 #
 #     ci/update-test.sh <package> <later package> <version> <later version>
 #

@@ -46,7 +46,7 @@ struct Rig {
         this->engine = std::make_unique<CastEngine>(dir.toStdString(), this->output);
     }
 
-    /// The row of the speaker with this id; nullptr while it isn't listed
+    /// nullptr while it isn't listed
     const SpeakerRow* row(const QString& id) const {
         for (const SpeakerRow& row : this->engine->speakers()->rows()) {
             if (row.id == id) {

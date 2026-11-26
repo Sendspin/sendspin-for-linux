@@ -29,17 +29,16 @@
 bool is_own_client(const sendspin::server::DiscoveredClient& found, uint16_t own_port,
                    const QList<QHostAddress>& own_addresses);
 
-/// @brief Casts the Sendspin output to the speakers the user added, through an embedded
-/// SendspinServer. Discovery, pairing, trust, reconnects and the speaker buffer are the
-/// library's; the engine decides who is in the group and feeds it.
+/// @brief Casts the Sendspin output to the added speakers through an embedded SendspinServer.
+/// Discovery, pairing, trust, reconnects and the speaker buffer are the library's; the engine
+/// decides who is in the group and feeds it.
 ///
-/// The server's own group is a lobby that never gets an input. The engine casts into a group of
-/// its own, which holds exactly the added speakers, so nothing plays on a speaker the user
-/// didn't add (docs/SPEC.md, "What ticking does").
+/// The server's own group is a lobby with no input; the cast group holds exactly the added
+/// speakers, so nothing plays on one the user didn't add (docs/SPEC.md, "What ticking does").
 ///
-/// This PC's own output is in the group or not, like a speaker, though it is no Sendspin player:
-/// beside a speaker the engine plays the group's audio on it, in time with the group; alone it
-/// gets the captured audio directly (docs/SPEC.md, "This PC's output").
+/// This PC's own output is in the group or not, like a speaker, without being a Sendspin player:
+/// beside a speaker it plays in the group's time, alone it gets the capture directly
+/// (docs/SPEC.md, "This PC's output").
 ///
 /// Main thread only. The library's callbacks arrive on its dispatch thread and are queued here.
 class CastEngine : public QObject {
@@ -70,7 +69,7 @@ public:
         this->own_client_id_ = std::move(client_id);
     }
 
-    /// @brief Starts the server. A taken port is replaced by one the system picks.
+    /// @brief A taken port is replaced by one the system picks
     /// @param discovery advertise the server and browse for speakers; tests go without
     bool start(uint16_t port = sendspin::server::config_defaults::LISTEN_PORT,
                bool discovery = true);
@@ -136,8 +135,7 @@ public slots:
     void setGroupVolume(int volume);
     void setGroupMuted(bool muted);
 
-    /// @brief Puts this PC's own output in the group or takes it out. The picker keeps the
-    /// choice: in the group until told otherwise.
+    /// @brief The picker keeps the choice: in the group until told otherwise
     void setLocalInGroup(bool in_group);
 
     /// @brief Starts pairing by the best method the speaker offers: the dynamic code, the static

@@ -73,7 +73,6 @@ public:
     QMap<QString, QByteArray> files;
     /// Files the release says are at some other address
     QMap<QString, QUrl> elsewhere;
-    /// The release's tag
     QString tag{QStringLiteral("v9.0.0")};
     /// How often /latest was asked for
     int checks{0};

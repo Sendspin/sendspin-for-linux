@@ -7,7 +7,7 @@
 #include <QString>
 
 /// @brief One instance per session: a lock file and a local socket in the session's runtime
-/// directory. A lock rather than a D-Bus name, which would need the app ID that is still open.
+/// directory. Not a D-Bus name: the headless mode claims it too, and needs no session bus.
 class SingleInstance : public QObject {
     Q_OBJECT
 

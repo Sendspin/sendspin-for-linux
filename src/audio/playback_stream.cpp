@@ -255,11 +255,10 @@ bool PlaybackStream::open_(const Format& format) {
     this->gate_until_ns_.store(clock_ns(CLOCK_MONOTONIC) + GATE_NS);
     this->gate_warned_ = false;
 
-    // An explicit target, which the session manager may not replace: left to follow the default
-    // it would be moved into the Sendspin output the moment that becomes the default, and what
-    // a server plays here would come back in as this PC's input. node.dont-move keeps a mixer's
-    // "move this stream" from doing the same. Nor does it restore a volume
-    // or a target of its own: both are set from here.
+    // An explicit target the session manager may not replace: left to follow the default it would
+    // be moved into the Sendspin output once that is the default, and what a server plays here
+    // would come back in as this PC's input. node.dont-move keeps a mixer's "move this stream" from
+    // doing the same. No restored volume or target: both are set from here.
     const std::string latency =
         std::to_string(frames / RING_QUANTA) + "/" + std::to_string(format.rate);
     pw_properties* props = pw_properties_new(

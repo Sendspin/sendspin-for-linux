@@ -190,7 +190,7 @@ bool have(const char* tool) {
 
 }  // namespace
 
-// Everything past silenceIsDetected() needs a PipeWire daemon and skips without one. Under
+// Every test that starts an output needs a PipeWire daemon and skips without one. Under
 // ci/start-pipewire.sh there is always one, so there a skip would be a silent pass and fails.
 #define START_OR_SKIP(output)                                                      \
     do {                                                                           \

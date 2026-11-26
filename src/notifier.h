@@ -29,7 +29,6 @@ public:
     /// the desktop's list of notifications
     /// @param cover shown beside the text; null for none
     void show_track(const QString& summary, const QString& body, const QImage& cover);
-    /// @brief Takes down the one showing
     void close();
 
 signals:

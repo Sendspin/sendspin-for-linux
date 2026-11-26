@@ -23,7 +23,7 @@ constexpr uint32_t CHANNELS = PlayAlong::CHANNELS;
 constexpr uint32_t CYCLE = 480;
 constexpr int64_t MS = 1'000'000;
 constexpr int64_t SECOND = 1000 * MS;
-/// 48 frames
+/// One frame
 constexpr int64_t FRAME_NS = SECOND / PlayAlong::RATE;
 
 const QByteArray OWN = "sendspin-test-play-along-own";
