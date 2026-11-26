@@ -5,8 +5,8 @@
 #     tests/interop/run.sh [pytest options, such as -k cast]
 #
 # Needs uv, curl, what ci/start-pipewire.sh needs, and the player's libraries (Fedora: portaudio
-# and avahi-compat-libdns_sd). SENDSPIN_APP names the app when it isn't build/src/sendspin-for-linux,
-# SENDSPIN_CLI a player to use instead of the pinned release.
+# and avahi-compat-libdns_sd). SENDSPIN_APP names the app when it isn't
+# build/src/sendspin-for-linux, SENDSPIN_CLI a player to use instead of the pinned release.
 set -eu
 
 CLI_VERSION=1.0.1

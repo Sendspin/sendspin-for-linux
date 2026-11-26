@@ -14,7 +14,7 @@ size_t PcmRing::write(const uint8_t* data, size_t len) {
     const size_t write_pos = this->write_pos_.load(std::memory_order_relaxed);
     const size_t read_pos = this->read_pos_.load(std::memory_order_acquire);
 
-    // One byte is always left spare, which is what tells a full ring from an empty one.
+    // One byte stays spare: it tells a full ring from an empty one.
     const size_t used = (write_pos - read_pos + this->capacity_) % this->capacity_;
     const size_t to_write = std::min(len, this->capacity_ - 1 - used);
     if (to_write == 0) {

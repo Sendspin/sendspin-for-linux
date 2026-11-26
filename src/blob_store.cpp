@@ -95,6 +95,8 @@ bool BlobStore::save(std::string_view key, std::span<const uint8_t> data) {
         qCWarning(lc_store, "cannot create %s: %s", this->dir_.c_str(), std::strerror(errno));
         return false;
     }
+    // One that was there already keeps its mode through mkdir()
+    (void)::chmod(this->dir_.c_str(), 0700);
 
     // A dot-prefixed name can never be a key, so the temporary cannot shadow a blob
     const std::filesystem::path path = this->dir_ / key;

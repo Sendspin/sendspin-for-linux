@@ -16,8 +16,7 @@ struct CapturedBlock {
     const float* samples;  ///< interleaved, SendspinOutput::CHANNELS per frame
     uint32_t frames;
     uint32_t rate;
-    /// Graph time of the first frame on the Sendspin libraries' clock: CLOCK_MONOTONIC_RAW
-    /// nanoseconds.
+    /// Graph time of the first frame, CLOCK_MONOTONIC_RAW ns: the Sendspin libraries' clock.
     int64_t capture_time_ns;
     bool silent;  ///< every sample is zero
 };

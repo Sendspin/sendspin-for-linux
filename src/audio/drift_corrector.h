@@ -2,15 +2,12 @@
 
 #include <cstdint>
 
-/// @brief Keeps an output on a timeline its own clock drifts from: what to do with the frames
-/// queued for it so that each is heard when it is due. After sendspin-mac's `PlayoutBuffer`,
-/// which follows the player role's suggested correction (spec player/v1.md, "Sample deletion
-/// and insertion").
+/// @brief Keeps an output on a timeline its own clock drifts from. After sendspin-mac's
+/// `PlayoutBuffer` (spec player/v1.md, "Sample deletion and insertion").
 ///
-/// In one shot at the start, after an underrun and once the error passes RESYNC_NS: drop what
-/// is late, or wait in silence. Otherwise single frames are dropped or repeated while the error
-/// is outside DEAD_BAND_NS, never more than one frame in CORRECTION_SPACING. The error is
-/// smoothed first: the output's timestamps jitter by some tens of microseconds.
+/// One shot at the start, after an underrun and past RESYNC_NS: drop what is late, or wait in
+/// silence. Otherwise one frame dropped or repeated per CORRECTION_SPACING while the error is
+/// outside DEAD_BAND_NS. The error is smoothed first: timestamps jitter by tens of microseconds.
 ///
 /// Plain logic, no audio: the caller carries out each Step. Not thread-safe.
 class DriftCorrector {

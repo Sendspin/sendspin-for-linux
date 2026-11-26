@@ -53,7 +53,6 @@ public:
         this->client_->write(bytes);
         this->client_->flush();
     }
-    /// @brief A frame's bytes
     static QByteArray frame(qint32 opcode, const QByteArray& payload) {
         QByteArray bytes(8, '\0');
         qToLittleEndian<qint32>(opcode, bytes.data());

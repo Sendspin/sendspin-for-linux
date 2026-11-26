@@ -8,8 +8,8 @@
 #         scripts/package-repos.sh <packages dir> <site dir> <base URL>
 #
 # The key is an armored private key, or its signing subkey alone; the passphrase is empty for a
-# key without one. Prints the key's fingerprint, never the key. Needs gpg,
-# dpkg-deb, apt-ftparchive, rpmsign and createrepo_c.
+# key without one. Prints the key's fingerprint, never the key. Needs gpg, dpkg-deb,
+# apt-ftparchive, rpmsign and createrepo_c.
 set -eu
 
 [ $# -eq 3 ] || { echo "usage: $0 <packages dir> <site dir> <base URL>" >&2; exit 2; }

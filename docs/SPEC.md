@@ -842,6 +842,26 @@ As of 2026-09-10:
 - **Floor: Qt 6.8 and PipeWire 1.4.2**, both set by Debian 13.
 - Ubuntu 24.04 and Debian 12 are left out on purpose: both ship Qt 6.4.
 
+### What these choices rule out
+
+Each line is a choice made above and who it leaves without a package, or without a feature.
+Keep it in step with them.
+
+| Choice | Leaves out | What is left for them |
+|---|---|---|
+| Qt 6.8 floor | Everything built on Ubuntu 24.04 or Debian 12: Linux Mint 22, Pop!_OS 24.04, elementary OS 8 | The Flatpak, which brings its own Qt |
+| PipeWire required, 1.4.2 floor | A session that still runs the PulseAudio daemon, or bare ALSA or JACK | Nothing: the app starts and says PipeWire can't be reached |
+| Avahi for mDNS | A system with no avahi-daemon, or one where it is installed and not enabled (Arch), or where systemd-resolved answers mDNS instead | The picker's notice; speakers by URL (`speaker_urls`); a server has to be given this PC's address |
+| Tray icon as a StatusNotifierItem | Stock GNOME (Fedora Workstation, Debian), which has no tray | The launcher opens the picker, and its gear Settings. Ubuntu's GNOME has the AppIndicator extension |
+| Packages per release, x86_64 only | openSUSE, the RHEL family, anything on aarch64 | The Flatpak (Flathub builds aarch64), or a build from source |
+| The updater keys on `ID` in `/etc/os-release` being `debian`, `ubuntu` or `fedora` | Derivatives with their own `ID` (LMDE, Linux Mint, Pop!_OS) even where the package installs, and Arch | The newer release is announced with a link; the apt and dnf repositories still update a derivative that was pointed at a suite by hand |
+| Little-endian only (`source_feed.cpp`) | Big-endian ports (s390x) | Nothing |
+| Clipboard and window placement as the compositor allows | GNOME on Wayland takes no copy from the background; no Wayland compositor lets the picker open at the tray icon | "Music Assistant (we are the client)"; the picker is centred |
+
+What this spec records of a running session is from GNOME (Mutter) and Plasma (KWin). Cinnamon,
+Xfce and MATE have a StatusNotifierItem host and nothing above singles them out; no check on
+them is recorded here.
+
 ## Updates
 
 The app asks GitHub for the project's latest published release, at most once a day, and shows a

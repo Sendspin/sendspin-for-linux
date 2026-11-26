@@ -390,7 +390,7 @@ void CastEngine::set_local_target(const std::optional<QByteArray>& target) {
 }
 
 void CastEngine::refresh_local_() {
-    // Not refresh_(): the speakers' rows have not changed, and are not published again
+    // Not refresh_(): the speakers' rows have not changed
     if (this->server_) {
         this->update_local_(raw_now_ns());
     }

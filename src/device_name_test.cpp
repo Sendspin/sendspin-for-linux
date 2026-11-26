@@ -21,6 +21,10 @@ private slots:
             << QByteArray("PRETTY_HOSTNAME='Living Room'\n") << "Living Room";
         QTest::newRow("escaped") << QByteArray("PRETTY_HOSTNAME=\"The \\\"Big\\\" One\"\n")
                                  << "The \"Big\" One";
+        QTest::newRow("escaped backslash")
+            << QByteArray("PRETTY_HOSTNAME=\"C:\\\\$HOME\"\n") << "C:\\$HOME";
+        QTest::newRow("no escapes in single quotes")
+            << QByteArray("PRETTY_HOSTNAME='a\\$b'\n") << "a\\$b";
         QTest::newRow("utf-8") << QByteArray("PRETTY_HOSTNAME=\"Büro\"\n") << "Büro";
         QTest::newRow("empty") << QByteArray("PRETTY_HOSTNAME=\"\"\n") << hostname;
         QTest::newRow("absent") << QByteArray("CHASSIS=desktop\n") << hostname;

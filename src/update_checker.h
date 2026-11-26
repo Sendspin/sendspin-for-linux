@@ -32,9 +32,9 @@ constexpr qint64 MAX_TEXT_BYTES = 1 << 20;
 
 }  // namespace update
 
-/// @brief Asks GitHub for the latest published release, at most once a day, and keeps the
-/// answer between runs. The app's only request that nobody clicked for; the setting
-/// `updates/check` turns it off.
+/// @brief Asks GitHub for the latest published release once a day, hourly until one check is
+/// answered, and keeps the answer between runs. The app's only request that nobody clicked for;
+/// the setting `updates/check` turns it off.
 class UpdateChecker : public QObject {
     Q_OBJECT
 

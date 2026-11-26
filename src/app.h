@@ -27,9 +27,8 @@
 #include <vector>
 
 /// @brief The running app: the tray icon, the picker, the Sendspin output, the cast engine that
-/// plays it on speakers, the Sendspin client that offers it to a server, and MPRIS and
-/// Discord for what a server plays here. And the updater: what checks for a newer release, and what
-/// installs it.
+/// plays it on speakers, the Sendspin client that offers it to a server, MPRIS and Discord for what
+/// a server plays here, and the updater.
 class App : public QObject {
     Q_OBJECT
 

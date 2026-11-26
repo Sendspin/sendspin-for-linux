@@ -162,9 +162,8 @@ App::App(const std::filesystem::path& data_dir, QObject* parent)
     connect(&this->installer_, &UpdateInstaller::installed, this, &App::restart_);
     this->updates_.start();
 
-    // Both get every block. Which of the two the sound goes to is the picker's choice: the cast
-    // takes it while a speaker is added, and the picker silences the source unless the server is
-    // chosen.
+    // Both get every block. The picker chooses where the sound goes: the cast takes it while a
+    // speaker is added, and the source is silenced unless the server is chosen.
     this->output_.set_consumer([this](const CapturedBlock& block) {
         this->client_.source().write(block);
         this->cast_.feed().take(block);

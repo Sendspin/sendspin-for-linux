@@ -165,7 +165,9 @@ void UpdateChecker::on_reply_() {
         // Asked again every hour, for as long as the PC is offline
         qCDebug(lc_update_check, "no answer about the latest release: %s",
                 qUtf8Printable(reply->errorString()));
-        this->timer_.start(AFTER_A_FAILURE);
+        if (this->enabled()) {
+            this->timer_.start(AFTER_A_FAILURE);
+        }
         emit this->checked(false);
         return;
     }

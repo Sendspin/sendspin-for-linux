@@ -41,7 +41,6 @@ struct Announcement {
     bool operator==(const Announcement&) const = default;
 };
 
-/// @brief The interfaces of this machine
 QList<NetInterface> system_interfaces();
 
 /// @brief Where a server on the local network can reach this PC: the running LAN interfaces,
