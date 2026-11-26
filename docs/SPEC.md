@@ -427,8 +427,9 @@ with this PC (id, name, date; no key material), the newest 16.
     read back as taken.
   - When the code goes, it is taken off the clipboard, unless something else was copied since.
     On GNOME that needs the focus too: without it the app can neither read nor clear the
-    clipboard, and the code stays. A clipboard manager's history may keep it as well; it is no
-    use once pairing ended.
+    clipboard, and the code stays. The copy is marked a secret (`x-kde-passwordManagerHint`),
+    as the pairing token's from Settings is; a clipboard manager that does not know the mark
+    may keep it in its history, where the code is no use once pairing ended.
   - Never the pairing token, and never a QR code's.
 - Result: "Paired with [server]" on `on_paired()`, "Pairing ended" on `on_pairing_aborted()`.
 - The pairing token (`client_pairing_token()`) is only behind Copy pairing token in Settings.

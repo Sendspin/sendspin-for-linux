@@ -4,8 +4,6 @@
 #include "device_name.h"
 #include "pairing_clipboard.h"
 
-#include <QClipboard>
-#include <QGuiApplication>
 #include <QImage>
 #include <QLocale>
 #include <QSettings>
@@ -424,7 +422,7 @@ bool SettingsModel::copyPairingToken() {
     if (token.isEmpty()) {
         return false;
     }
-    QGuiApplication::clipboard()->setText(token);
+    pairing_clipboard::copy(token);
     return true;
 }
 
