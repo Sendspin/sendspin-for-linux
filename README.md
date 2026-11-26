@@ -21,6 +21,11 @@ can play to this PC too, and take this PC's sound as an input for anything it co
 
 ## Install
 
+There are packages for Debian 13, Ubuntu 26.04, Fedora 44 and 45, and Arch Linux, all for x86_64.
+On anything else, such as Linux Mint, Pop!_OS, openSUSE or an image-based Fedora like Silverblue,
+use the [Flatpak](#flatpak); on aarch64 that has to wait for Flathub. Every one of them needs
+PipeWire.
+
 The packages come from a signed repository, so the system's updates bring new versions. Three
 steps: get the repository's key, check it, then add the repository and install.
 
@@ -233,8 +238,9 @@ off.
 - **Is the speaker a Sendspin speaker, and on the same network?** See
   [the list](https://www.sendspin-audio.com/#speakers). Guest networks and some mesh setups keep
   devices from finding each other.
-- **Does the picker say discovery is unavailable?** Speakers are found over mDNS, which needs
-  Avahi running:
+- **Does the picker say discovery is unavailable?** Speakers are found over mDNS, and Music
+  Assistant finds this PC the same way. Both need Avahi running, and Arch installs it without
+  switching it on:
 
   ```sh
   sudo systemctl enable --now avahi-daemon
@@ -266,8 +272,8 @@ off.
 
 ### Music Assistant doesn't see this PC, or pairing fails
 
-- Both need to be on the same network, with the firewall as above: Music Assistant connects to
-  this PC, on TCP 8928.
+- Both need to be on the same network, with Avahi running and the firewall as above: Music
+  Assistant connects to this PC, on TCP 8928.
 - The code is only valid while it shows. If it's gone, start pairing again in Music Assistant.
 - Music Assistant plays here but can't use the PC as an input: an input needs pairing, playing
   doesn't.
