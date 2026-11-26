@@ -39,7 +39,8 @@ bool is_announced(const NetInterface::Address& address) {
     if (ip.isNull() || ip.isLoopback() || ip.isLinkLocal() || ip.isMulticast()) {
         return false;
     }
-    return ip.protocol() == QAbstractSocket::IPv4Protocol || !address.short_lived;
+    // The client library listens on IPv4 alone: https://github.com/Sendspin/sendspin-cpp/issues/285
+    return ip.protocol() == QAbstractSocket::IPv4Protocol;
 }
 
 /// Cuts text to what fits a DNS label

@@ -58,7 +58,7 @@ private slots:
         QVERIFY(announcements({loopback, down, tunnel}).isEmpty());
     }
 
-    void skipsTemporaryAndLinkLocalAddresses() {
+    void skipsIPv6AndLinkLocalAddresses() {
         const auto result =
             announcements({lan("enp3s0", 2,
                                {V4,
@@ -68,12 +68,12 @@ private slots:
                                 {QHostAddress("fe80::2%enp3s0"), false},
                                 {QHostAddress("169.254.10.1"), false}})});
         QCOMPARE(result.size(), 1);
-        QCOMPARE(result[0].addresses,
-                 (QList<QHostAddress>{QHostAddress("192.168.1.20"), QHostAddress("2001:db8::1")}));
+        QCOMPARE(result[0].addresses, (QList<QHostAddress>{QHostAddress("192.168.1.20")}));
     }
 
     void dropsAnInterfaceWithNoAddressLeft() {
-        QVERIFY(announcements({lan("enp3s0", 2, {{QHostAddress("fe80::1"), true}})}).isEmpty());
+        QVERIFY(
+            announcements({lan("enp3s0", 2, {{QHostAddress("2001:db8::1"), false}})}).isEmpty());
     }
 };
 

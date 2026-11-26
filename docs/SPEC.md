@@ -351,7 +351,8 @@ Beyond the rows above (no driver or Local Network notice, no AirPlay, no QR scan
   The app never calls `connect_to()`.
 - **The client library has no mDNS.** The app advertises `_sendspin._tcp.local.` itself through
   Avahi: the port, TXT `path=/sendspin`, `name=<device name>`. It skips docker, VM and VPN
-  interfaces and temporary IPv6 addresses.
+  interfaces, and announces IPv4 addresses only: the library's listener is IPv4-only
+  (https://github.com/Sendspin/sendspin-cpp/issues/285).
 - Identity: a Curve25519 key pair the library generates on first start; `client_id` is its
   public key. Losing it makes the PC a new device to every server.
 - Unpaired access: the app stores the setting (`client/unpaired_access`, on unless set false) and
