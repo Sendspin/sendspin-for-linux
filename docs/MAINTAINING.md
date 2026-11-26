@@ -29,6 +29,9 @@ each package update itself to a later build in a clean container (`ci/update-tes
 [flatpak/FLATHUB.md](../flatpak/FLATHUB.md) has the Flathub side: submitting the app, and what
 each release needs there.
 
+The workflows pin their actions by commit and Dependabot moves the pins; the build containers
+are pulled by tag on purpose, so each release is built on its distribution's security updates.
+
 ## Package repositories
 
 Publishing the release runs the Package repositories workflow: `scripts/package-repos.sh` builds
