@@ -18,12 +18,18 @@ QString device_name(const QString& machine_info) {
                                 (value.front() == '"' || value.front() == '\'') &&
                                 value.back() == value.front();
             if (quoted) {
+                const bool escapes = value.front() == '"';
                 value = value.sliced(1, value.size() - 2);
-                // Inside double quotes a backslash escapes the next character
-                value.replace("\\\"", "\"")
-                    .replace("\\$", "$")
-                    .replace("\\`", "`")
-                    .replace("\\\\", "\\");
+                // One pass, so an escaped backslash is not read again as an escape
+                if (escapes) {
+                    QByteArray plain;
+                    for (qsizetype i = 0; i < value.size(); ++i) {
+                        const bool escape = value[i] == '\\' && i + 1 < value.size() &&
+                                            QByteArrayView("\"$`\\").contains(value[i + 1]);
+                        plain += value[escape ? ++i : i];
+                    }
+                    value = plain;
+                }
             }
             if (!value.isEmpty()) {
                 return QString::fromUtf8(value);
