@@ -441,6 +441,8 @@ with this PC (id, name, date; no key material), the newest 16.
 
 - A PipeWire node with `media.class=Audio/Sink`, created at startup, gone when the app exits or
   crashes.
+- Without PipeWire at startup, or after PipeWire restarts, the app tries every 2 s until the
+  node is back.
 - `node.description=Sendspin`, `node.network=true`, `node.virtual` unset — Plasma's applet hides
   virtual sinks by default.
 - Low `priority.session`.
