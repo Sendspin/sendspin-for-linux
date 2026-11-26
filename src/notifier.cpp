@@ -97,6 +97,18 @@ Notifier::Notifier(const QString& id, const QString& service, bool portal, QObje
     }
     QDBusConnection::sessionBus().connect(service, PATH, INTERFACE, QStringLiteral("ActionInvoked"),
                                           this, SLOT(onActionInvoked(quint32, QString)));
+    auto* watcher = new QDBusPendingCallWatcher(
+        QDBusConnection::sessionBus().asyncCall(QDBusMessage::createMethodCall(
+            service, PATH, INTERFACE, QStringLiteral("GetCapabilities"))),
+        this);
+    connect(watcher, &QDBusPendingCallWatcher::finished, this,
+            [this](QDBusPendingCallWatcher* finished) {
+                finished->deleteLater();
+                const QDBusPendingReply<QStringList> reply = *finished;
+                if (!reply.isError()) {
+                    this->markup_ = reply.value().contains(QLatin1StringView("body-markup"));
+                }
+            });
 }
 
 void Notifier::onActionInvoked(quint32 id, const QString& key) {
@@ -209,7 +221,8 @@ void Notifier::send_(const Notice& notice) {
     // app_name, replaces_id, app_icon, summary, body, actions, hints, expire_timeout (0: never,
     // -1: the server's default)
     message << QGuiApplication::applicationDisplayName() << this->id_ << QString() << notice.summary
-            << notice.body << actions << hints << (notice.persistent ? 0 : -1);
+            << (this->markup_ ? notice.body.toHtmlEscaped() : notice.body) << actions << hints
+            << (notice.persistent ? 0 : -1);
 
     const quint32 generation = ++this->generation_;
     auto* watcher = new QDBusPendingCallWatcher(bus.asyncCall(message), this);

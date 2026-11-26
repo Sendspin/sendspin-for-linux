@@ -630,6 +630,9 @@ Two controls, independent of each other:
   priority `normal`, for the same reason; only keys version 1 of the portal knows, as that
   version turns down a notification with any other. The portal has no timeout: the app removes
   the notification after ten seconds, which is also what keeps it out of the list.
+- A body is a server's text, here and in the pairing notification: it is sent escaped to a
+  desktop that lists the `body-markup` capability, and until the desktop has answered. The
+  portal's body is plain text.
 
 ### Discord
 

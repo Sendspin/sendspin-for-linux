@@ -68,4 +68,7 @@ private:
     quint32 id_{0};
     /// Counts show() and close() calls, so a late reply to an old show() is recognised
     quint32 generation_{0};
+    /// The server lists `body-markup`, so a body's `<` and `&` are escaped. True until it
+    /// answers: text shown as markup is the worse mistake
+    bool markup_{true};
 };
