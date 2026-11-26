@@ -3,6 +3,7 @@
 #include <QByteArray>
 #include <QObject>
 #include <QString>
+#include <QTimer>
 
 #include <pipewire/pipewire.h>
 
@@ -46,7 +47,8 @@ public:
     /// @brief Sets where captured audio goes. Only while stopped.
     void set_consumer(Consumer consumer);
 
-    /// @brief Creates the node and waits for the graph to take it.
+    /// @brief Creates the node and waits for the graph to take it. A failure, and a node lost
+    /// later, is retried every 2 s until stop().
     /// @param error Set to the reason on failure, if given.
     bool start(QString* error = nullptr);
     void stop();
@@ -91,7 +93,7 @@ signals:
     void rateChanged(quint32 rate);
     void volumeChanged(float volume);
     void mutedChanged(bool muted);
-    /// The graph dropped the node (daemon gone, or an error). stop() and start() to try again.
+    /// The graph dropped the node (daemon gone, or an error).
     void lost(const QString& reason);
 
 private:
@@ -109,6 +111,7 @@ private:
 
     pw_thread_loop* loop_{nullptr};
     pw_stream* stream_{nullptr};
+    QTimer retry_;
     std::atomic<int> state_{PW_STREAM_STATE_UNCONNECTED};
     std::atomic<bool> connected_{false};  ///< taken by the graph, so losing it is reported
     std::atomic<uint32_t> rate_{0};

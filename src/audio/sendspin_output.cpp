@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <cerrno>
+#include <chrono>
 #include <cmath>
 #include <utility>
 
@@ -22,6 +23,7 @@ namespace {
 constexpr const char* NODE_DESCRIPTION = "Sendspin";
 
 constexpr int START_TIMEOUT_MS = 3000;
+constexpr auto RETRY_INTERVAL = std::chrono::seconds(2);
 constexpr int64_t NS_PER_S = 1000000000;
 constexpr size_t FRAME_BYTES = SendspinOutput::CHANNELS * sizeof(float);
 
@@ -52,6 +54,9 @@ bool is_silent(const float* samples, size_t count) {
 SendspinOutput::SendspinOutput(QObject* parent, QByteArray node_name)
     : QObject(parent), node_name_(std::move(node_name)) {
     pw_init(nullptr, nullptr);
+    this->retry_.setInterval(RETRY_INTERVAL);
+    connect(&this->retry_, &QTimer::timeout, this, [this] { this->start(); });
+    connect(this, &SendspinOutput::lost, &this->retry_, qOverload<>(&QTimer::start));
 }
 
 SendspinOutput::~SendspinOutput() {
@@ -71,6 +76,7 @@ bool SendspinOutput::start(QString* error) {
             *error = reason;
         }
         this->stop();
+        this->retry_.start();
         return false;
     };
 
@@ -162,6 +168,7 @@ bool SendspinOutput::start(QString* error) {
 }
 
 void SendspinOutput::stop() {
+    this->retry_.stop();
     this->connected_.store(false);
     if (this->stream_ != nullptr) {
         const LoopLock lock(this->loop_);

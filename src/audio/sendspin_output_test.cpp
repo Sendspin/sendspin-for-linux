@@ -221,7 +221,7 @@ private slots:
         QVERIFY(is_silent(loud, 0));
     }
 
-    void startFailsWithoutADaemon() {
+    void startFailsWithoutADaemonAndIsRetried() {
         const QTemporaryDir empty;
         const QByteArray runtime_dir = qgetenv("XDG_RUNTIME_DIR");
         const QByteArray remote = qgetenv("PIPEWIRE_REMOTE");
@@ -239,6 +239,8 @@ private slots:
         QVERIFY(!started);
         QVERIFY(!error.isEmpty());
         QCOMPARE(output.node_id(), PW_ID_ANY);
+        // The daemon can be reached again, as after its restart
+        QTRY_VERIFY_WITH_TIMEOUT(output.node_id() != PW_ID_ANY, 5000);
     }
 
     void nodeAppearsAsANetworkSinkAndGoesWithStop() {
