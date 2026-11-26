@@ -164,6 +164,11 @@ the speakers.
   and select this PC as an input source there. Music Assistant now plays the PC's sound on any
   of its speakers and groups, and chooses the speakers and the volume.
 
+With **Allow playback without pairing** on, as it is by default, any Sendspin server on the
+network this PC is connected to can play to it: on a laptop that joins networks you don't trust,
+switch it off in Settings, under Music Assistant. Using this PC's sound as an input always needs
+pairing.
+
 The PC's sound goes to the speakers you ticked or to Music Assistant, one or the other: the two
 aren't in sync with each other.
 
