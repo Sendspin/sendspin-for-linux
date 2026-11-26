@@ -44,8 +44,8 @@ struct Announcement {
 QList<NetInterface> system_interfaces();
 
 /// @brief Where a server on the local network can reach this PC: the running LAN interfaces,
-/// without container, VM and VPN ones, each with its IPv4 addresses and its stable global IPv6
-/// ones. An interface left with no address is dropped.
+/// without container, VM and VPN ones, each with its IPv4 addresses. An interface left with
+/// no address is dropped.
 QList<Announcement> announcements(const QList<NetInterface>& interfaces);
 
 /// @brief Advertises the client as `_sendspin._tcp` through avahi-daemon, so servers find it and
