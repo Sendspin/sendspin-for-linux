@@ -2,6 +2,7 @@
 
 #include <QClipboard>
 #include <QGuiApplication>
+#include <QMimeData>
 #include <QTest>
 
 class PairingClipboardTest : public QObject {
@@ -18,6 +19,13 @@ private slots:
         QCOMPARE(QGuiApplication::clipboard()->text(), "123456");
         QVERIFY(pairing_clipboard::holds("123456"));
         QVERIFY(!pairing_clipboard::holds("654321"));
+    }
+
+    void copyIsMarkedASecret() {
+        pairing_clipboard::copy("123456");
+        const QMimeData* data = QGuiApplication::clipboard()->mimeData();
+        QCOMPARE(data->data("x-kde-passwordManagerHint"), QByteArray("secret"));
+        QCOMPARE(data->text(), "123456");
     }
 
     void clearTakesTheCodeOff() {
